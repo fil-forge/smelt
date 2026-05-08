@@ -1,13 +1,13 @@
-module github.com/storacha/smelt
+module github.com/fil-forge/smelt
 
 go 1.25.5
 
 require (
 	github.com/docker/docker v28.5.2+incompatible
+	github.com/fil-forge/go-ucanto v0.0.0-20260507172450-5cb5d073f8ab
 	github.com/google/uuid v1.6.0
 	github.com/lib/pq v0.0.0-20150723085316-0dad96c0b94f
 	github.com/spf13/cobra v1.10.2
-	github.com/storacha/go-ucanto v0.7.2
 	github.com/testcontainers/testcontainers-go v0.42.0
 	github.com/testcontainers/testcontainers-go/modules/compose v0.42.0
 	golang.org/x/sync v0.20.0

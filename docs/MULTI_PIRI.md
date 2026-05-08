@@ -4,7 +4,7 @@ Smelt supports running N piri storage nodes from a single declarative manifest. 
 
 ## Objective
 
-The Storacha network is designed around multiple storage providers. Testing with a single piri node leaves important behaviors unverified — how the upload service routes to multiple providers, how indexing works when content is spread across nodes, and how the system behaves under provider heterogeneity (different storage backends, different versions).
+The Forge network is designed around multiple storage providers. Testing with a single piri node leaves important behaviors unverified — how the upload service routes to multiple providers, how indexing works when content is spread across nodes, and how the system behaves under provider heterogeneity (different storage backends, different versions).
 
 Multi-piri support lets developers:
 

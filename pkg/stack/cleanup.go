@@ -60,7 +60,7 @@ func dumpProjectLogs(t *testing.T, projectName string) {
 //
 // Only removes resources whose names start with "smeltery-" (the compose
 // project prefix used by NewStack). Does not touch the shared
-// `storacha-network` since it's reused across test runs, and does not
+// `forge-network` since it's reused across test runs, and does not
 // interfere with a parallel test suite running against the same host —
 // unless that suite ALSO uses pkg/stack and happens to be live when
 // CleanupLeaked runs. For single-suite test machines this is safe.

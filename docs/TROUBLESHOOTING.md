@@ -74,7 +74,7 @@ download from docker.com.
 docker ps
 
 # Check network exists
-docker network ls | grep storacha
+docker network ls | grep forge
 
 # Check keys exist
 ls generated/keys/
@@ -563,13 +563,13 @@ make nuke && make up
 **Diagnostic**:
 ```bash
 # Check Docker network exists
-docker network ls | grep storacha
+docker network ls | grep forge
 
 # Should show:
-# storacha-network   bridge   local
+# forge-network   bridge   local
 
 # Check services are on the network
-docker network inspect storacha-network
+docker network inspect forge-network
 ```
 
 **Solution**:
@@ -746,7 +746,7 @@ make fresh
 
 ### Where to Get Help
 
-- **File an issue**: [github.com/storacha/smelt/issues](https://github.com/storacha/smelt/issues)
+- **File an issue**: [github.com/fil-forge/smelt/issues](https://github.com/fil-forge/smelt/issues)
 - **Include in your issue**:
   - Output of `make status`
   - Relevant service logs (`docker compose logs <service>`)
@@ -805,7 +805,7 @@ curl -s http://localhost:15030/healthcheck
 
 ```bash
 # Check Docker network
-docker network inspect storacha-network
+docker network inspect forge-network
 
 # Check disk space
 docker system df

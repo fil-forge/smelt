@@ -1,6 +1,6 @@
 # Getting Started with Smelt
 
-This guide walks you through setting up Smelt—a complete Storacha network running on your laptop—from first clone to first upload. It explains what happens at each step, because developers who understand their tools make fewer trips to Stack Overflow.
+This guide walks you through setting up Smelt—a complete Forge network running on your laptop—from first clone to first upload. It explains what happens at each step, because developers who understand their tools make fewer trips to Stack Overflow.
 
 ---
 
@@ -93,7 +93,7 @@ Windows (including WSL2) is not a supported development host.
 Clone the repository and enter the directory:
 
 ```bash
-git clone https://github.com/storacha/smelt.git
+git clone https://github.com/fil-forge/smelt.git
 cd smelt
 ```
 
@@ -204,10 +204,10 @@ This proof enables egress tracking functionality through the delegator.
 
 #### Step 6: Create Docker Network
 
-Finally, the script creates the `storacha-network` Docker network:
+Finally, the script creates the `forge-network` Docker network:
 
 ```bash
-docker network create storacha-network
+docker network create forge-network
 ```
 
 All services attach to this network, enabling them to reach each other by container name (e.g., `http://piri:3000` from within the upload service).
@@ -367,7 +367,7 @@ more files or directories as *sources* of a space, then `guppy upload
 
 ```bash
 # Create some test data (min 1 KiB; use randdir for something realistic)
-echo "Hello Storacha" > /tmp/hello.txt
+echo "Hello Forge" > /tmp/hello.txt
 
 # Register the file as a source of the space
 guppy upload source add "$SPACE" /tmp/hello.txt
@@ -435,7 +435,7 @@ Replace `bafybei...` with the actual CID from your upload.
 
 ```bash
 cat /tmp/retrieved.txt
-# Should output: Hello Storacha
+# Should output: Hello Forge
 ```
 
 ---

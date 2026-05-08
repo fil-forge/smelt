@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/storacha/smelt"
+	"github.com/fil-forge/smelt"
 )
 
 // extractFiles extracts all embedded files to a temp directory,

@@ -23,8 +23,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/storacha/smelt/pkg/generate"
-	"github.com/storacha/smelt/pkg/manifest"
+	"github.com/fil-forge/smelt/pkg/generate"
+	"github.com/fil-forge/smelt/pkg/manifest"
 )
 
 // Fixed subdirectories written inside every snapshot.

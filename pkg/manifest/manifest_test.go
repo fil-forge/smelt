@@ -53,7 +53,7 @@ piri:
         db: postgres
         blob: s3
     - name: piri-2
-      image: ghcr.io/storacha/piri:test
+      image: ghcr.io/fil-forge/piri:test
       storage:
         db: postgres
 `)
@@ -83,7 +83,7 @@ piri:
 	if nodes[2].Storage.DB != DBPostgres || nodes[2].Storage.Blob != BlobFS {
 		t.Errorf("piri-2: expected postgres/filesystem, got %s/%s", nodes[2].Storage.DB, nodes[2].Storage.Blob)
 	}
-	if nodes[2].Image != "ghcr.io/storacha/piri:test" {
+	if nodes[2].Image != "ghcr.io/fil-forge/piri:test" {
 		t.Errorf("piri-2: expected image override, got %q", nodes[2].Image)
 	}
 }

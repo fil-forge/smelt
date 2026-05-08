@@ -6,8 +6,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/storacha/smelt/systems/stress-tester/internal/config"
-	"github.com/storacha/smelt/systems/stress-tester/internal/store"
+	"github.com/fil-forge/smelt/systems/stress-tester/internal/config"
+	"github.com/fil-forge/smelt/systems/stress-tester/internal/store"
 )
 
 var statusCmd = &cobra.Command{

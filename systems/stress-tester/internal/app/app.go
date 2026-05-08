@@ -6,12 +6,12 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/storacha/smelt/systems/stress-tester/internal/config"
-	"github.com/storacha/smelt/systems/stress-tester/internal/generator"
-	"github.com/storacha/smelt/systems/stress-tester/internal/guppy"
-	"github.com/storacha/smelt/systems/stress-tester/internal/runner"
-	"github.com/storacha/smelt/systems/stress-tester/internal/store"
-	"github.com/storacha/smelt/systems/stress-tester/internal/telemetry"
+	"github.com/fil-forge/smelt/systems/stress-tester/internal/config"
+	"github.com/fil-forge/smelt/systems/stress-tester/internal/generator"
+	"github.com/fil-forge/smelt/systems/stress-tester/internal/guppy"
+	"github.com/fil-forge/smelt/systems/stress-tester/internal/runner"
+	"github.com/fil-forge/smelt/systems/stress-tester/internal/store"
+	"github.com/fil-forge/smelt/systems/stress-tester/internal/telemetry"
 )
 
 // RunUploadBurstApp creates and runs the upload burst stress test

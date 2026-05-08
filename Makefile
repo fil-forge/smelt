@@ -8,7 +8,7 @@ YES ?= 0
 
 # Default target - show help
 help:
-	@echo "Storacha Compose - Local Development Environment"
+	@echo "Forge Compose - Local Development Environment"
 	@echo ""
 	@echo "Quick Start:"
 	@echo "  make up        Start the network (initializes if needed)"

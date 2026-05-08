@@ -17,7 +17,7 @@ GENERATED_DIR="$PROJECT_DIR/generated"
 FORCE=${1:-""}
 
 echo "========================================"
-echo "Storacha Compose - Environment Setup"
+echo "Forge Compose - Environment Setup"
 echo "========================================"
 echo ""
 
@@ -76,11 +76,11 @@ fi
 # Step 4: Create Docker network
 echo ""
 echo "Step 4: Creating Docker network..."
-if docker network inspect storacha-network >/dev/null 2>&1; then
-    echo "  Network 'storacha-network' already exists"
+if docker network inspect forge-network >/dev/null 2>&1; then
+    echo "  Network 'forge-network' already exists"
 else
-    docker network create storacha-network
-    echo "  Created network 'storacha-network'"
+    docker network create forge-network
+    echo "  Created network 'forge-network'"
 fi
 
 # Summary

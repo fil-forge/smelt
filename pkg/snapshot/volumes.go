@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/storacha/smelt/pkg/manifest"
+	"github.com/fil-forge/smelt/pkg/manifest"
 )
 
 // busyboxImage is the helper used to tar/untar through docker volumes.

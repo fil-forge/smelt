@@ -9,10 +9,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/storacha/smelt/systems/stress-tester/internal/config"
-	"github.com/storacha/smelt/systems/stress-tester/internal/guppy"
-	"github.com/storacha/smelt/systems/stress-tester/internal/store"
-	"github.com/storacha/smelt/systems/stress-tester/internal/telemetry"
+	"github.com/fil-forge/smelt/systems/stress-tester/internal/config"
+	"github.com/fil-forge/smelt/systems/stress-tester/internal/guppy"
+	"github.com/fil-forge/smelt/systems/stress-tester/internal/store"
+	"github.com/fil-forge/smelt/systems/stress-tester/internal/telemetry"
 )
 
 // RetrieveContinuousRunner runs continuous retrievals

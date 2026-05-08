@@ -27,7 +27,7 @@ services:
     # The collector logs "Health Check state change status=ready" when healthy
     restart: unless-stopped
     networks:
-      - storacha-network
+      - forge-network
 
   # Prometheus - Metrics storage
   prometheus:
@@ -50,7 +50,7 @@ services:
       retries: 5
     restart: unless-stopped
     networks:
-      - storacha-network
+      - forge-network
 
   # Tempo - Distributed tracing
   tempo:
@@ -70,7 +70,7 @@ services:
       retries: 5
     restart: unless-stopped
     networks:
-      - storacha-network
+      - forge-network
 
   # Grafana - Visualization
   grafana:
@@ -99,7 +99,7 @@ services:
       retries: 5
     restart: unless-stopped
     networks:
-      - storacha-network
+      - forge-network
 
 volumes:
   prometheus-data:

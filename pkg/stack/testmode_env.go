@@ -3,14 +3,14 @@ package stack
 import (
 	"fmt"
 
-	"github.com/storacha/smelt/pkg/manifest"
+	"github.com/fil-forge/smelt/pkg/manifest"
 )
 
 // testModeEnv returns the SMELT_* environment variables pkg/stack sets when
 // provisioning a stack for SDK tests. They feed the `${VAR:-default}`
 // interpolations baked into the compose files (see systems/*/compose.yml and
 // pkg/generate/compose.go), flipping every host-side port mapping to
-// ephemeral and marking the storacha-network as non-external.
+// ephemeral and marking the forge-network as non-external.
 //
 // Setting a port var to just the container-side number (no colon) makes
 // compose publish on an ephemeral host port; MappedPort on the resulting
@@ -19,7 +19,7 @@ import (
 func testModeEnv(nodes []manifest.ResolvedPiriNode) map[string]string {
 	env := map[string]string{
 		// Network: per-project (compose-created) instead of the shared
-		// external `storacha-network`. Parallel test stacks otherwise
+		// external `forge-network`. Parallel test stacks otherwise
 		// collide on service DNS names inside the one shared bridge.
 		"SMELT_NETWORK_EXTERNAL": "false",
 

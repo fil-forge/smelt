@@ -8,7 +8,7 @@ import (
 var Cmd = &cobra.Command{
 	Use:   "retrieve",
 	Short: "Retrieval stress testing commands",
-	Long:  `Commands for running retrieval stress tests against the Storacha network.`,
+	Long:  `Commands for running retrieval stress tests against the Forge network.`,
 }
 
 func init() {

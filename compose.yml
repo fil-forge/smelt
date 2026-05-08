@@ -1,4 +1,4 @@
-# Storacha Compose - Local Development Environment
+# Forge Compose - Local Development Environment
 #
 # This is the root compose file that includes all system components.
 # Run with: docker compose up -d
@@ -6,7 +6,7 @@
 # Individual systems can be run standalone from their directories.
 # Example: cd systems/blockchain && docker compose up -d
 #
-# Note: The storacha-network must be created before starting.
+# Note: The forge-network must be created before starting.
 # Run `make init` or `./scripts/init.sh` first.
 
 # Pin project name so docker volume names (e.g. `smelt_piri-0-data`) are
@@ -26,7 +26,7 @@ include:
   - path: systems/guppy/compose.yml
 
 networks:
-  storacha-network:
+  forge-network:
     # `make up` uses the shared external network (created by
     # `make init`) so that `cd systems/X && docker compose up` can
     # drop into the same network for standalone per-system runs.

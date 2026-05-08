@@ -5,7 +5,7 @@
 
 services:
   delegator:
-    image: ${DELEGATOR_IMAGE:-ghcr.io/storacha/delegator:main}
+    image: ${DELEGATOR_IMAGE:-ghcr.io/fil-forge/delegator:main}
     user: "0:0"  # Run as root for volume permissions (key files are 600)
     ports:
       # Internal port 80 for did:web resolution
@@ -29,4 +29,4 @@ services:
       start_period: 10s
     restart: unless-stopped
     networks:
-      - storacha-network
+      - forge-network

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/storacha/smelt/pkg/manifest"
+	"github.com/fil-forge/smelt/pkg/manifest"
 )
 
 // PiriNodeConfig configures a single piri node in the test stack.

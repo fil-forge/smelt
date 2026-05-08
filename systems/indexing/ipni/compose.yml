@@ -1,7 +1,7 @@
 # IPNI System - InterPlanetary Network Indexer
 #
 # Content discovery indexer using storetheindex.
-# Provides content routing for the Storacha network.
+# Provides content routing for the Forge network.
 #
 # Note: The storetheindex image is distroless with debug variant (has busybox shell).
 
@@ -10,7 +10,7 @@ services:
   # Uses the same distroless debug image with busybox shell
   # Runs as root to initialize the data directory, then chowns to nonroot (65532)
   ipni-init:
-    image: ${IPNI_IMAGE:-ghcr.io/storacha/storetheindex:main}
+    image: ${IPNI_IMAGE:-ghcr.io/fil-forge/storetheindex:latest}
     user: "0:0"
     entrypoint: ["/busybox/sh", "-c"]
     command:
@@ -28,11 +28,11 @@ services:
       - ipni-data:/data
     restart: "no"
     networks:
-      - storacha-network
+      - forge-network
 
   # IPNI (storetheindex) - Content discovery indexer
   ipni:
-    image: ${IPNI_IMAGE:-ghcr.io/storacha/storetheindex:main}
+    image: ${IPNI_IMAGE:-ghcr.io/fil-forge/storetheindex:latest}
     depends_on:
       ipni-init:
         condition: service_completed_successfully
@@ -60,7 +60,7 @@ services:
       start_period: 30s
     restart: unless-stopped
     networks:
-      - storacha-network
+      - forge-network
 
 volumes:
   ipni-data:

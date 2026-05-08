@@ -12,7 +12,7 @@ InterPlanetary Network Indexer for content discovery.
 - **ipni** - Content discovery indexer (storetheindex)
 
 ### indexer/
-Storacha's content claims caching layer.
+Forge's content claims caching layer.
 - **redis** - Cache backend
 - **indexer** - Content claims caching and query service
 

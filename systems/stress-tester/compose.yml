@@ -23,7 +23,7 @@ services:
       upload:
         condition: service_healthy
     networks:
-      - storacha-network
+      - forge-network
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:9091/health"]
       interval: 10s

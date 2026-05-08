@@ -1,4 +1,4 @@
-// Package stack provides a simple API for spinning up the complete Storacha
+// Package stack provides a simple API for spinning up the complete Forge
 // network in Go tests using testcontainers-go.
 //
 // Example usage:
@@ -30,12 +30,12 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/compose"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/storacha/smelt/pkg/generate"
-	"github.com/storacha/smelt/pkg/manifest"
-	"github.com/storacha/smelt/pkg/snapshot"
+	"github.com/fil-forge/smelt/pkg/generate"
+	"github.com/fil-forge/smelt/pkg/manifest"
+	"github.com/fil-forge/smelt/pkg/snapshot"
 )
 
-// Stack represents a running Storacha network.
+// Stack represents a running Forge network.
 type Stack struct {
 	t         *testing.T
 	compose   compose.ComposeStack
@@ -44,7 +44,7 @@ type Stack struct {
 	piriNodes []manifest.ResolvedPiriNode
 }
 
-// NewStack creates and starts a complete Storacha network.
+// NewStack creates and starts a complete Forge network.
 // Returns error if startup fails. Cleanup is automatically registered via t.Cleanup().
 func NewStack(ctx context.Context, t *testing.T, opts ...Option) (*Stack, error) {
 	cfg := defaultConfig()
@@ -142,7 +142,7 @@ func NewStack(ctx context.Context, t *testing.T, opts ...Option) (*Stack, error)
 	//      - every host-side port binding becomes ephemeral (Docker assigns
 	//        a random port per stack, so parallel tests don't collide on
 	//        fixed 15XXX numbers)
-	//      - the storacha-network declaration becomes non-external, so each
+	//      - the forge-network declaration becomes non-external, so each
 	//        stack gets its own project-scoped network instead of all
 	//        sharing the one `make up` bridge
 	//      - sprue's public_url is overridden to the in-network hostname

@@ -7,8 +7,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/storacha/smelt/systems/stress-tester/cmd/stress/retrieve"
-	"github.com/storacha/smelt/systems/stress-tester/cmd/stress/upload"
+	"github.com/fil-forge/smelt/systems/stress-tester/cmd/stress/retrieve"
+	"github.com/fil-forge/smelt/systems/stress-tester/cmd/stress/upload"
 )
 
 var (
@@ -16,9 +16,9 @@ var (
 
 	rootCmd = &cobra.Command{
 		Use:   "stress",
-		Short: "Stress testing tool for Storacha network",
+		Short: "Stress testing tool for Forge network",
 		Long: `A stress testing service that performs uploads and retrievals
-against the Storacha network, tracking state and metrics.
+against the Forge network, tracking state and metrics.
 
 Commands are organized by operation type (upload/retrieve) and mode (burst/continuous/chaos).
 

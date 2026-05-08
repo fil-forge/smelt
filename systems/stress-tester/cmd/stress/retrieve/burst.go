@@ -11,8 +11,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/storacha/smelt/systems/stress-tester/internal/app"
-	"github.com/storacha/smelt/systems/stress-tester/internal/config"
+	"github.com/fil-forge/smelt/systems/stress-tester/internal/app"
+	"github.com/fil-forge/smelt/systems/stress-tester/internal/config"
 )
 
 var burstCmd = &cobra.Command{

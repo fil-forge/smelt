@@ -2,7 +2,7 @@
 
 ## Start Here
 
-Storacha is a decentralized storage network where data is stored across multiple providers with cryptographic verification. Unlike traditional cloud storage, content is addressed by its cryptographic hash (CID), and storage providers must prove they actually hold the data they claim to hold.
+Forge is a decentralized storage network where data is stored across multiple providers with cryptographic verification. Unlike traditional cloud storage, content is addressed by its cryptographic hash (CID), and storage providers must prove they actually hold the data they claim to hold.
 
 **Why so many services?** Each service has a specific responsibility. The storage node (Piri) stores blobs. The indexer tracks where content lives. The delegator manages authorization. The signing service handles blockchain transactions. This separation of concerns allows each component to be developed, tested, and scaled independently.
 
@@ -87,7 +87,7 @@ When any piri node declares `db: postgres` or `blob: s3` in `smelt.yml`, the gen
 
 **Role**: Local Filecoin-compatible EVM blockchain for PDP (Provable Data Possession) contracts.
 
-**Image**: `ghcr.io/storacha/filecoin-localdev:<tag>` (default pinned in `.env`).
+**Image**: `ghcr.io/fil-forge/filecoin-localdev:<tag>` (default pinned in `.env`).
 
 **What it does**:
 - Runs Anvil (Foundry's local Ethereum node) with 3-second block times
@@ -158,7 +158,7 @@ were working with.
 
 ### 4. Indexer Service - Container port 80 (host 15050)
 
-**Role**: Storacha's caching layer for content claims - sits between clients and IPNI.
+**Role**: Forge's caching layer for content claims - sits between clients and IPNI.
 
 **Build context**: `../indexing-service`
 
@@ -245,7 +245,7 @@ pkg/indexerclient/client.go → UCAN client for Indexer communication (assert/in
 
 ### 6. Piri - Container port 3000, host 15100+N
 
-**Role**: Storage node(s) implementing the Storacha storage protocol with PDP proofs. Smelt runs one or more piri nodes based on `smelt.yml`; each is a separate service (`piri-0`, `piri-1`, ..., up to `piri-8`) with its own key, wallet, data volume, and on-chain provider registration. Host port is `15100 + N` where N is the node index.
+**Role**: Storage node(s) implementing the Forge storage protocol with PDP proofs. Smelt runs one or more piri nodes based on `smelt.yml`; each is a separate service (`piri-0`, `piri-1`, ..., up to `piri-8`) with its own key, wallet, data volume, and on-chain provider registration. Host port is `15100 + N` where N is the node index.
 
 **Build context**: `../piri`
 
@@ -315,7 +315,7 @@ Both services are only emitted into `generated/compose/piri.yml` when at least o
 
 ### 7. Guppy - CLI Client
 
-**Role**: Command-line client for uploading and retrieving content from Storacha.
+**Role**: Command-line client for uploading and retrieving content from Forge.
 
 **Build context**: `../guppy`
 

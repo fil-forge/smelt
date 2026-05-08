@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/storacha/smelt"
+	"github.com/fil-forge/smelt"
 )
 
 // embeddedSnapshotsRoot is the path within smelt.EmbeddedFiles under

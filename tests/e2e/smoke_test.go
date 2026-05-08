@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/storacha/smelt/pkg/clients/guppy"
-	"github.com/storacha/smelt/pkg/stack"
+	"github.com/fil-forge/smelt/pkg/clients/guppy"
+	"github.com/fil-forge/smelt/pkg/stack"
 )
 
 func TestUploadAndRetrieve(t *testing.T) {

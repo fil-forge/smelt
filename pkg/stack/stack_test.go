@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/storacha/smelt"
-	"github.com/storacha/smelt/pkg/generate"
-	"github.com/storacha/smelt/pkg/manifest"
+	"github.com/fil-forge/smelt"
+	"github.com/fil-forge/smelt/pkg/generate"
+	"github.com/fil-forge/smelt/pkg/manifest"
 )
 
 func TestExtractFiles(t *testing.T) {

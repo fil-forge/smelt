@@ -58,7 +58,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     networks:
-      - storacha-network
+      - forge-network
 
 volumes:
   my-service-data:
@@ -95,7 +95,7 @@ Order matters only insofar as it affects readability. Docker Compose resolves de
 
 ### Network Connectivity
 
-All services connect to `storacha-network`, an external Docker network created during `make init`. This provides:
+All services connect to `forge-network`, an external Docker network created during `make init`. This provides:
 
 - **DNS resolution**: Service names are resolvable as hostnames. From any container, `http://piri:3000` reaches piri.
 - **Isolation**: Only services on this network can communicate. Your host machine accesses services through published ports.
@@ -224,7 +224,7 @@ services:
       - ./toxiproxy.json:/config/toxiproxy.json:ro
     command: ["-config", "/config/toxiproxy.json"]
     networks:
-      - storacha-network
+      - forge-network
 ```
 
 **toxiproxy.json**:
@@ -404,7 +404,7 @@ If you're developing a service (piri, guppy, indexer) and want to test local cha
 
 ```bash
 # In piri repository
-docker build -t forreststoracha/piri:dev .
+docker build -t piri:dev .
 
 # Or use docker compose build if piri's compose.yml has a build context
 ```
@@ -430,10 +430,10 @@ cd systems/common && docker compose up -d
 cd systems/indexing && docker compose up -d
 ```
 
-Note that most systems declare `external: true` for `storacha-network`, so you must create it first:
+Note that most systems declare `external: true` for `forge-network`, so you must create it first:
 
 ```bash
-docker network create storacha-network
+docker network create forge-network
 ```
 
 Or run `make init` once to handle all setup.
@@ -587,7 +587,7 @@ docker compose exec guppy curl -v http://piri-0:3000/
 docker compose exec guppy nslookup piri-0
 
 # List containers on the network
-docker network inspect storacha-network --format '{{range .Containers}}{{.Name}} {{end}}'
+docker network inspect forge-network --format '{{range .Containers}}{{.Name}} {{end}}'
 ```
 
 ### Resetting Individual Services

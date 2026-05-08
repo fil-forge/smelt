@@ -5,7 +5,7 @@
 
 services:
   blockchain:
-    image: ${BLOCKCHAIN_IMAGE:-ghcr.io/storacha/filecoin-localdev:main}
+    image: ${BLOCKCHAIN_IMAGE:-ghcr.io/fil-forge/filecoin-localdev:main}
     # Port mapping is env-var interpolated so pkg/stack can override to
     # `"8545"` (container-only, ephemeral host port) for parallel SDK
     # test stacks. `make up` leaves the var unset and gets the fixed
@@ -38,4 +38,4 @@ services:
       start_period: 30s
     restart: unless-stopped
     networks:
-      - storacha-network
+      - forge-network

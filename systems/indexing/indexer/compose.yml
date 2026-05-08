@@ -1,4 +1,4 @@
-# Indexer System - Storacha's content claims caching layer
+# Indexer System - Forge's content claims caching layer
 #
 # Provides caching and query interface for content claims.
 # Depends on IPNI for content discovery and Redis for caching.
@@ -18,11 +18,11 @@ services:
       start_period: 10s
     restart: unless-stopped
     networks:
-      - storacha-network
+      - forge-network
 
-  # Indexing Service - Storacha's caching layer for content claims
+  # Indexing Service - Forge's caching layer for content claims
   indexer:
-    image: ${INDEXER_IMAGE:-ghcr.io/storacha/indexing-service:main}
+    image: ${INDEXER_IMAGE:-ghcr.io/fil-forge/indexing-service:main}
     user: "0:0"  # Run as root for volume permissions (key files are 600)
     ports:
       - "${SMELT_INDEXER_PORT:-15050:80}"  # Host 15050 -> container 80
@@ -51,4 +51,4 @@ services:
       start_period: 30s
     restart: unless-stopped
     networks:
-      - storacha-network
+      - forge-network
