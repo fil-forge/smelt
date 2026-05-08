@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/storacha/smelt/pkg/manifest"
+	"github.com/fil-forge/smelt/pkg/manifest"
 )
 
 // Options controls the generation process.

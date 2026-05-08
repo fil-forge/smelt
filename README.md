@@ -1,8 +1,8 @@
 # Smelt ⚗️
 
-_The Smelter_: A complete Storacha network running on your laptop. Upload your first file in under five minutes.
+_The Smelter_: A complete Forge network running on your laptop. Upload your first file in under five minutes.
 
-Smelt is a Docker Compose environment that runs every service in the Storacha distributed storage network locally. It exists so you can test changes, debug integrations, and develop features without deploying anything to production—or waiting for anyone else.
+Smelt is a Docker Compose environment that runs every service in the Forge distributed storage network locally. It exists so you can test changes, debug integrations, and develop features without deploying anything to production—or waiting for anyone else.
 
 ## Quick Start
 
@@ -16,7 +16,7 @@ Smelt is a Docker Compose environment that runs every service in the Storacha di
 ### Start the Network
 
 ```bash
-git clone https://github.com/storacha/smelt.git
+git clone https://github.com/fil-forge/smelt.git
 cd smelt
 make up
 ```
@@ -46,12 +46,12 @@ guppy login your@email.com
 export SPACE=$(guppy space generate)
 
 # Add a source then upload the space
-echo "Hello Storacha" > /tmp/hello.txt
+echo "Hello Forge" > /tmp/hello.txt
 guppy upload source add "$SPACE" /tmp/hello.txt
 guppy upload "$SPACE"
 ```
 
-You now have content stored on your local Storacha network, complete with blockchain proofs and content indexing.
+You now have content stored on your local Forge network, complete with blockchain proofs and content indexing.
 
 ## What's Running
 

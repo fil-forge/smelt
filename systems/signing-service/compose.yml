@@ -5,7 +5,7 @@
 
 services:
   signing-service:
-    image: ${SIGNER_IMAGE:-ghcr.io/storacha/piri-signing-service:main}
+    image: ${SIGNER_IMAGE:-ghcr.io/fil-forge/piri-signing-service:main}
     user: root
     ports:
       - "${SMELT_SIGNING_SERVICE_PORT:-15030:7446}"
@@ -34,4 +34,4 @@ services:
       start_period: 10s
     restart: unless-stopped
     networks:
-      - storacha-network
+      - forge-network

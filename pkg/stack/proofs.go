@@ -8,13 +8,13 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/storacha/go-ucanto/core/delegation"
-	"github.com/storacha/go-ucanto/did"
-	"github.com/storacha/go-ucanto/principal"
-	ed25519 "github.com/storacha/go-ucanto/principal/ed25519/signer"
-	"github.com/storacha/go-ucanto/principal/signer"
-	"github.com/storacha/go-ucanto/ucan"
-	"github.com/storacha/smelt/pkg/manifest"
+	"github.com/fil-forge/go-ucanto/core/delegation"
+	"github.com/fil-forge/go-ucanto/did"
+	"github.com/fil-forge/go-ucanto/principal"
+	ed25519 "github.com/fil-forge/go-ucanto/principal/ed25519/signer"
+	"github.com/fil-forge/go-ucanto/principal/signer"
+	"github.com/fil-forge/go-ucanto/ucan"
+	"github.com/fil-forge/smelt/pkg/manifest"
 )
 
 // proofSpec defines a UCAN delegation proof to generate.

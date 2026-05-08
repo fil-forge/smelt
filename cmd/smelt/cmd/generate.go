@@ -3,8 +3,8 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/fil-forge/smelt/pkg/generate"
 	"github.com/spf13/cobra"
-	"github.com/storacha/smelt/pkg/generate"
 )
 
 var generateCmd = &cobra.Command{

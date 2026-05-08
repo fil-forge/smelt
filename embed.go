@@ -1,4 +1,4 @@
-// Package smelt provides embedded files for the Storacha local development environment.
+// Package smelt provides embedded files for the Forge local development environment.
 package smelt
 
 import "embed"

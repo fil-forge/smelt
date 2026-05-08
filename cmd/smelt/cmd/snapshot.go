@@ -6,8 +6,8 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/fil-forge/smelt/pkg/snapshot"
 	"github.com/spf13/cobra"
-	"github.com/storacha/smelt/pkg/snapshot"
 )
 
 var snapshotCmd = &cobra.Command{

@@ -39,10 +39,10 @@ type Descriptor struct {
 // ImageInfo is the per-service image identity captured in a snapshot.
 type ImageInfo struct {
 	// Tag is the resolved image reference from `docker compose config`,
-	// e.g. "ghcr.io/storacha/piri:main" or "filecoin-localdev:local".
+	// e.g. "ghcr.io/fil-forge/piri:main" or "filecoin-localdev:local".
 	Tag string `json:"tag"`
 	// Digest is the immutable content identifier: a RepoDigest
-	// ("ghcr.io/storacha/piri@sha256:…") when the image came from a
+	// ("ghcr.io/fil-forge/piri@sha256:…") when the image came from a
 	// registry, or the docker image Id ("sha256:…") for locally-built
 	// images that have no RepoDigest yet.
 	Digest string `json:"digest,omitempty"`

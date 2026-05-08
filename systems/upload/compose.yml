@@ -5,7 +5,7 @@
 
 services:
   upload:
-    image: ${UPLOAD_IMAGE:-ghcr.io/storacha/sprue:main}
+    image: ${UPLOAD_IMAGE:-ghcr.io/fil-forge/sprue:main}
     command: ["serve", "--config", "/etc/sprue/config.yaml"]
     ports:
       - "${SMELT_UPLOAD_PORT:-15060:80}"
@@ -45,7 +45,7 @@ services:
       start_period: 10s
     restart: unless-stopped
     networks:
-      - storacha-network
+      - forge-network
 
   # Postgres for sprue's metadata stores. Sprue runs goose migrations on
   # startup, so no init sidecar is needed — the `sprue` database created by
@@ -70,7 +70,7 @@ services:
       start_period: 10s
     restart: unless-stopped
     networks:
-      - storacha-network
+      - forge-network
 
 volumes:
   upload-postgres-data:

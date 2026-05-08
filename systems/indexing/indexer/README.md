@@ -1,6 +1,6 @@
 # Indexer Sub-Package
 
-Storacha's content claims caching layer.
+Forge's content claims caching layer.
 
 ## Services
 

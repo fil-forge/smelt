@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/storacha/smelt/pkg/clients/smtp4dev"
+	"github.com/fil-forge/smelt/pkg/clients/smtp4dev"
 )
 
 // Clicker issues the POST against the validation link pulled out of the email

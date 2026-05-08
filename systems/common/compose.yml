@@ -41,7 +41,7 @@ services:
       start_period: 10s
     restart: unless-stopped
     networks:
-      - storacha-network
+      - forge-network
   # MinIO for S3-compatible storage
   minio:
     image: minio/minio:latest
@@ -63,14 +63,14 @@ services:
       start_period: 10s
     restart: unless-stopped
     networks:
-      - storacha-network
+      - forge-network
   email:
     image: rnwood/smtp4dev:v3
     ports:
       - "${SMELT_SMTP_PORT:-15080:25}"
       - "${SMELT_SMTP_WEB_PORT:-15081:80}"  # Web UI / API
     networks:
-      - storacha-network
+      - forge-network
 
 volumes:
   minio-data:

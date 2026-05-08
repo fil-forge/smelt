@@ -1,10 +1,10 @@
-# Smelt - Local Development Environment for Storacha
+# Smelt - Local Development Environment for Forge
 
 This document provides context for AI-assisted development with Claude Code. It describes the project structure, key concepts, and common operations needed to work effectively with this codebase.
 
 ## Project Overview
 
-Smelt orchestrates a complete Storacha network on a single machine using Docker Compose. The environment includes 10+ services: blockchain, storage nodes, indexing, upload coordination, and a CLI client. Its purpose is straightforward: let developers test changes locally without deploying to production or coordinating with others.
+Smelt orchestrates a complete Forge network on a single machine using Docker Compose. The environment includes 10+ services: blockchain, storage nodes, indexing, upload coordination, and a CLI client. Its purpose is straightforward: let developers test changes locally without deploying to production or coordinating with others.
 
 The name comes from metallurgy (extracting metal from ore), not ichthyology (a small fish). The metaphor is apt; the reality is Docker containers.
 
@@ -12,7 +12,7 @@ The name comes from metallurgy (extracting metal from ore), not ichthyology (a s
 
 Understanding these concepts will save considerable debugging time.
 
-### Storacha
+### Forge
 
 A decentralized storage network where data is stored across multiple providers with cryptographic verification. Content is addressed by CID (Content Identifier), and storage providers prove they actually hold the data they claim to hold.
 
@@ -157,7 +157,7 @@ dlv connect localhost:2345
 # or VS Code "Connect to server" / GoLand "Go Remote"
 ```
 
-**IDE source mapping for sprue**: remote path `/go/src/sprue` maps to your local sprue checkout (e.g. `~/workspace/src/github.com/storacha/sprue`).
+**IDE source mapping for sprue**: remote path `/go/src/sprue` maps to your local sprue checkout (e.g. `~/workspace/src/github.com/fil-forge/sprue`).
 
 To test a locally-built dev image instead of the published `:main-dev`:
 
@@ -368,7 +368,7 @@ Each system in `systems/<name>/` is self-contained and can theoretically run sta
 
 ### Network Topology
 
-All services connect to a shared `storacha-network` Docker network. Service names are DNS-resolvable within the network (e.g., `http://piri:3000` from upload service).
+All services connect to a shared `forge-network` Docker network. Service names are DNS-resolvable within the network (e.g., `http://piri:3000` from upload service).
 
 ### Key Generation
 
@@ -421,12 +421,12 @@ The capability string must match exactly. `space/blob/add` is not `blob/add`. Ch
 
 | Repository | Description |
 |------------|-------------|
-| `storacha/piri` | Storage node implementation |
-| `storacha/guppy` | CLI client |
-| `storacha/indexing-service` | Indexer service |
-| `storacha/delegator` | Delegation service |
-| `storacha/go-ucanto` | UCAN implementation in Go |
-| `storacha/specs` | Protocol specifications |
+| `fil-forge/piri` | Storage node implementation |
+| `fil-forge/guppy` | CLI client |
+| `fil-forge/indexing-service` | Indexer service |
+| `fil-forge/delegator` | Delegation service |
+| `fil-forge/go-ucanto` | UCAN implementation in Go |
+| `fil-forge/specs` | Protocol specifications |
 
 ## Configurable Service Images
 
@@ -434,7 +434,7 @@ Service images are configurable via environment variables, with defaults in `.en
 
 ```bash
 # Override one image
-PIRI_IMAGE=ghcr.io/storacha/piri:v1.2.3 make up
+PIRI_IMAGE=ghcr.io/fil-forge/piri:v1.2.3 make up
 
 # Override several at once
 PIRI_IMAGE=myregistry/piri:test GUPPY_IMAGE=myregistry/guppy:test make up

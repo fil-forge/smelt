@@ -8,7 +8,7 @@ import (
 var Cmd = &cobra.Command{
 	Use:   "upload",
 	Short: "Upload stress testing commands",
-	Long:  `Commands for running upload stress tests against the Storacha network.`,
+	Long:  `Commands for running upload stress tests against the Forge network.`,
 }
 
 func init() {

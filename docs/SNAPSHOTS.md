@@ -167,7 +167,7 @@ into the Go module via `//go:embed`, so consumers that import smelt as
 a dependency can reach them without knowing any filesystem paths:
 
 ```go
-import "github.com/storacha/smelt/pkg/stack"
+import "github.com/fil-forge/smelt/pkg/stack"
 
 func TestFromExternalRepo(t *testing.T) {
     s := stack.MustNewStack(t,
@@ -257,7 +257,7 @@ func TestMain(m *testing.M) {
 
 `CleanupLeaked` removes every container and volume whose name starts
 with `smeltery-` (the compose project prefix used by `NewStack`). It
-doesn't touch the shared `storacha-network` or anything outside that
+doesn't touch the shared `forge-network` or anything outside that
 namespace. Safe to run on a machine where unrelated docker projects
 live; not safe when two pkg/stack-using test suites run concurrently
 (the sweeper from one will nuke the other's live stacks).
@@ -355,7 +355,7 @@ compose config and reports two kinds of drift independently:
 
 ```
 WARNING: images differ from snapshot:
-  piri-0: tag ghcr.io/storacha/piri:main → ghcr.io/storacha/piri:test-build
+  piri-0: tag ghcr.io/fil-forge/piri:main → ghcr.io/fil-forge/piri:test-build
   blockchain: digest drift at filecoin-localdev:local (sha256:83bfc639… → sha256:a1b2c3d4…)
 ```
 

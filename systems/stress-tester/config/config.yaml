@@ -12,7 +12,7 @@ guppy:
 
 store:
   # Path to SQLite database
-  path: "/home/frrist/workspace/src/github.com/storacha/smelt/systems/stress-tester/stress.db"
+  path: "/home/frrist/workspace/src/github.com/fil-forge/smelt/systems/stress-tester/stress.db"
 
 telemetry:
   # Port for Prometheus metrics endpoint

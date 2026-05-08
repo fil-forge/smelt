@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/storacha/smelt/pkg/manifest"
+	"github.com/fil-forge/smelt/pkg/manifest"
 )
 
 // nonPiriServiceKeys is the list of services that need Ed25519 keys (excluding piri).

@@ -4,7 +4,7 @@
 
 services:
   guppy:
-    image: ${GUPPY_IMAGE:-ghcr.io/storacha/guppy:main-dev}
+    image: ${GUPPY_IMAGE:-ghcr.io/fil-forge/guppy:main-dev}
     volumes:
       - ./config/guppy-config.toml:/root/.config/guppy/config.toml:ro
       - guppy-data:/root/.storacha/guppy
@@ -17,7 +17,7 @@ services:
     entrypoint: ["sleep", "infinity"]
     restart: unless-stopped
     networks:
-      - storacha-network
+      - forge-network
 
 volumes:
   guppy-data:
