@@ -6,6 +6,7 @@ services:
   guppy:
     image: ${GUPPY_IMAGE:-ghcr.io/fil-forge/guppy:main-dev}
     volumes:
+      - ../../generated/keys/guppy.pem:/keys/guppy.pem:ro
       - ./config/guppy-config.toml:/root/.config/guppy/config.toml:ro
       - guppy-data:/root/.storacha/guppy
     depends_on:
