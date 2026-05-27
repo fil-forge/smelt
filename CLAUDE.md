@@ -442,6 +442,37 @@ PIRI_IMAGE=myregistry/piri:test GUPPY_IMAGE=myregistry/guppy:test make up
 
 Available variables: `PIRI_IMAGE`, `GUPPY_IMAGE`, `DELEGATOR_IMAGE`, `INDEXER_IMAGE`, `IPNI_IMAGE`, `SIGNER_IMAGE`, `UPLOAD_IMAGE`, `BLOCKCHAIN_IMAGE`. Defaults live in `.env`.
 
+## Developing Against Sibling Service Repos
+
+For active work across multiple service repositories, set `SMELT_DEV=1` to build container images from sibling checkouts instead of pulling published images.
+
+Expected sibling layout (peers of the `smelt/` directory):
+
+```
+fil-forge/
+├── smelt/                  # this repo
+├── piri-pdp/               # piri storage node (built into smelt-local/piri:dev)
+├── indexing-service/       # indexer (built into smelt-local/indexer:dev)
+├── piri-signing-service/   # signing-service (built into smelt-local/signer:dev)
+├── guppy/                  # guppy CLI (built into smelt-local/guppy:dev)
+├── delegator/              # delegator (built into smelt-local/delegator:dev)
+└── sprue/                  # upload service (built into smelt-local/upload:dev)
+```
+
+Usage:
+
+```bash
+SMELT_DEV=1 make fresh     # nuke + rebuild from local source + start
+SMELT_DEV=1 make build     # rebuild without restarting
+SMELT_DEV=1 make up        # start (will use already-built images)
+```
+
+`SMELT_DEV` must be set on every `make` invocation that touches compose (or `export SMELT_DEV=1` once in your shell). The Makefile threads it through a `COMPOSE` variable that chains `-f compose.dev.yml`; piri itself is handled by the generator, which inlines a `build:` block into `generated/compose/piri.yml` when `SMELT_DEV=1` is set at generation time.
+
+To return to published images: unset `SMELT_DEV` (or set it to `0`) and re-run `make generate` followed by `make up` (or `make fresh` for a full reset).
+
+The compose.dev.yml overlay is the source of truth for which siblings get rebuilt. To add another service, append an entry with `image: smelt-local/<name>:dev` and `build: { context: ../<repo> }`.
+
 ## CI/CD
 
 There is no CI wired up in this repository yet. When CI lands, this section will describe the triggers, workflows, and test structure.

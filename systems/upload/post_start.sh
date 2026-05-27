@@ -2,9 +2,12 @@
 # Register every piri-N node declared in smelt.yml as a storage provider.
 #
 # Runs as a Docker Compose post_start hook after upload is healthy. Loops over
-# each piri-{N}-proof.txt produced by generate-proofs.sh (or pkg/stack/proofs.go
-# in the Go test stack) and adds the corresponding node as a provider with
-# equal weight.
+# each /piri-keys/piri-{N}.pub emitted by `smelt generate` and registers the
+# corresponding node as a provider with equal weight.
+#
+# As of ucan1.0, provider registration no longer requires a delegation proof —
+# the admin call takes DID + endpoint and that's it. We iterate public keys
+# (which exist regardless of proof generation) rather than proof files.
 
 set -e
 
@@ -34,17 +37,15 @@ done
 echo "post_start: sprue is serving (took ${waited}s)"
 
 registered=0
-for proof_file in /proofs/piri-*-proof.txt; do
-    [ -f "$proof_file" ] || continue
-    node_name=$(basename "$proof_file" -proof.txt)  # piri-0, piri-1, ...
-    pub_key="/piri-keys/${node_name}.pub"
+for pub_key in /piri-keys/piri-*.pub; do
+    [ -f "$pub_key" ] || continue
+    node_name=$(basename "$pub_key" .pub)  # piri-0, piri-1, ...
+    # Accept only piri-<N>; skip anything else that might land in the keys dir.
+    case "$node_name" in
+        piri-[0-9]*) ;;
+        *) continue ;;
+    esac
 
-    if [ ! -f "$pub_key" ]; then
-        echo "post_start: skipping ${node_name} — public key ${pub_key} not found"
-        continue
-    fi
-
-    proof=$(cat "$proof_file")
     did=$(sprue identity parse "$pub_key")
     endpoint="http://${node_name}:3000"
 
@@ -52,7 +53,7 @@ for proof_file in /proofs/piri-*-proof.txt; do
     # Tolerate "already registered" — expected when the stack booted from a
     # smelt snapshot that captured upload's dynamodb provider registry. Any
     # other failure is still fatal.
-    if add_err=$(sprue client admin provider add "$endpoint" "$proof" 2>&1); then
+    if add_err=$(sprue client admin provider register "$did" "$endpoint" 2>&1); then
         :
     elif echo "$add_err" | grep -q "already registered"; then
         echo "post_start:   (${node_name} already registered — continuing)"
@@ -67,7 +68,7 @@ done
 
 if [ "$registered" -eq 0 ]; then
     echo "post_start: WARNING — no piri-N nodes were registered"
-    echo "post_start:           check that generate-proofs.sh ran and /proofs is populated"
+    echo "post_start:           check that 'smelt generate' populated /piri-keys"
     exit 1
 fi
 

@@ -19,7 +19,7 @@ PROOFS_DIR="$SCRIPT_DIR/proofs"
 FORCE=${1:-""}
 
 # Check for mkdelegation
-MKDELEGATION="${MKDELEGATION:-mkdelegation}"
+MKDELEGATION="${MKDELEGATION:-/home/frrist/workspace/src/github.com/fil-forge/delegator/bin/delegator}"
 if ! command -v "$MKDELEGATION" &> /dev/null; then
     MKDELEGATION="go-mkdelegation"
     if ! command -v "$MKDELEGATION" &> /dev/null; then
@@ -74,7 +74,7 @@ else
         --issuer-private-key-file "$KEYS_DIR/indexer.pem" \
         --issuer-did-web "did:web:indexer" \
         --audience-did-key "$DELEGATOR_WEB_DID" \
-        --capabilities "claim/cache" \
+        --command "/claim/cache" \
         > "$INDEXING_PROOF_FILE"
 
     echo "  [new] indexing-service-proof.txt"
@@ -96,8 +96,7 @@ else
         --issuer-private-key-file "$KEYS_DIR/etracker.pem" \
         --issuer-did-web "did:web:etracker" \
         --audience-did-key "$DELEGATOR_WEB_DID" \
-        --capabilities "egress/track" \
-        --skip-capability-validation \
+        --command "/space/egress/track" \
         > "$EGRESS_PROOF_FILE"
 
     echo "  [new] egress-tracking-proof.txt"
@@ -107,45 +106,44 @@ fi
 # Loops over every piri-{N}.pem emitted by `smelt generate`, producing one
 # delegation per node at $PROOFS_DIR/piri-{N}-proof.txt. Upload's post_start.sh
 # consumes these to register each node as a separate storage provider.
-PIRI_KEYS_FOUND=0
-for PIRI_KEY in "$KEYS_DIR"/piri-*.pem; do
-    [[ -f "$PIRI_KEY" ]] || continue
-    NODE_NAME=$(basename "$PIRI_KEY" .pem)
-    # Accept only piri-<N> (skip things like piri-signing-service.pem).
-    [[ "$NODE_NAME" =~ ^piri-[0-9]+$ ]] || continue
-    PIRI_KEYS_FOUND=1
+# PIRI_KEYS_FOUND=0
+# for PIRI_KEY in "$KEYS_DIR"/piri-*.pem; do
+#    [[ -f "$PIRI_KEY" ]] || continue
+#    NODE_NAME=$(basename "$PIRI_KEY" .pem)
+#    # Accept only piri-<N> (skip things like piri-signing-service.pem).
+#    [[ "$NODE_NAME" =~ ^piri-[0-9]+$ ]] || continue
+#    PIRI_KEYS_FOUND=1
+#
+#    PIRI_PROOF_FILE="$PROOFS_DIR/${NODE_NAME}-proof.txt"
+#    if [[ -f "$PIRI_PROOF_FILE" && "$FORCE" != "--force" ]]; then
+#        echo ""
+#        echo "[skip] ${NODE_NAME}-proof.txt already exists"
+#        continue
+#    fi
+#
+#    echo ""
+#    echo "Generating ${NODE_NAME} proof..."
+#    echo "  Issuer: ${NODE_NAME}.pem"
+#    echo "  Audience: $UPLOAD_WEB_DID"
+#    echo "  Capabilities: blob/allocate, blob/accept, blob/replica/allocate, pdp/info"
+#
+#    "$MKDELEGATION" gen \
+#        --issuer-private-key-file "$PIRI_KEY" \
+#        --audience-did-key "$UPLOAD_WEB_DID" \
+#        --capabilities "blob/allocate" \
+#        --capabilities "blob/accept" \
+#        --capabilities "blob/replica/allocate" \
+#        --capabilities "pdp/info" \
+#        > "$PIRI_PROOF_FILE"
+#
+#    echo "  [new] ${NODE_NAME}-proof.txt"
+# done
 
-    PIRI_PROOF_FILE="$PROOFS_DIR/${NODE_NAME}-proof.txt"
-    if [[ -f "$PIRI_PROOF_FILE" && "$FORCE" != "--force" ]]; then
-        echo ""
-        echo "[skip] ${NODE_NAME}-proof.txt already exists"
-        continue
-    fi
-
-    echo ""
-    echo "Generating ${NODE_NAME} proof..."
-    echo "  Issuer: ${NODE_NAME}.pem"
-    echo "  Audience: $UPLOAD_WEB_DID"
-    echo "  Capabilities: blob/allocate, blob/accept, blob/replica/allocate, pdp/info"
-
-    "$MKDELEGATION" gen \
-        --issuer-private-key-file "$PIRI_KEY" \
-        --audience-did-key "$UPLOAD_WEB_DID" \
-        --capabilities "blob/allocate" \
-        --capabilities "blob/accept" \
-        --capabilities "blob/replica/allocate" \
-        --capabilities "pdp/info" \
-        --skip-capability-validation \
-        > "$PIRI_PROOF_FILE"
-
-    echo "  [new] ${NODE_NAME}-proof.txt"
-done
-
-if [[ "$PIRI_KEYS_FOUND" -eq 0 ]]; then
-    echo ""
-    echo "WARNING: No piri-N.pem keys found in $KEYS_DIR — skipping piri proofs."
-    echo "         Run 'make generate' to create them."
-fi
+# if [[ "$PIRI_KEYS_FOUND" -eq 0 ]]; then
+#     echo ""
+#     echo "WARNING: No piri-N.pem keys found in $KEYS_DIR — skipping piri proofs."
+#     echo "         Run 'make generate' to create them."
+# fi
 
 echo ""
 echo "Proofs generated in: $PROOFS_DIR"
