@@ -38,7 +38,7 @@ mkdir -p "$GENERATED_DIR/snapshots"
 echo ""
 echo "Step 3: Checking for mkdelegation..."
 # Check for mkdelegation
-MKDELEGATION="${MKDELEGATION:-mkdelegation}"
+MKDELEGATION="${MKDELEGATION:-/home/frrist/workspace/src/github.com/fil-forge/delegator/bin/delegator}"
 if ! command -v "$MKDELEGATION" &> /dev/null; then
     MKDELEGATION="go-mkdelegation"
     if command -v "$MKDELEGATION" &> /dev/null; then

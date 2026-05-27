@@ -4,6 +4,22 @@ DOCKER := $(shell which docker)
 # Set YES=1 to skip confirmation prompts (e.g., make nuke YES=1)
 YES ?= 0
 
+# Set SMELT_DEV=1 to build service images from sibling source checkouts
+# (see compose.dev.yml). The generator also reads SMELT_DEV at `make generate`
+# time to inline a `build:` block into generated/compose/piri.yml.
+SMELT_DEV ?= 0
+export SMELT_DEV
+
+# COMPOSE wraps `docker compose` so every invocation in this Makefile picks up
+# the dev overlay when SMELT_DEV=1. Keep all compose calls below using $(COMPOSE)
+# rather than `$(DOCKER) compose` directly so dev mode stays consistent across
+# build / up / down / logs / exec.
+ifeq ($(SMELT_DEV),1)
+COMPOSE := $(DOCKER) compose -f compose.yml -f compose.dev.yml
+else
+COMPOSE := $(DOCKER) compose
+endif
+
 .PHONY: help generate init up down restart clean nuke fresh logs pull build status guppy regen debug-upload ensure-state check-docker
 
 # Default target - show help
@@ -49,6 +65,9 @@ help:
 	@echo ""
 	@echo "Options:"
 	@echo "  YES=1              Skip confirmation prompts (e.g., make nuke YES=1)"
+	@echo "  SMELT_DEV=1        Build service images from sibling source checkouts"
+	@echo "                     (see compose.dev.yml). Affects every compose call,"
+	@echo "                     so 'SMELT_DEV=1 make fresh' rebuilds from source."
 	@echo ""
 	@echo "Destructive commands (clean, nuke, fresh) require confirmation."
 	@echo ""
@@ -122,14 +141,14 @@ up: ensure-state
 	else \
 		$(MAKE) generate; \
 	fi
-	$(DOCKER) compose up -d --remove-orphans
+	$(COMPOSE) up -d --remove-orphans
 	@echo ""
 	@echo "Services starting. Run 'make status' to check health."
 	@echo "Run 'make logs' to follow logs."
 
 # Stop all services (keeps volumes for quick restart)
 down: generated/compose/piri.yml ensure-state
-	$(DOCKER) compose down --remove-orphans
+	$(COMPOSE) down --remove-orphans
 	@echo ""
 	@echo "Services stopped. Data preserved in volumes."
 	@echo "Run 'make up' to restart."
@@ -151,7 +170,7 @@ endef
 clean: generated/compose/piri.yml check-docker
 	$(call confirm,STOP all services and DELETE all volumes (Redis cache$(,) IPNI data$(,) etc.))
 	@# Stop all services including those with profiles
-	$(DOCKER) compose down -v --remove-orphans
+	$(COMPOSE) down -v --remove-orphans
 	@# Also remove any dangling volumes from this project
 	$(DOCKER) volume ls -q --filter "name=smelt_" | xargs -r $(DOCKER) volume rm 2>/dev/null || true
 	@# Clear chain state so next `make up` cold-boots from the committed baseline.
@@ -168,7 +187,7 @@ nuke: generated/compose/piri.yml check-docker
 	$(call confirm,DELETE everything: containers$(,) volumes$(,) keys$(,) proofs$(,) AND Docker images)
 	@echo "Removing all containers, volumes, keys, proofs, and images..."
 	@# Stop all services including those with profiles
-	$(DOCKER) compose down -v --remove-orphans --rmi local 2>/dev/null || true
+	$(COMPOSE) down -v --remove-orphans --rmi local 2>/dev/null || true
 	@# Also remove any dangling volumes from this project
 	$(DOCKER) volume ls -q --filter "name=smelt_" | xargs -r $(DOCKER) volume rm 2>/dev/null || true
 	rm -rf generated/keys generated/proofs generated/compose
@@ -182,7 +201,7 @@ fresh: generated/compose/piri.yml check-docker
 	$(call confirm,DELETE everything and rebuild from scratch)
 	@echo "Removing all containers, volumes, keys, proofs, and images..."
 	@# Stop all services including those with profiles
-	$(DOCKER) compose down -v --remove-orphans --rmi local 2>/dev/null || true
+	$(COMPOSE) down -v --remove-orphans --rmi local 2>/dev/null || true
 	@# Also remove any dangling volumes from this project
 	$(DOCKER) volume ls -q --filter "name=smelt_" | xargs -r $(DOCKER) volume rm 2>/dev/null || true
 	rm -rf generated/keys generated/proofs generated/compose
@@ -192,8 +211,8 @@ fresh: generated/compose/piri.yml check-docker
 	@echo "Rebuilding and starting fresh..."
 	$(MAKE) init
 	$(MAKE) ensure-state
-	$(DOCKER) compose build
-	$(DOCKER) compose up -d --remove-orphans
+	$(COMPOSE) build
+	$(COMPOSE) up -d --remove-orphans
 	@echo ""
 	@echo "Fresh deployment complete!"
 	@echo ""
@@ -213,33 +232,33 @@ regen:
 
 # Pull latest pre-built images (ignores failures for local-only images)
 pull: generated/compose/piri.yml ensure-state
-	$(DOCKER) compose pull --ignore-pull-failures
+	$(COMPOSE) pull --ignore-pull-failures
 
 # Build all images
 build: generated/compose/piri.yml ensure-state
-	$(DOCKER) compose build
+	$(COMPOSE) build
 
 # Follow logs from all services
 logs: generated/compose/piri.yml ensure-state
-	$(DOCKER) compose logs -f
+	$(COMPOSE) logs -f
 
 # Show service status
 status: generated/compose/piri.yml ensure-state
-	@$(DOCKER) compose ps
+	@$(COMPOSE) ps
 	@echo ""
-	@$(DOCKER) compose ps --format "table {{.Name}}\t{{.Status}}" | grep -E "(healthy|unhealthy|starting)" || true
+	@$(COMPOSE) ps --format "table {{.Name}}\t{{.Status}}" | grep -E "(healthy|unhealthy|starting)" || true
 
 # Shell into guppy container
 shell-guppy: generated/compose/piri.yml ensure-state
-	$(DOCKER) compose exec guppy bash
+	$(COMPOSE) exec guppy bash
 
 # Shell into piri-0 container
 shell-piri: generated/compose/piri.yml ensure-state
-	$(DOCKER) compose exec piri-0 sh
+	$(COMPOSE) exec piri-0 sh
 
 # Shell into upload container
 shell-upload: ensure-state
-	$(DOCKER) compose exec upload bash
+	$(COMPOSE) exec upload bash
 
 # Run upload (sprue) under Delve for remote debugging.
 # See compose.debug.yml for the overlay; attach to localhost:2345.
@@ -247,7 +266,7 @@ debug-upload: generated/compose/piri.yml ensure-state
 	@if [ ! -d "generated/keys" ] || [ -z "$$(ls -A generated/keys 2>/dev/null)" ]; then \
 		$(MAKE) init; \
 	fi
-	$(DOCKER) compose -f compose.yml -f compose.debug.yml up -d --force-recreate upload
+	$(DOCKER) compose -f compose.yml $(if $(filter 1,$(SMELT_DEV)),-f compose.dev.yml) -f compose.debug.yml up -d --force-recreate upload
 	@echo ""
 	@echo "upload is running under Delve. Attach to localhost:2345:"
 	@echo "  dlv connect localhost:2345"
