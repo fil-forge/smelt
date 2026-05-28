@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 
@@ -117,7 +118,7 @@ func BuildBinary(root, service, outDir string) (string, error) {
 	}
 
 	out := filepath.Join(absOutDir, service)
-	cmd := exec.Command("go", "build", "-o", out, spec.buildTarget)
+	cmd := exec.Command(goTool(), "build", "-o", out, spec.buildTarget)
 	cmd.Dir = moduleRoot
 	// Static linux/amd64 build so the binary drops into the published image's
 	// base cleanly. GOWORK is pinned explicitly so the build resolves the same
@@ -176,8 +177,24 @@ func gowork(root string) string {
 	return filepath.Join(root, "go.work")
 }
 
+// goTool returns the Go binary of the toolchain running this process
+// (runtime.GOROOT()/bin/go), so workspace builds use the same Go that runs the
+// test/CLI rather than whatever `go` is first on PATH. Some IDE run configs
+// (e.g. GoLand) prepend an old system go (/usr/bin/go) that predates
+// patch-versioned go directives and fails to parse a modern go.work. Falls back
+// to PATH `go` only if GOROOT can't be resolved.
+func goTool() string {
+	if root := runtime.GOROOT(); root != "" {
+		p := filepath.Join(root, "bin", "go")
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return "go"
+}
+
 func goEnv(key string) (string, error) {
-	out, err := exec.Command("go", "env", key).Output()
+	out, err := exec.Command(goTool(), "env", key).Output()
 	if err != nil {
 		return "", fmt.Errorf("go env %s: %w", key, err)
 	}

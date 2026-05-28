@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
-	"github.com/storacha/smelt/pkg/manifest"
-	"github.com/storacha/smelt/pkg/workspace"
+	"github.com/fil-forge/smelt/pkg/manifest"
+	"github.com/fil-forge/smelt/pkg/workspace"
 )
 
 var workspaceCmd = &cobra.Command{

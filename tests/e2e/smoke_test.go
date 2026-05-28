@@ -1,5 +1,3 @@
-//go:build e2e
-
 package e2e
 
 import (
@@ -46,7 +44,7 @@ func TestUploadAndRetrieve(t *testing.T) {
 			if img := os.Getenv("GUPPY_IMAGE"); img != "" {
 				opts = append(opts, stack.WithGuppyImage(img))
 			}
-			if os.Getenv("SMELT_WORKSPACE") == "1" {
+			if os.Getenv("SMELT_WORKSPACE") != "" {
 				opts = append(opts, stack.WithWorkspaceBinaries())
 			}
 
