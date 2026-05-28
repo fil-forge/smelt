@@ -162,6 +162,7 @@ gotchas — lives in [docs/SNAPSHOTS.md](docs/SNAPSHOTS.md).
 - **[Multi-Piri Configuration](docs/MULTI_PIRI.md)** — Running multiple piri nodes via `smelt.yml`
 - **[Snapshots](docs/SNAPSHOTS.md)** — Capture and restore stack state to skip cold-boot time
 - **[Architecture Guide](docs/ARCHITECTURE.md)** — How the services connect and why
+- **[Developing Across Service Repos](docs/DEVELOPING.md)** — Run local changes to piri/sprue/libforge/etc. in the stack via `go.work`
 - **[Troubleshooting](docs/TROUBLESHOOTING.md)** — When things go wrong (they will)
 - **[Extending Smelt](docs/EXTENDING.md)** — Adding services or modifying the environment
 

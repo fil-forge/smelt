@@ -4,23 +4,35 @@ DOCKER := $(shell which docker)
 # Set YES=1 to skip confirmation prompts (e.g., make nuke YES=1)
 YES ?= 0
 
-# Set SMELT_DEV=1 to build service images from sibling source checkouts
-# (see compose.dev.yml). The generator also reads SMELT_DEV at `make generate`
-# time to inline a `build:` block into generated/compose/piri.yml.
-SMELT_DEV ?= 0
-export SMELT_DEV
+# Set SMELT_WORKSPACE=1 to run service containers against binaries built from
+# your local sibling checkouts (selected via the active go.work use-list; see
+# the "Developing Against Sibling Service Repos" section in CLAUDE.md). When
+# enabled, `smelt workspace build` compiles the selected binaries and writes
+# generated/compose/workspace.override.yml, which is chained in below so every
+# compose call mounts them over the published images.
+SMELT_WORKSPACE ?= 0
 
-# COMPOSE wraps `docker compose` so every invocation in this Makefile picks up
-# the dev overlay when SMELT_DEV=1. Keep all compose calls below using $(COMPOSE)
-# rather than `$(DOCKER) compose` directly so dev mode stays consistent across
-# build / up / down / logs / exec.
-ifeq ($(SMELT_DEV),1)
-COMPOSE := $(DOCKER) compose -f compose.yml -f compose.dev.yml
-else
-COMPOSE := $(DOCKER) compose
-endif
+WORKSPACE_OVERRIDE := generated/compose/workspace.override.yml
 
-.PHONY: help generate init up down restart clean nuke fresh logs pull build status guppy regen debug-upload ensure-state check-docker
+# Chain the workspace binary-mount override into every compose call, but only
+# when it exists on disk. `workspace-build` (a prereq of up/build/fresh) creates
+# it when SMELT_WORKSPACE=1 and removes it otherwise, so a plain `make up` never
+# picks up a stale override. Recursive (`=`, not `:=`) so $(wildcard) re-checks
+# at use time — after the prereq has reconciled the file.
+COMPOSE = $(DOCKER) compose $(if $(wildcard $(WORKSPACE_OVERRIDE)),-f compose.yml -f $(WORKSPACE_OVERRIDE))
+
+# workspace-build reconciles the override to the current SMELT_WORKSPACE value:
+# build the selected sibling binaries + write the override when enabled, else
+# remove any stale override so published images are used. Prereq of the
+# container-starting targets (up / build / fresh).
+workspace-build:
+	@if [ "$(SMELT_WORKSPACE)" = "1" ]; then \
+		go run ./cmd/smelt workspace build; \
+	else \
+		rm -f $(WORKSPACE_OVERRIDE); \
+	fi
+
+.PHONY: help generate init up down restart clean nuke fresh logs pull build status guppy regen debug-upload ensure-state check-docker workspace-build
 
 # Default target - show help
 help:
@@ -65,9 +77,10 @@ help:
 	@echo ""
 	@echo "Options:"
 	@echo "  YES=1              Skip confirmation prompts (e.g., make nuke YES=1)"
-	@echo "  SMELT_DEV=1        Build service images from sibling source checkouts"
-	@echo "                     (see compose.dev.yml). Affects every compose call,"
-	@echo "                     so 'SMELT_DEV=1 make fresh' rebuilds from source."
+	@echo "  SMELT_WORKSPACE=1  Run containers against binaries built from your local"
+	@echo "                     sibling checkouts (selected via the active go.work"
+	@echo "                     use-list). 'SMELT_WORKSPACE=1 make up' compiles them"
+	@echo "                     and mounts them over the published images."
 	@echo ""
 	@echo "Destructive commands (clean, nuke, fresh) require confirmation."
 	@echo ""
@@ -141,6 +154,7 @@ up: ensure-state
 	else \
 		$(MAKE) generate; \
 	fi
+	$(MAKE) workspace-build
 	$(COMPOSE) up -d --remove-orphans
 	@echo ""
 	@echo "Services starting. Run 'make status' to check health."
@@ -178,6 +192,9 @@ clean: generated/compose/piri.yml check-docker
 	rm -rf generated/snapshot-scratch/anvil-state.json generated/snapshot-scratch/deployed-addresses.json
 	@# End any active snapshot session so `make up` goes back to project smelt.yml.
 	rm -f generated/snapshot-scratch/smelt.yml
+	@# Drop any workspace binary-mount override so the next plain `make up`
+	@# starts from published images.
+	rm -f $(WORKSPACE_OVERRIDE)
 	@echo ""
 	@echo "Services stopped, volumes removed, chain state reset."
 	@echo "Keys and proofs preserved. Run 'make up' to restart."
@@ -211,6 +228,7 @@ fresh: generated/compose/piri.yml check-docker
 	@echo "Rebuilding and starting fresh..."
 	$(MAKE) init
 	$(MAKE) ensure-state
+	$(MAKE) workspace-build
 	$(COMPOSE) build
 	$(COMPOSE) up -d --remove-orphans
 	@echo ""
@@ -236,6 +254,7 @@ pull: generated/compose/piri.yml ensure-state
 
 # Build all images
 build: generated/compose/piri.yml ensure-state
+	$(MAKE) workspace-build
 	$(COMPOSE) build
 
 # Follow logs from all services
@@ -266,7 +285,7 @@ debug-upload: generated/compose/piri.yml ensure-state
 	@if [ ! -d "generated/keys" ] || [ -z "$$(ls -A generated/keys 2>/dev/null)" ]; then \
 		$(MAKE) init; \
 	fi
-	$(DOCKER) compose -f compose.yml $(if $(filter 1,$(SMELT_DEV)),-f compose.dev.yml) -f compose.debug.yml up -d --force-recreate upload
+	$(DOCKER) compose -f compose.yml -f compose.debug.yml up -d --force-recreate upload
 	@echo ""
 	@echo "upload is running under Delve. Attach to localhost:2345:"
 	@echo "  dlv connect localhost:2345"

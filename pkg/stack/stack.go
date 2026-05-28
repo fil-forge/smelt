@@ -33,6 +33,7 @@ import (
 	"github.com/fil-forge/smelt/pkg/generate"
 	"github.com/fil-forge/smelt/pkg/manifest"
 	"github.com/fil-forge/smelt/pkg/snapshot"
+	"github.com/fil-forge/smelt/pkg/workspace"
 )
 
 // Stack represents a running Forge network.
@@ -157,19 +158,14 @@ func NewStack(ctx context.Context, t *testing.T, opts ...Option) (*Stack, error)
 	composePath := filepath.Join(tempDir, "compose.yml")
 	composeFiles := []string{composePath}
 
-	// Generate override file for binary mounts if needed
-	if cfg.piriBinaryPath != "" {
-		// Verify binary exists
-		if _, err := os.Stat(cfg.piriBinaryPath); err != nil {
-			return nil, fmt.Errorf("piri binary not found at %s: %w", cfg.piriBinaryPath, err)
-		}
-
-		overridePath, err := generateBinaryOverride(tempDir, cfg, resolvedNodes)
-		if err != nil {
-			return nil, fmt.Errorf("generate binary override: %w", err)
-		}
+	// Binary injection: build any workspace-selected services and/or use
+	// explicitly-provided binaries, then mount them over the published images.
+	overridePath, err := maybeBinaryOverride(t, tempDir, cfg, resolvedNodes)
+	if err != nil {
+		return nil, err
+	}
+	if overridePath != "" {
 		composeFiles = append(composeFiles, overridePath)
-		t.Logf("smeltery: mounting local piri binary from %s", cfg.piriBinaryPath)
 	}
 
 	// 7. Create compose stack with optional profiles. The project name is
@@ -409,31 +405,57 @@ func (s *Stack) EmailEndpoint() string {
 	return fmt.Sprintf("http://%s:%s", host, port.Port())
 }
 
-// generateBinaryOverride creates a compose override file that mounts local binaries
-// into containers, replacing the binaries from the images.
-func generateBinaryOverride(tempDir string, cfg *config, nodes []manifest.ResolvedPiriNode) (string, error) {
-	overridePath := filepath.Join(tempDir, "compose.override.yml")
+// maybeBinaryOverride builds workspace-selected service binaries (when enabled)
+// and writes a compose override mounting them — plus any explicitly-provided
+// binaries (WithServiceBinary / WithPiriBinary) — over the published images.
+// Returns "" when there are no binaries to inject.
+func maybeBinaryOverride(t *testing.T, tempDir string, cfg *config, nodes []manifest.ResolvedPiriNode) (string, error) {
+	bins := map[string]string{}
 
-	var content string
-	content = "# Auto-generated binary mount overrides\nservices:\n"
-
-	if cfg.piriBinaryPath != "" {
-		absPath, err := filepath.Abs(cfg.piriBinaryPath)
+	if cfg.workspaceBinaries {
+		root, services, err := workspace.Detect()
 		if err != nil {
-			return "", fmt.Errorf("get absolute path: %w", err)
+			return "", fmt.Errorf("workspace binaries: %w", err)
 		}
-		for _, node := range nodes {
-			content += fmt.Sprintf(`  %s:
-    volumes:
-      - %s:/usr/bin/piri:ro
-`, node.Name, absPath)
+		for _, svc := range services {
+			path, err := workspace.BuildBinary(root, svc, tempDir)
+			if err != nil {
+				return "", fmt.Errorf("workspace binaries: %w", err)
+			}
+			bins[svc] = path
+			t.Logf("smeltery: built %s from local source (%s)", svc, path)
 		}
 	}
 
-	if err := os.WriteFile(overridePath, []byte(content), 0644); err != nil {
-		return "", fmt.Errorf("write override file: %w", err)
+	// Explicit binaries win over workspace-built ones.
+	for svc, path := range cfg.serviceBinaries {
+		abs, err := filepath.Abs(path)
+		if err != nil {
+			return "", err
+		}
+		if _, err := os.Stat(abs); err != nil {
+			return "", fmt.Errorf("%s binary not found at %s: %w", svc, abs, err)
+		}
+		bins[svc] = abs
+		t.Logf("smeltery: mounting %s binary from %s", svc, abs)
 	}
 
+	if len(bins) == 0 {
+		return "", nil
+	}
+
+	nodeNames := make([]string, len(nodes))
+	for i, n := range nodes {
+		nodeNames[i] = n.Name
+	}
+	data, err := workspace.RenderOverride(bins, nodeNames)
+	if err != nil {
+		return "", err
+	}
+	overridePath := filepath.Join(tempDir, "compose.override.yml")
+	if err := os.WriteFile(overridePath, data, 0644); err != nil {
+		return "", fmt.Errorf("write binary override: %w", err)
+	}
 	return overridePath, nil
 }
 

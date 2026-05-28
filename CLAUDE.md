@@ -444,34 +444,39 @@ Available variables: `PIRI_IMAGE`, `GUPPY_IMAGE`, `DELEGATOR_IMAGE`, `INDEXER_IM
 
 ## Developing Against Sibling Service Repos
 
-For active work across multiple service repositories, set `SMELT_DEV=1` to build container images from sibling checkouts instead of pulling published images.
+To work on a feature/bugfix spanning the service repos (and the shared `libforge` library)
+and validate it in smelt, use a **Go workspace** (`go.work`) plus `SMELT_WORKSPACE=1`: smelt
+compiles the services you're editing from local source and bind-mounts the binaries over the
+otherwise-published images — no Dockerfiles, no image rebuilds. **Full walkthrough:
+[docs/DEVELOPING.md](docs/DEVELOPING.md).**
 
-Expected sibling layout (peers of the `smelt/` directory):
+- `go.work` lives at the `fil-forge/` parent (above every repo, gitignored) and lists `smelt`
+  plus the repos you're editing — `go work init ./smelt ./piri-pdp`. The `use`-list is the
+  single source of truth for what gets rebuilt.
+- **libforge rule:** a service is rebuilt when its module is in the use-list; listing
+  `libforge` forces **all** services to rebuild (a published binary would still link the
+  published libforge).
+- Run `SMELT_WORKSPACE=1 make up` / `make fresh`, or `SMELT_WORKSPACE=1 go test -tags e2e ./tests/e2e`. The
+  flag runs `smelt workspace build` → binaries in `generated/bin/` + mounts in
+  `generated/compose/workspace.override.yml` (chained into `$(COMPOSE)`); a plain `make up`
+  removes the override and runs published images.
+- **Fast per-edit loop:** `docker compose stop <svc>` → `SMELT_WORKSPACE=1 make workspace-build`
+  → `docker compose start <svc>` (stop first — the bind-mounted binary is executing, so an
+  in-place rebuild hits `ETXTBSY`).
 
-```
-fil-forge/
-├── smelt/                  # this repo
-├── piri-pdp/               # piri storage node (built into smelt-local/piri:dev)
-├── indexing-service/       # indexer (built into smelt-local/indexer:dev)
-├── piri-signing-service/   # signing-service (built into smelt-local/signer:dev)
-├── guppy/                  # guppy CLI (built into smelt-local/guppy:dev)
-├── delegator/              # delegator (built into smelt-local/delegator:dev)
-└── sprue/                  # upload service (built into smelt-local/upload:dev)
-```
+Module → service / container binary map (see `pkg/workspace`):
 
-Usage:
+| module dir | service | container binary |
+|---|---|---|
+| `piri-pdp` | piri (all piri-N) | `/usr/bin/piri` |
+| `sprue` | upload | `/usr/bin/sprue` |
+| `piri-signing-service` | signing-service | `/usr/bin/signer` |
+| `indexing-service` | indexer | `/usr/bin/indexer` |
+| `delegator` | delegator | `/usr/bin/registrar` |
+| `guppy` | guppy | `/usr/bin/guppy` |
 
-```bash
-SMELT_DEV=1 make fresh     # nuke + rebuild from local source + start
-SMELT_DEV=1 make build     # rebuild without restarting
-SMELT_DEV=1 make up        # start (will use already-built images)
-```
-
-`SMELT_DEV` must be set on every `make` invocation that touches compose (or `export SMELT_DEV=1` once in your shell). The Makefile threads it through a `COMPOSE` variable that chains `-f compose.dev.yml`; piri itself is handled by the generator, which inlines a `build:` block into `generated/compose/piri.yml` when `SMELT_DEV=1` is set at generation time.
-
-To return to published images: unset `SMELT_DEV` (or set it to `0`) and re-run `make generate` followed by `make up` (or `make fresh` for a full reset).
-
-The compose.dev.yml overlay is the source of truth for which siblings get rebuilt. To add another service, append an entry with `image: smelt-local/<name>:dev` and `build: { context: ../<repo> }`.
+In Go tests, `stack.WithWorkspaceBinaries()` does the same; `stack.WithServiceBinary(name, path)`
+mounts a specific prebuilt binary without the workspace machinery.
 
 ## CI/CD
 

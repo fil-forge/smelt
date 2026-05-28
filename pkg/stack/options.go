@@ -25,8 +25,12 @@ type config struct {
 	blockchainImage string
 	ipniImage       string
 
-	// Binary overrides (mount local binary instead of using image's binary)
-	piriBinaryPath string
+	// Binary injection: bind-mount host-built binaries over the published
+	// images instead of rebuilding the image. serviceBinaries holds explicit
+	// prebuilt binaries keyed by smelt service name; workspaceBinaries enables
+	// auto-detect-and-build of services from the active go.work use-list.
+	serviceBinaries   map[string]string
+	workspaceBinaries bool
 
 	// Piri node topology. When nil, a single default node is used.
 	piriNodes []PiriNodeConfig
@@ -121,17 +125,42 @@ func WithPiriImage(image string) Option {
 	}
 }
 
-// WithPiriBinary mounts a local piri binary into the container, replacing the
-// image's binary. This enables rapid iteration without rebuilding the container
-// image. The binary must be compiled for Linux (use BuildPiriBinary helper).
+// WithServiceBinary mounts a prebuilt binary over a service's binary in the
+// container, replacing the image's copy without rebuilding the image. The
+// binary must be a static linux/amd64 build. service is a smelt service name
+// (piri, upload, signing-service, indexer, delegator, guppy).
+//
+// For building from a local checkout via the Go workspace, prefer
+// WithWorkspaceBinaries; this option is the explicit, prebuilt-binary escape
+// hatch.
+func WithServiceBinary(service, path string) Option {
+	return func(c *config) {
+		if c.serviceBinaries == nil {
+			c.serviceBinaries = map[string]string{}
+		}
+		c.serviceBinaries[service] = path
+	}
+}
+
+// WithPiriBinary mounts a local piri binary into the piri container(s),
+// replacing the image's binary for fast iteration. The binary must be compiled
+// for linux/amd64. Equivalent to WithServiceBinary("piri", path).
+func WithPiriBinary(path string) Option {
+	return WithServiceBinary("piri", path)
+}
+
+// WithWorkspaceBinaries builds every service selected by the active Go
+// workspace (go.work) from local sibling source and mounts the resulting
+// binaries over the published images. Selection follows the use-list: a service
+// is built when its module is listed; if libforge is listed, all services are
+// rebuilt. Requires an active go.work (see pkg/workspace).
 //
 // Example:
 //
-//	piriBin := stack.BuildPiriBinary(t, "/path/to/piri/repo")
-//	s := stack.MustNewStack(t, stack.WithPiriBinary(piriBin))
-func WithPiriBinary(path string) Option {
+//	s := stack.MustNewStack(t, stack.WithWorkspaceBinaries())
+func WithWorkspaceBinaries() Option {
 	return func(c *config) {
-		c.piriBinaryPath = path
+		c.workspaceBinaries = true
 	}
 }
 
