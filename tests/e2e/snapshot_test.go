@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/fil-forge/smelt/pkg/clients/guppy"
+	"github.com/fil-forge/smelt/pkg/clients/randdir"
 	"github.com/fil-forge/smelt/pkg/stack"
 )
 
@@ -56,31 +57,32 @@ func TestStackFromSnapshot(t *testing.T) {
 		t.Fatalf("guppy client: %v", err)
 	}
 
-	if err := gup.Login(ctx, "test@example.com"); err != nil {
+	if _, err := gup.Login(ctx, "test@example.com"); err != nil {
 		t.Fatalf("login: %v", err)
 	}
 
-	spaceDID, err := gup.GenerateSpace(ctx)
+	gen, err := gup.Space().Generate(ctx)
 	if err != nil {
 		t.Fatalf("generate space: %v", err)
 	}
+	spaceDID := gen.DID
 
-	dataPath, err := gup.GenerateTestData(ctx, "100MB")
+	dataPath, err := randdir.NewContainerClient(s).Generate(ctx, "100MB")
 	if err != nil {
 		t.Fatalf("generate test data: %v", err)
 	}
 
-	if err := gup.AddSource(ctx, spaceDID, dataPath); err != nil {
+	if _, err := gup.Upload().Source().Add(ctx, spaceDID, dataPath); err != nil {
 		t.Fatalf("add source: %v", err)
 	}
 
-	cids, err := gup.Upload(ctx, spaceDID)
+	up, err := gup.Upload().Run(ctx, spaceDID)
 	if err != nil {
 		t.Fatalf("upload: %v", err)
 	}
-	if len(cids) == 0 {
-		t.Fatal("upload returned no CIDs")
+	if len(up.Completed) == 0 {
+		t.Fatal("upload returned no completed uploads")
 	}
 
-	t.Logf("uploaded %d CID(s) via snapshot-loaded stack", len(cids))
+	t.Logf("completed %d upload(s) via snapshot-loaded stack", len(up.Completed))
 }
