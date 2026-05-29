@@ -51,6 +51,28 @@ file also makes your editor and `go test` resolve the local sibling source, so t
 
 The `use`-list is the **single source of truth** for what gets rebuilt.
 
+### Including guppy: the genproto replace
+
+If you put `./guppy` in the `use`-list, the build fails with an *ambiguous import* for
+`google.golang.org/genproto/googleapis/{rpc,api}/...`: guppy pulls the **pre-split monolithic**
+`google.golang.org/genproto` (≈2021) transitively, and its `rpc`/`api` packages collide with the
+**split** genproto modules smelt requires. Add a workspace-local `replace` that bumps the monolith
+to a post-split version (where those packages are delegated to the split modules):
+
+```
+go 1.26.1
+
+use (
+	./smelt
+	./guppy
+)
+
+replace google.golang.org/genproto => google.golang.org/genproto v0.0.0-20260526163538-3dc84a4a5aaa
+```
+
+This lives only in `go.work` (gitignored), so it never touches any committed `go.mod`. Other
+siblings (piri-pdp, sprue, …) don't need it.
+
 ### Selection and the `libforge` rule
 
 A service is rebuilt from local source when its module dir is in the `use`-list. Because the

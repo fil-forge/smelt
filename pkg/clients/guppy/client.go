@@ -1,4 +1,7 @@
-// Package guppy provides a client interface for interacting with the guppy CLI.
+// Package guppy provides a test-harness client for the guppy CLI. Its surface
+// mirrors guppy's command tree (sub-clients for space/upload/account/blob) and
+// it consumes guppy's `--output json` mode, so results are decoded from
+// structured output rather than scraped from human-readable text.
 package guppy
 
 import (
@@ -10,11 +13,27 @@ type loginConfig struct {
 	timeout time.Duration
 }
 
+// LoginOption configures Login.
 type LoginOption func(*loginConfig)
 
+// WithLoginTimeout bounds how long Login waits for email validation.
 func WithLoginTimeout(timeout time.Duration) LoginOption {
 	return func(c *loginConfig) {
 		c.timeout = timeout
+	}
+}
+
+type spaceGenerateConfig struct {
+	name string
+}
+
+// SpaceGenerateOption configures Space().Generate.
+type SpaceGenerateOption func(*spaceGenerateConfig)
+
+// WithSpaceName sets the optional name for the generated space.
+func WithSpaceName(name string) SpaceGenerateOption {
+	return func(c *spaceGenerateConfig) {
+		c.name = name
 	}
 }
 
@@ -22,32 +41,55 @@ type uploadConfig struct {
 	replicas int
 }
 
+// UploadOption configures Upload().Run.
 type UploadOption func(*uploadConfig)
 
+// WithReplicas requests the given number of replicas per shard.
 func WithReplicas(replicas int) UploadOption {
 	return func(c *uploadConfig) {
 		c.replicas = replicas
 	}
 }
 
-// Client defines the interface for interacting with guppy.
+type lsConfig struct {
+	shards bool
+}
+
+// LsOption configures Ls.
+type LsOption func(*lsConfig)
+
+// WithShards includes shard CIDs under each upload root.
+func WithShards() LsOption {
+	return func(c *lsConfig) {
+		c.shards = true
+	}
+}
+
+// Client is the guppy CLI surface exposed to tests. Sub-clients mirror guppy's
+// command groups (`guppy space ...`, `guppy upload ...`, etc.).
 type Client interface {
-	// Login logs in with the given email.
-	Login(ctx context.Context, email string, options ...LoginOption) error
+	// Login authenticates the agent with the given email, driving the email
+	// validation flow to completion.
+	Login(ctx context.Context, email string, options ...LoginOption) (LoginResult, error)
 
-	// GenerateSpace creates a new space and returns its DID.
-	GenerateSpace(ctx context.Context) (spaceDID string, err error)
+	// Whoami returns the local agent's DID.
+	Whoami(ctx context.Context) (WhoamiResult, error)
 
-	// AddSource adds a source directory to a space.
-	AddSource(ctx context.Context, spaceDID, path string) error
-
-	// Upload uploads all sources in a space and returns the CIDs.
-	Upload(ctx context.Context, spaceDID string, options ...UploadOption) (cids []string, err error)
+	// Version returns build information for the guppy binary.
+	Version(ctx context.Context) (VersionResult, error)
 
 	// Retrieve downloads content by CID to a destination path.
-	Retrieve(ctx context.Context, spaceDID, cid, destPath string) error
+	Retrieve(ctx context.Context, spaceDID, cid, destPath string) (RetrieveResult, error)
 
-	// GenerateTestData creates random test data and returns the path.
-	// This is useful for testing - it uses randdir to create test files.
-	GenerateTestData(ctx context.Context, size string) (path string, err error)
+	// Ls lists uploads in a space.
+	Ls(ctx context.Context, spaceDID string, options ...LsOption) ([]UploadListItem, error)
+
+	// Space exposes the `guppy space ...` command group.
+	Space() *SpaceClient
+	// Upload exposes the `guppy upload ...` command group.
+	Upload() *UploadClient
+	// Account exposes the `guppy account ...` command group.
+	Account() *AccountClient
+	// Blob exposes the `guppy blob ...` command group.
+	Blob() *BlobClient
 }
