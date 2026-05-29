@@ -6,7 +6,7 @@
 #
 # Prerequisites:
 # - Keys must exist in generated/keys/ (run 'make generate' first)
-# - mkdelegation CLI must be installed (go install github.com/storacha/go-mkdelegation@latest)
+# - ucantool CLI must be installed (go install github.com/fil-forge/ucantool@latest)
 #
 # Usage: ./generate-proofs.sh [--force]
 #   --force: Regenerate all proofs even if they exist
@@ -18,15 +18,12 @@ KEYS_DIR="$SCRIPT_DIR/keys"
 PROOFS_DIR="$SCRIPT_DIR/proofs"
 FORCE=${1:-""}
 
-# Check for mkdelegation
-MKDELEGATION="${MKDELEGATION:-/home/frrist/workspace/src/github.com/fil-forge/delegator/bin/delegator}"
-if ! command -v "$MKDELEGATION" &> /dev/null; then
-    MKDELEGATION="go-mkdelegation"
-    if ! command -v "$MKDELEGATION" &> /dev/null; then
-        echo "Error: mkdelegation not found in PATH"
-        echo "Install with: go install github.com/storacha/go-mkdelegation@latest"
-        exit 1
-    fi
+# Check for ucantool
+UCANTOOL="${UCANTOOL:-ucantool}"
+if ! command -v "$UCANTOOL" &> /dev/null; then
+    echo "Error: ucantool not found in PATH"
+    echo "Install with: go install github.com/fil-forge/ucantool@latest"
+    exit 1
 fi
 
 # Check for required keys
@@ -70,10 +67,11 @@ else
     echo "  Audience: $DELEGATOR_WEB_DID"
     echo "  Capabilities: claim/cache"
 
-    "$MKDELEGATION" gen \
+    "$UCANTOOL" delegate \
         --issuer-private-key-file "$KEYS_DIR/indexer.pem" \
         --issuer-did-web "did:web:indexer" \
-        --audience-did-key "$DELEGATOR_WEB_DID" \
+        --audience "$DELEGATOR_WEB_DID" \
+        --subject "did:web:indexer" \
         --command "/claim/cache" \
         > "$INDEXING_PROOF_FILE"
 
@@ -92,10 +90,11 @@ else
     echo "  Audience: $DELEGATOR_WEB_DID"
     echo "  Capabilities: egress/track"
 
-    "$MKDELEGATION" gen \
+    "$UCANTOOL" delegate \
         --issuer-private-key-file "$KEYS_DIR/etracker.pem" \
         --issuer-did-web "did:web:etracker" \
-        --audience-did-key "$DELEGATOR_WEB_DID" \
+        --audience "$DELEGATOR_WEB_DID" \
+        --subject "did:web:etracker" \
         --command "/space/egress/track" \
         > "$EGRESS_PROOF_FILE"
 
@@ -127,13 +126,13 @@ fi
 #    echo "  Audience: $UPLOAD_WEB_DID"
 #    echo "  Capabilities: blob/allocate, blob/accept, blob/replica/allocate, pdp/info"
 #
-#    "$MKDELEGATION" gen \
+#    "$UCANTOOL" delegate \
 #        --issuer-private-key-file "$PIRI_KEY" \
-#        --audience-did-key "$UPLOAD_WEB_DID" \
-#        --capabilities "blob/allocate" \
-#        --capabilities "blob/accept" \
-#        --capabilities "blob/replica/allocate" \
-#        --capabilities "pdp/info" \
+#        --audience "$UPLOAD_WEB_DID" \
+#        --command "/blob/allocate" \
+#        --command "/blob/accept" \
+#        --command "/blob/replica/allocate" \
+#        --command "/pdp/info" \
 #        > "$PIRI_PROOF_FILE"
 #
 #    echo "  [new] ${NODE_NAME}-proof.txt"
