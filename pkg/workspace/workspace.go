@@ -19,10 +19,10 @@ package workspace
 import (
 	"bytes"
 	"fmt"
+	"go/build"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 
@@ -178,13 +178,17 @@ func gowork(root string) string {
 }
 
 // goTool returns the Go binary of the toolchain running this process
-// (runtime.GOROOT()/bin/go), so workspace builds use the same Go that runs the
-// test/CLI rather than whatever `go` is first on PATH. Some IDE run configs
+// (build.Default.GOROOT/bin/go), so workspace builds use the same Go that runs
+// the test/CLI rather than whatever `go` is first on PATH. Some IDE run configs
 // (e.g. GoLand) prepend an old system go (/usr/bin/go) that predates
 // patch-versioned go directives and fails to parse a modern go.work. Falls back
 // to PATH `go` only if GOROOT can't be resolved.
+//
+// We read GOROOT via go/build's Default context rather than runtime.GOROOT(),
+// which is deprecated as of Go 1.24; build.Default.GOROOT resolves to the same
+// value without the deprecation.
 func goTool() string {
-	if root := runtime.GOROOT(); root != "" {
+	if root := build.Default.GOROOT; root != "" {
 		p := filepath.Join(root, "bin", "go")
 		if _, err := os.Stat(p); err == nil {
 			return p
