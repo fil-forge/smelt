@@ -50,13 +50,13 @@ version. Upgrade Docker Desktop or install the compose plugin separately.
 Go is required for two things:
 
 1. **`smelt generate`** — the multi-piri manifest generator that reads `smelt.yml` and produces `generated/compose/piri.yml` plus all service keys. Runs automatically via `make generate` (and transitively from `make up`, `make init`, `make fresh`).
-2. **`mkdelegation`** — creates the UCAN delegation proofs that let services authorize each other. Installed on first `make init`.
+2. **`ucantool`** — creates the UCAN delegation proofs that let services authorize each other. Installed on first `make init`.
 
 ```bash
 go version    # Should show "go1.22" or higher
 ```
 
-If Go is unavailable, `make generate` will fail outright (it's required) and `mkdelegation` will be skipped with a warning. Install Go before proceeding.
+If Go is unavailable, `make generate` will fail outright (it's required) and `ucantool` will be skipped with a warning. Install Go before proceeding.
 
 ### jq
 
@@ -174,12 +174,12 @@ Anvil ships with 10 deterministic pre-funded accounts. `smelt generate` assigns 
 
 Wallets are generated alongside the corresponding Ed25519 keys, so adding nodes in `smelt.yml` allocates new accounts sequentially. Account 1 is reserved for the payer, which is why piri-1 uses account 2, not account 1.
 
-#### Step 4: Install mkdelegation Tool
+#### Step 4: Install ucantool Tool
 
-If Go is available, the script installs `mkdelegation`:
+If Go is available, the script installs `ucantool`:
 
 ```bash
-go install github.com/storacha/go-mkdelegation@latest
+go install github.com/fil-forge/ucantool@latest
 ```
 
 This tool generates UCAN delegation proofs—signed statements that grant one service permission to invoke capabilities on another.
@@ -584,20 +584,20 @@ docker system prune -a --volumes
 
 Or free up space on your disk and try again.
 
-### mkdelegation Not Found
+### ucantool Not Found
 
-If you see warnings about missing `mkdelegation` during `make init`:
+If you see warnings about missing `ucantool` during `make init`:
 
 ```bash
 # Option 1: Install Go and re-run init
 brew install go  # or your package manager
 make init
 
-# Option 2: Install mkdelegation directly
-go install github.com/storacha/go-mkdelegation@latest
+# Option 2: Install ucantool directly
+go install github.com/fil-forge/ucantool@latest
 
 # Option 3: Manual install to PATH
-GOBIN=/usr/local/bin go install github.com/storacha/go-mkdelegation@latest
+GOBIN=/usr/local/bin go install github.com/fil-forge/ucantool@latest
 ```
 
 The tool must be in your PATH for the init script to find it.

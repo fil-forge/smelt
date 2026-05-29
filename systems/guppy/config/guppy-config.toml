@@ -4,8 +4,12 @@
 #   STORACHA_SERVICE_URL=http://upload:8080
 #   STORACHA_RECEIPTS_URL=http://upload:8080/receipt
 
+[identity]
+key_file = '/keys/guppy.pem'
+
 [repo]
-# Data directory is mounted as a Docker volume at /root/.storacha/guppy
+
+# Data directory is mounted as a Docker volume at /root/.fil-forge/guppy
 [network]
 upload_id = "did:web:upload"
 upload_url = "http://upload:80"

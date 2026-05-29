@@ -46,6 +46,9 @@ func TestUploadAndRetrieve(t *testing.T) {
 			if img := os.Getenv("GUPPY_IMAGE"); img != "" {
 				opts = append(opts, stack.WithGuppyImage(img))
 			}
+			if os.Getenv("SMELT_WORKSPACE") != "" {
+				opts = append(opts, stack.WithWorkspaceBinaries())
+			}
 
 			s := stack.MustNewStack(t, opts...)
 			gup, err := guppy.NewContainerClient(s)

@@ -36,7 +36,7 @@ func resolveSnapshotDir(path string) (string, error) {
 
 // validateSnapshotOptions rejects option combinations that collide with
 // a snapshot's embedded topology. Other options (images, timeout,
-// keepOnFailure, piriBinaryPath) are compatible and pass through.
+// keepOnFailure, binary injection) are compatible and pass through.
 func validateSnapshotOptions(cfg *config) error {
 	if cfg.piriNodes != nil {
 		return errors.New("WithSnapshot is incompatible with WithPiriCount / WithPiriNodes " +

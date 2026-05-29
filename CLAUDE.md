@@ -442,6 +442,42 @@ PIRI_IMAGE=myregistry/piri:test GUPPY_IMAGE=myregistry/guppy:test make up
 
 Available variables: `PIRI_IMAGE`, `GUPPY_IMAGE`, `DELEGATOR_IMAGE`, `INDEXER_IMAGE`, `IPNI_IMAGE`, `SIGNER_IMAGE`, `UPLOAD_IMAGE`, `BLOCKCHAIN_IMAGE`. Defaults live in `.env`.
 
+## Developing Against Sibling Service Repos
+
+To work on a feature/bugfix spanning the service repos (and the shared `libforge` library)
+and validate it in smelt, use a **Go workspace** (`go.work`) plus `SMELT_WORKSPACE=1`: smelt
+compiles the services you're editing from local source and bind-mounts the binaries over the
+otherwise-published images — no Dockerfiles, no image rebuilds. **Full walkthrough:
+[docs/DEVELOPING.md](docs/DEVELOPING.md).**
+
+- `go.work` lives at the `fil-forge/` parent (above every repo, gitignored) and lists `smelt`
+  plus the repos you're editing — `go work init ./smelt ./piri`. The `use`-list is the
+  single source of truth for what gets rebuilt.
+- **libforge rule:** a service is rebuilt when its module is in the use-list; listing
+  `libforge` forces **all** services to rebuild (a published binary would still link the
+  published libforge).
+- Run `SMELT_WORKSPACE=1 make up` / `make fresh`, or `SMELT_WORKSPACE=1 go test -tags e2e ./tests/e2e`. The
+  flag runs `smelt workspace build` → binaries in `generated/bin/` + mounts in
+  `generated/compose/workspace.override.yml` (chained into `$(COMPOSE)`); a plain `make up`
+  removes the override and runs published images.
+- **Fast per-edit loop:** `docker compose stop <svc>` → `SMELT_WORKSPACE=1 make workspace-build`
+  → `docker compose start <svc>` (stop first — the bind-mounted binary is executing, so an
+  in-place rebuild hits `ETXTBSY`).
+
+Module → service / container binary map (see `pkg/workspace`):
+
+| module dir | service | container binary |
+|---|---|---|
+| `piri` | piri (all piri-N) | `/usr/bin/piri` |
+| `sprue` | upload | `/usr/bin/sprue` |
+| `piri-signing-service` | signing-service | `/usr/bin/signer` |
+| `indexing-service` | indexer | `/usr/bin/indexer` |
+| `delegator` | delegator | `/usr/bin/registrar` |
+| `guppy` | guppy | `/usr/bin/guppy` |
+
+In Go tests, `stack.WithWorkspaceBinaries()` does the same; `stack.WithServiceBinary(name, path)`
+mounts a specific prebuilt binary without the workspace machinery.
+
 ## CI/CD
 
 There is no CI wired up in this repository yet. When CI lands, this section will describe the triggers, workflows, and test structure.

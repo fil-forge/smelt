@@ -4,7 +4,35 @@ DOCKER := $(shell which docker)
 # Set YES=1 to skip confirmation prompts (e.g., make nuke YES=1)
 YES ?= 0
 
-.PHONY: help generate init up down restart clean nuke fresh logs pull build status guppy regen debug-upload ensure-state check-docker
+# Set SMELT_WORKSPACE=1 to run service containers against binaries built from
+# your local sibling checkouts (selected via the active go.work use-list; see
+# the "Developing Against Sibling Service Repos" section in CLAUDE.md). When
+# enabled, `smelt workspace build` compiles the selected binaries and writes
+# generated/compose/workspace.override.yml, which is chained in below so every
+# compose call mounts them over the published images.
+SMELT_WORKSPACE ?= 0
+
+WORKSPACE_OVERRIDE := generated/compose/workspace.override.yml
+
+# Chain the workspace binary-mount override into every compose call, but only
+# when it exists on disk. `workspace-build` (a prereq of up/build/fresh) creates
+# it when SMELT_WORKSPACE=1 and removes it otherwise, so a plain `make up` never
+# picks up a stale override. Recursive (`=`, not `:=`) so $(wildcard) re-checks
+# at use time — after the prereq has reconciled the file.
+COMPOSE = $(DOCKER) compose $(if $(wildcard $(WORKSPACE_OVERRIDE)),-f compose.yml -f $(WORKSPACE_OVERRIDE))
+
+# workspace-build reconciles the override to the current SMELT_WORKSPACE value:
+# build the selected sibling binaries + write the override when enabled, else
+# remove any stale override so published images are used. Prereq of the
+# container-starting targets (up / build / fresh).
+workspace-build:
+	@if [ "$(SMELT_WORKSPACE)" = "1" ]; then \
+		go run ./cmd/smelt workspace build; \
+	else \
+		rm -f $(WORKSPACE_OVERRIDE); \
+	fi
+
+.PHONY: help generate init up down restart clean nuke fresh logs pull build cli status guppy regen debug-upload ensure-state check-docker workspace-build
 
 # Default target - show help
 help:
@@ -30,6 +58,7 @@ help:
 	@echo "  Run 'make generate' (or 'make up') to apply changes."
 	@echo ""
 	@echo "Snapshots:"
+	@echo "  make cli                          Build the ./smelt CLI binary"
 	@echo "  ./smelt snapshot save NAME        Save current stack state"
 	@echo "  ./smelt snapshot list             List saved snapshots"
 	@echo "  ./smelt snapshot rm NAME          Delete a snapshot"
@@ -49,6 +78,10 @@ help:
 	@echo ""
 	@echo "Options:"
 	@echo "  YES=1              Skip confirmation prompts (e.g., make nuke YES=1)"
+	@echo "  SMELT_WORKSPACE=1  Run containers against binaries built from your local"
+	@echo "                     sibling checkouts (selected via the active go.work"
+	@echo "                     use-list). 'SMELT_WORKSPACE=1 make up' compiles them"
+	@echo "                     and mounts them over the published images."
 	@echo ""
 	@echo "Destructive commands (clean, nuke, fresh) require confirmation."
 	@echo ""
@@ -122,14 +155,15 @@ up: ensure-state
 	else \
 		$(MAKE) generate; \
 	fi
-	$(DOCKER) compose up -d --remove-orphans
+	$(MAKE) workspace-build
+	$(COMPOSE) up -d --remove-orphans
 	@echo ""
 	@echo "Services starting. Run 'make status' to check health."
 	@echo "Run 'make logs' to follow logs."
 
 # Stop all services (keeps volumes for quick restart)
 down: generated/compose/piri.yml ensure-state
-	$(DOCKER) compose down --remove-orphans
+	$(COMPOSE) down --remove-orphans
 	@echo ""
 	@echo "Services stopped. Data preserved in volumes."
 	@echo "Run 'make up' to restart."
@@ -151,7 +185,7 @@ endef
 clean: generated/compose/piri.yml check-docker
 	$(call confirm,STOP all services and DELETE all volumes (Redis cache$(,) IPNI data$(,) etc.))
 	@# Stop all services including those with profiles
-	$(DOCKER) compose down -v --remove-orphans
+	$(COMPOSE) down -v --remove-orphans
 	@# Also remove any dangling volumes from this project
 	$(DOCKER) volume ls -q --filter "name=smelt_" | xargs -r $(DOCKER) volume rm 2>/dev/null || true
 	@# Clear chain state so next `make up` cold-boots from the committed baseline.
@@ -159,6 +193,9 @@ clean: generated/compose/piri.yml check-docker
 	rm -rf generated/snapshot-scratch/anvil-state.json generated/snapshot-scratch/deployed-addresses.json
 	@# End any active snapshot session so `make up` goes back to project smelt.yml.
 	rm -f generated/snapshot-scratch/smelt.yml
+	@# Drop any workspace binary-mount override so the next plain `make up`
+	@# starts from published images.
+	rm -f $(WORKSPACE_OVERRIDE)
 	@echo ""
 	@echo "Services stopped, volumes removed, chain state reset."
 	@echo "Keys and proofs preserved. Run 'make up' to restart."
@@ -168,7 +205,7 @@ nuke: generated/compose/piri.yml check-docker
 	$(call confirm,DELETE everything: containers$(,) volumes$(,) keys$(,) proofs$(,) AND Docker images)
 	@echo "Removing all containers, volumes, keys, proofs, and images..."
 	@# Stop all services including those with profiles
-	$(DOCKER) compose down -v --remove-orphans --rmi local 2>/dev/null || true
+	$(COMPOSE) down -v --remove-orphans --rmi local 2>/dev/null || true
 	@# Also remove any dangling volumes from this project
 	$(DOCKER) volume ls -q --filter "name=smelt_" | xargs -r $(DOCKER) volume rm 2>/dev/null || true
 	rm -rf generated/keys generated/proofs generated/compose
@@ -182,7 +219,7 @@ fresh: generated/compose/piri.yml check-docker
 	$(call confirm,DELETE everything and rebuild from scratch)
 	@echo "Removing all containers, volumes, keys, proofs, and images..."
 	@# Stop all services including those with profiles
-	$(DOCKER) compose down -v --remove-orphans --rmi local 2>/dev/null || true
+	$(COMPOSE) down -v --remove-orphans --rmi local 2>/dev/null || true
 	@# Also remove any dangling volumes from this project
 	$(DOCKER) volume ls -q --filter "name=smelt_" | xargs -r $(DOCKER) volume rm 2>/dev/null || true
 	rm -rf generated/keys generated/proofs generated/compose
@@ -192,8 +229,9 @@ fresh: generated/compose/piri.yml check-docker
 	@echo "Rebuilding and starting fresh..."
 	$(MAKE) init
 	$(MAKE) ensure-state
-	$(DOCKER) compose build
-	$(DOCKER) compose up -d --remove-orphans
+	$(MAKE) workspace-build
+	$(COMPOSE) build
+	$(COMPOSE) up -d --remove-orphans
 	@echo ""
 	@echo "Fresh deployment complete!"
 	@echo ""
@@ -213,33 +251,43 @@ regen:
 
 # Pull latest pre-built images (ignores failures for local-only images)
 pull: generated/compose/piri.yml ensure-state
-	$(DOCKER) compose pull --ignore-pull-failures
+	$(COMPOSE) pull --ignore-pull-failures
+
+# Build the smelt CLI binary to ./smelt (used by the snapshot commands and
+# anywhere the docs reference `./smelt ...`). Rebuilt whenever any Go source
+# under cmd/smelt or pkg changes.
+smelt: $(shell find cmd/smelt pkg -name '*.go' 2>/dev/null)
+	go build -o smelt ./cmd/smelt
+
+# Convenience alias for building the CLI binary.
+cli: smelt
 
 # Build all images
 build: generated/compose/piri.yml ensure-state
-	$(DOCKER) compose build
+	$(MAKE) workspace-build
+	$(COMPOSE) build
 
 # Follow logs from all services
 logs: generated/compose/piri.yml ensure-state
-	$(DOCKER) compose logs -f
+	$(COMPOSE) logs -f
 
 # Show service status
 status: generated/compose/piri.yml ensure-state
-	@$(DOCKER) compose ps
+	@$(COMPOSE) ps
 	@echo ""
-	@$(DOCKER) compose ps --format "table {{.Name}}\t{{.Status}}" | grep -E "(healthy|unhealthy|starting)" || true
+	@$(COMPOSE) ps --format "table {{.Name}}\t{{.Status}}" | grep -E "(healthy|unhealthy|starting)" || true
 
 # Shell into guppy container
 shell-guppy: generated/compose/piri.yml ensure-state
-	$(DOCKER) compose exec guppy bash
+	$(COMPOSE) exec guppy bash
 
 # Shell into piri-0 container
 shell-piri: generated/compose/piri.yml ensure-state
-	$(DOCKER) compose exec piri-0 sh
+	$(COMPOSE) exec piri-0 sh
 
 # Shell into upload container
 shell-upload: ensure-state
-	$(DOCKER) compose exec upload bash
+	$(COMPOSE) exec upload bash
 
 # Run upload (sprue) under Delve for remote debugging.
 # See compose.debug.yml for the overlay; attach to localhost:2345.

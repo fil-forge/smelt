@@ -642,16 +642,16 @@ This regenerates all keys and ensures consistency across services.
 
 ---
 
-### mkdelegation Not Found
+### ucantool Not Found
 
-**Full error**: `mkdelegation: command not found` or `go-mkdelegation not installed`
+**Full error**: `ucantool: command not found` or `ucantool not installed`
 
 **Cause**: Go is not installed, not in PATH, or the tool wasn't installed.
 
 **Diagnostic**:
 ```bash
 which go
-which mkdelegation
+which ucantool
 ```
 
 **Solutions**:
@@ -665,8 +665,8 @@ sudo apt install golang-go  # Debian/Ubuntu
 
 make init
 
-# Option 2: Install mkdelegation directly
-go install github.com/storacha/go-mkdelegation@latest
+# Option 2: Install ucantool directly
+go install github.com/fil-forge/ucantool@latest
 
 # Option 3: Ensure GOBIN is in PATH
 export PATH="$PATH:$(go env GOPATH)/bin"

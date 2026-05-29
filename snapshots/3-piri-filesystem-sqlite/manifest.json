@@ -1,6 +1,6 @@
 {
   "name": "3-piri-filesystem-sqlite",
-  "created_at": "2026-04-21T01:25:48.524254892Z",
+  "created_at": "2026-05-29T18:23:31.737818948Z",
   "volumes": [
     "minio-data",
     "ipni-data",
@@ -15,6 +15,8 @@
     "delegator.pub",
     "etracker.pem",
     "etracker.pub",
+    "guppy.pem",
+    "guppy.pub",
     "indexer.pem",
     "indexer.pub",
     "payer-key.hex",
@@ -34,19 +36,16 @@
   ],
   "proofs": [
     "egress-tracking-proof.txt",
-    "indexing-service-proof.txt",
-    "piri-0-proof.txt",
-    "piri-1-proof.txt",
-    "piri-2-proof.txt"
+    "indexing-service-proof.txt"
   ],
   "images": {
     "blockchain": {
-      "tag": "filecoin-localdev:local",
-      "digest": "sha256:83bfc6399fa91637efe638f51a437a530089030ce46feb137b8f4b1e6ea20c6d"
+      "tag": "ghcr.io/fil-forge/filecoin-localdev:main",
+      "digest": "ghcr.io/fil-forge/filecoin-localdev@sha256:ab275b965ab5a2142b22b2cb72c8f56eb8675ad1ba41373ce6a359f9fdc357d5"
     },
     "delegator": {
-      "tag": "ghcr.io/storacha/delegator:main",
-      "digest": "ghcr.io/storacha/delegator@sha256:8e7ba8393a181f0e010bd23b0cb56e5b67475acc92ebfdef7628452e018e7294"
+      "tag": "ghcr.io/fil-forge/delegator:main",
+      "digest": "ghcr.io/fil-forge/delegator@sha256:a02f5c0de89bfcecd9bf08903604c33c21b1c8e59dcbab6d84a2b0c954a725ba"
     },
     "dynamodb-local": {
       "tag": "amazon/dynamodb-local:latest",
@@ -57,48 +56,52 @@
       "digest": "rnwood/smtp4dev@sha256:25c434c1900a9c5b61e17ead0a774d9e81b80554d05cf64719d69e5ea8c66537"
     },
     "guppy": {
-      "tag": "ghcr.io/storacha/guppy:0.7.0",
-      "digest": "ghcr.io/storacha/guppy@sha256:bd8e8644fe0b2d1cb25d9c9cc1ae3b7253a30430cce93c75d9af08c1ff31fd8e"
+      "tag": "ghcr.io/fil-forge/guppy:main-dev",
+      "digest": "ghcr.io/fil-forge/guppy@sha256:5c3325dd9c956e825f4560415a64325a98bf6f0235a5f32b3460d78f5c112d84"
     },
     "indexer": {
-      "tag": "ghcr.io/storacha/indexing-service:main",
-      "digest": "ghcr.io/storacha/indexing-service@sha256:2165653eeec0f524ee3ce48502e89d16f1ef8bf7ba3e5ec389ce400e5c9fac05"
+      "tag": "ghcr.io/fil-forge/indexing-service:main",
+      "digest": "ghcr.io/fil-forge/indexing-service@sha256:b7617eabd565160b84bb5173844c4a59882e23ef60ee4518073ccc7f5759651a"
     },
     "ipni": {
-      "tag": "ghcr.io/storacha/storetheindex:main",
-      "digest": "ghcr.io/storacha/storetheindex@sha256:efb649d8e2e263bb30111b7ae53e40e887140b113c02d2fe2382ab4f9f28a731"
+      "tag": "ghcr.io/fil-forge/storetheindex:latest",
+      "digest": "ghcr.io/fil-forge/storetheindex@sha256:b2febb3eb0a8ba3611916066f27314d79fb910620864cc92a6cabe384289e869"
     },
     "ipni-init": {
-      "tag": "ghcr.io/storacha/storetheindex:main",
-      "digest": "ghcr.io/storacha/storetheindex@sha256:efb649d8e2e263bb30111b7ae53e40e887140b113c02d2fe2382ab4f9f28a731"
+      "tag": "ghcr.io/fil-forge/storetheindex:latest",
+      "digest": "ghcr.io/fil-forge/storetheindex@sha256:b2febb3eb0a8ba3611916066f27314d79fb910620864cc92a6cabe384289e869"
     },
     "minio": {
       "tag": "minio/minio:latest",
       "digest": "minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e"
     },
     "piri-0": {
-      "tag": "ghcr.io/storacha/piri:main",
-      "digest": "ghcr.io/storacha/piri@sha256:d0b6870ec74b1b2ee32433eb4a5ab988927f32439c60fa55f1b898ea8a81f12b"
+      "tag": "ghcr.io/fil-forge/piri:main",
+      "digest": "ghcr.io/fil-forge/piri@sha256:f8707f3e5bc250d1875c970ccfe45bd1f370af1754b601c54f7f2fa2a0f0ea10"
     },
     "piri-1": {
-      "tag": "ghcr.io/storacha/piri:main",
-      "digest": "ghcr.io/storacha/piri@sha256:d0b6870ec74b1b2ee32433eb4a5ab988927f32439c60fa55f1b898ea8a81f12b"
+      "tag": "ghcr.io/fil-forge/piri:main",
+      "digest": "ghcr.io/fil-forge/piri@sha256:f8707f3e5bc250d1875c970ccfe45bd1f370af1754b601c54f7f2fa2a0f0ea10"
     },
     "piri-2": {
-      "tag": "ghcr.io/storacha/piri:main",
-      "digest": "ghcr.io/storacha/piri@sha256:d0b6870ec74b1b2ee32433eb4a5ab988927f32439c60fa55f1b898ea8a81f12b"
+      "tag": "ghcr.io/fil-forge/piri:main",
+      "digest": "ghcr.io/fil-forge/piri@sha256:f8707f3e5bc250d1875c970ccfe45bd1f370af1754b601c54f7f2fa2a0f0ea10"
+    },
+    "postgres": {
+      "tag": "postgres:16-alpine",
+      "digest": "postgres@sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229"
     },
     "redis": {
       "tag": "redis:7-alpine",
-      "digest": "redis@sha256:8b81dd37ff027bec4e516d41acfbe9fe2460070dc6d4a4570a2ac5b9d59df065"
+      "digest": "redis@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99"
     },
     "signing-service": {
-      "tag": "ghcr.io/storacha/piri-signing-service:main",
-      "digest": "ghcr.io/storacha/piri-signing-service@sha256:4c0e37afabd32e1159a9dd833d0da4eb08569d935632466393ae3ba3483b2fec"
+      "tag": "ghcr.io/fil-forge/piri-signing-service:main",
+      "digest": "ghcr.io/fil-forge/piri-signing-service@sha256:461f434128ed6d714ff54e295e110f6a7efc4a45670d1bf1aa617f7e0d46d86c"
     },
     "upload": {
-      "tag": "ghcr.io/storacha/sprue:main",
-      "digest": "ghcr.io/storacha/sprue@sha256:21decde24a8e395b44fcc264b8f72b40cca78944ff57b6dad6254da64453e425"
+      "tag": "ghcr.io/fil-forge/sprue:main",
+      "digest": "ghcr.io/fil-forge/sprue@sha256:954202b1a224f0b494baa32266588173c2cd9c7e13942869b68a2c9334456899"
     }
   }
 }

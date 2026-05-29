@@ -353,19 +353,11 @@ Note that you cannot announce to production IPNI from a local piri—production 
 
 ### Building Locally
 
-```bash
-# Build all images (only those with build contexts)
-make build
-
-# Build specific service
-docker compose build upload
-
-# Build with no cache (when you suspect caching issues)
-docker compose build --no-cache upload
-
-# Build with build arguments
-docker compose build --build-arg VERSION=1.2.3 piri
-```
+Smelt's service compose entries reference **published** images and carry no `build:` contexts,
+so `make build` / `docker compose build` do not rebuild them. To run a service from your own
+source, compile it from a local checkout via the Go workspace flow — see
+[Developing Against Sibling Service Repos](DEVELOPING.md). To pin or swap a published image tag,
+see [Using Custom Image Tags](#using-custom-image-tags) below.
 
 ### Using Custom Image Tags
 
@@ -397,23 +389,12 @@ docker push ghcr.io/yourorg/upload:dev
 
 ### Using Local Builds of Service Repositories
 
-If you're developing a service (piri, guppy, indexer) and want to test local changes:
+To develop a service (or the shared `libforge` library) against the full stack, use a Go
+workspace plus `SMELT_WORKSPACE=1`. Smelt compiles your local checkouts into static binaries
+and bind-mounts them over the published images — no image rebuilds, no per-repo Dockerfiles.
 
-1. Build the image locally in that repository
-2. Tag it with the name Smelt expects:
-
-```bash
-# In piri repository
-docker build -t piri:dev .
-
-# Or use docker compose build if piri's compose.yml has a build context
-```
-
-3. Restart Smelt to pick up the new image:
-
-```bash
-make down && make up
-```
+See **[Developing Against Sibling Service Repos](DEVELOPING.md)** for the full workflow,
+including the fast per-edit rebuild loop.
 
 ## Running Individual Systems Standalone
 

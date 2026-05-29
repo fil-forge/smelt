@@ -34,25 +34,22 @@ mkdir -p "$GENERATED_DIR/snapshots"
 # Note: Key generation is handled by 'smelt generate' (called via 'make generate').
 # This script handles proof generation and Docker network creation.
 
-# Step 2: Check for mkdelegation (needed for proof generation)
+# Step 2: Check for ucantool (needed for proof generation)
 echo ""
-echo "Step 3: Checking for mkdelegation..."
-# Check for mkdelegation
-MKDELEGATION="${MKDELEGATION:-mkdelegation}"
-if ! command -v "$MKDELEGATION" &> /dev/null; then
-    MKDELEGATION="go-mkdelegation"
-    if command -v "$MKDELEGATION" &> /dev/null; then
-        echo "  mkdelegation found at: $(which "$MKDELEGATION")"
+echo "Step 3: Checking for ucantool..."
+# Check for ucantool
+UCANTOOL="${UCANTOOL:-ucantool}"
+if command -v "$UCANTOOL" &> /dev/null; then
+    echo "  ucantool found at: $(which "$UCANTOOL")"
+else
+    echo "  ucantool not found, installing..."
+    if command -v go &> /dev/null; then
+        go install github.com/fil-forge/ucantool@latest
+        echo "  ucantool installed successfully"
     else
-        echo "  mkdelegation not found, installing..."
-        if command -v go &> /dev/null; then
-            go install github.com/storacha/go-mkdelegation@latest
-            echo "  mkdelegation installed successfully"
-        else
-            echo "WARNING: Go not found. Cannot install mkdelegation."
-            echo "         Proof generation will be skipped."
-            echo "         Install manually: go install github.com/storacha/go-mkdelegation@latest"
-        fi
+        echo "WARNING: Go not found. Cannot install ucantool."
+        echo "         Proof generation will be skipped."
+        echo "         Install manually: go install github.com/fil-forge/ucantool@latest"
     fi
 fi
 
@@ -63,10 +60,10 @@ fi
 echo ""
 echo "Step 3: Generating delegation proofs..."
 if [[ -x "$GENERATED_DIR/generate-proofs.sh" ]]; then
-    if command -v "$MKDELEGATION" &> /dev/null; then
+    if command -v "$UCANTOOL" &> /dev/null; then
         "$GENERATED_DIR/generate-proofs.sh" $FORCE
     else
-        echo "  Skipping proof generation (mkdelegation not available)"
+        echo "  Skipping proof generation (ucantool not available)"
     fi
 else
     echo "WARNING: generate-proofs.sh not found or not executable"
