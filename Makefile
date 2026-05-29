@@ -32,7 +32,7 @@ workspace-build:
 		rm -f $(WORKSPACE_OVERRIDE); \
 	fi
 
-.PHONY: help generate init up down restart clean nuke fresh logs pull build status guppy regen debug-upload ensure-state check-docker workspace-build
+.PHONY: help generate init up down restart clean nuke fresh logs pull build cli status guppy regen debug-upload ensure-state check-docker workspace-build
 
 # Default target - show help
 help:
@@ -58,6 +58,7 @@ help:
 	@echo "  Run 'make generate' (or 'make up') to apply changes."
 	@echo ""
 	@echo "Snapshots:"
+	@echo "  make cli                          Build the ./smelt CLI binary"
 	@echo "  ./smelt snapshot save NAME        Save current stack state"
 	@echo "  ./smelt snapshot list             List saved snapshots"
 	@echo "  ./smelt snapshot rm NAME          Delete a snapshot"
@@ -251,6 +252,15 @@ regen:
 # Pull latest pre-built images (ignores failures for local-only images)
 pull: generated/compose/piri.yml ensure-state
 	$(COMPOSE) pull --ignore-pull-failures
+
+# Build the smelt CLI binary to ./smelt (used by the snapshot commands and
+# anywhere the docs reference `./smelt ...`). Rebuilt whenever any Go source
+# under cmd/smelt or pkg changes.
+smelt: $(shell find cmd/smelt pkg -name '*.go' 2>/dev/null)
+	go build -o smelt ./cmd/smelt
+
+# Convenience alias for building the CLI binary.
+cli: smelt
 
 # Build all images
 build: generated/compose/piri.yml ensure-state
