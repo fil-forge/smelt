@@ -29,7 +29,7 @@ it from any of them. It must list `smelt` plus the repos you're editing:
 ├── go.work                 # the workspace file (local-only; see below)
 ├── smelt/                  # this repo
 ├── libforge/               # shared library
-├── piri-pdp/               # piri storage node
+├── piri/               # piri storage node
 ├── sprue/                  # upload service
 ├── indexing-service/       # indexer
 ├── delegator/              # delegator
@@ -41,7 +41,7 @@ it from any of them. It must list `smelt` plus the repos you're editing:
 
 ```bash
 cd ~/workspace/src/github.com/fil-forge
-go work init ./smelt ./piri-pdp        # list smelt + whatever you're editing
+go work init ./smelt ./piri        # list smelt + whatever you're editing
 ```
 
 `go.work` is local-only — it sits above every git repo and is conventionally gitignored, so it
@@ -59,7 +59,7 @@ services to rebuild** — a published binary would otherwise still link the publ
 
 | Editing… | put in `go.work` | smelt rebuilds |
 |---|---|---|
-| just piri | `./smelt ./piri-pdp` | piri |
+| just piri | `./smelt ./piri` | piri |
 | upload + indexer | `./smelt ./sprue ./indexing-service` | upload, indexer |
 | the shared lib | `./smelt ./libforge` | **all six services** |
 
@@ -67,7 +67,7 @@ Module → service → container binary (defined in `pkg/workspace`):
 
 | module dir | service | container binary |
 |---|---|---|
-| `piri-pdp` | piri (every piri-N) | `/usr/bin/piri` |
+| `piri` | piri (every piri-N) | `/usr/bin/piri` |
 | `sprue` | upload | `/usr/bin/sprue` |
 | `piri-signing-service` | signing-service | `/usr/bin/signer` |
 | `indexing-service` | indexer | `/usr/bin/indexer` |
@@ -117,7 +117,7 @@ Stop the container **first**: its `/usr/bin/piri` is the bind-mounted binary tha
 executing, and rebuilding over an executing file fails with `text file busy` (`ETXTBSY`).
 Stopping releases it; starting re-execs the freshly built binary.
 
-Keep the `use`-list narrow (e.g. just `./smelt ./piri-pdp`) so `workspace-build` only recompiles
+Keep the `use`-list narrow (e.g. just `./smelt ./piri`) so `workspace-build` only recompiles
 what you're working on.
 
 ## Turning it off / troubleshooting

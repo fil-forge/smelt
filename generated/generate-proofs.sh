@@ -101,49 +101,6 @@ else
     echo "  [new] egress-tracking-proof.txt"
 fi
 
-# Generate per-node piri proofs (piri-N → upload, blob/* + pdp/info capabilities).
-# Loops over every piri-{N}.pem emitted by `smelt generate`, producing one
-# delegation per node at $PROOFS_DIR/piri-{N}-proof.txt. Upload's post_start.sh
-# consumes these to register each node as a separate storage provider.
-# PIRI_KEYS_FOUND=0
-# for PIRI_KEY in "$KEYS_DIR"/piri-*.pem; do
-#    [[ -f "$PIRI_KEY" ]] || continue
-#    NODE_NAME=$(basename "$PIRI_KEY" .pem)
-#    # Accept only piri-<N> (skip things like piri-signing-service.pem).
-#    [[ "$NODE_NAME" =~ ^piri-[0-9]+$ ]] || continue
-#    PIRI_KEYS_FOUND=1
-#
-#    PIRI_PROOF_FILE="$PROOFS_DIR/${NODE_NAME}-proof.txt"
-#    if [[ -f "$PIRI_PROOF_FILE" && "$FORCE" != "--force" ]]; then
-#        echo ""
-#        echo "[skip] ${NODE_NAME}-proof.txt already exists"
-#        continue
-#    fi
-#
-#    echo ""
-#    echo "Generating ${NODE_NAME} proof..."
-#    echo "  Issuer: ${NODE_NAME}.pem"
-#    echo "  Audience: $UPLOAD_WEB_DID"
-#    echo "  Capabilities: blob/allocate, blob/accept, blob/replica/allocate, pdp/info"
-#
-#    "$UCANTOOL" delegate \
-#        --issuer-private-key-file "$PIRI_KEY" \
-#        --audience "$UPLOAD_WEB_DID" \
-#        --command "/blob/allocate" \
-#        --command "/blob/accept" \
-#        --command "/blob/replica/allocate" \
-#        --command "/pdp/info" \
-#        > "$PIRI_PROOF_FILE"
-#
-#    echo "  [new] ${NODE_NAME}-proof.txt"
-# done
-
-# if [[ "$PIRI_KEYS_FOUND" -eq 0 ]]; then
-#     echo ""
-#     echo "WARNING: No piri-N.pem keys found in $KEYS_DIR — skipping piri proofs."
-#     echo "         Run 'make generate' to create them."
-# fi
-
 echo ""
 echo "Proofs generated in: $PROOFS_DIR"
 echo ""

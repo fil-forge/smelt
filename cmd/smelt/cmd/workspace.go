@@ -5,9 +5,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/spf13/cobra"
 	"github.com/fil-forge/smelt/pkg/manifest"
 	"github.com/fil-forge/smelt/pkg/workspace"
+	"github.com/spf13/cobra"
 )
 
 var workspaceCmd = &cobra.Command{

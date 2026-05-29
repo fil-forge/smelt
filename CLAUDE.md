@@ -451,7 +451,7 @@ otherwise-published images — no Dockerfiles, no image rebuilds. **Full walkthr
 [docs/DEVELOPING.md](docs/DEVELOPING.md).**
 
 - `go.work` lives at the `fil-forge/` parent (above every repo, gitignored) and lists `smelt`
-  plus the repos you're editing — `go work init ./smelt ./piri-pdp`. The `use`-list is the
+  plus the repos you're editing — `go work init ./smelt ./piri`. The `use`-list is the
   single source of truth for what gets rebuilt.
 - **libforge rule:** a service is rebuilt when its module is in the use-list; listing
   `libforge` forces **all** services to rebuild (a published binary would still link the
@@ -468,7 +468,7 @@ Module → service / container binary map (see `pkg/workspace`):
 
 | module dir | service | container binary |
 |---|---|---|
-| `piri-pdp` | piri (all piri-N) | `/usr/bin/piri` |
+| `piri` | piri (all piri-N) | `/usr/bin/piri` |
 | `sprue` | upload | `/usr/bin/sprue` |
 | `piri-signing-service` | signing-service | `/usr/bin/signer` |
 | `indexing-service` | indexer | `/usr/bin/indexer` |

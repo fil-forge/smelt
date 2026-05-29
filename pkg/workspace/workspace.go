@@ -31,7 +31,7 @@ import (
 
 // serviceBuild describes how to build one smelt service from its sibling module.
 type serviceBuild struct {
-	moduleDir   string // go.work use-dir basename, e.g. "piri-pdp"
+	moduleDir   string // go.work use-dir basename, e.g. "piri"
 	buildTarget string // `go build` package arg, e.g. "./cmd"
 	binPath     string // absolute path of the binary inside the container image
 }
@@ -41,7 +41,7 @@ type serviceBuild struct {
 // the generated piri-N nodes. Verified against each sibling's Dockerfile — note
 // delegator installs its binary as /usr/bin/registrar (binary name != module).
 var Services = map[string]serviceBuild{
-	"piri":            {moduleDir: "piri-pdp", buildTarget: "./cmd", binPath: "/usr/bin/piri"},
+	"piri":            {moduleDir: "piri", buildTarget: "./cmd", binPath: "/usr/bin/piri"},
 	"upload":          {moduleDir: "sprue", buildTarget: "./cmd/main.go", binPath: "/usr/bin/sprue"},
 	"signing-service": {moduleDir: "piri-signing-service", buildTarget: ".", binPath: "/usr/bin/signer"},
 	"indexer":         {moduleDir: "indexing-service", buildTarget: "./cmd", binPath: "/usr/bin/indexer"},
@@ -62,7 +62,7 @@ func Detect() (root string, services []string, err error) {
 		return "", nil, err
 	}
 	if gowork == "" || gowork == "off" {
-		return "", nil, fmt.Errorf("no active go.work; create one at the fil-forge parent dir, e.g. `go work init ./smelt ./libforge ./piri-pdp` (see CLAUDE.md)")
+		return "", nil, fmt.Errorf("no active go.work; create one at the fil-forge parent dir, e.g. `go work init ./smelt ./libforge ./piri` (see CLAUDE.md)")
 	}
 	root = filepath.Dir(gowork)
 
