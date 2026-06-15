@@ -126,9 +126,9 @@ for PIRI_KEY in "$KEYS_DIR"/piri-*.pem; do
     echo "  Audience: $UPLOAD_WEB_DID"
     echo "  Commands: /blob/allocate, /blob/accept, /blob/replica/allocate, /pdp/info"
 
-    "$UCANTOOL" gen \
+    "$UCANTOOL" delegate \
         --issuer-private-key-file "$PIRI_KEY" \
-        --audience-did-key "$UPLOAD_WEB_DID" \
+        --audience "$UPLOAD_WEB_DID" \
         --command "/blob/allocate" \
         --command "/blob/accept" \
         --command "/blob/replica/allocate" \
