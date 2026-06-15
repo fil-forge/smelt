@@ -48,12 +48,13 @@ for pub_key in /piri-keys/piri-*.pub; do
 
     did=$(sprue identity parse "$pub_key")
     endpoint="http://${node_name}:3000"
+    proofs="/proofs/${node_name}-proof.txt"
 
     echo "post_start: registering ${node_name} (${did}) at ${endpoint}"
     # Tolerate "already registered" — expected when the stack booted from a
     # smelt snapshot that captured upload's dynamodb provider registry. Any
     # other failure is still fatal.
-    if add_err=$(sprue client admin provider register "$did" "$endpoint" 2>&1); then
+    if add_err=$(sprue client admin provider register "$did" "$endpoint" "$proofs" 2>&1); then
         :
     elif echo "$add_err" | grep -q "already registered"; then
         echo "post_start:   (${node_name} already registered — continuing)"
