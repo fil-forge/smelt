@@ -32,7 +32,13 @@ workspace-build:
 		rm -f $(WORKSPACE_OVERRIDE); \
 	fi
 
-.PHONY: help generate init up down restart clean nuke fresh logs pull build cli status guppy regen debug-upload ensure-state check-docker workspace-build
+.PHONY: help generate init up down restart clean nuke fresh logs pull build cli status guppy regen debug-upload ensure-state check-docker workspace-build test
+
+# Run the Go unit tests. The Docker-backed end-to-end suite is gated behind the
+# `e2e` build tag and runs from its own workflow (.github/workflows/e2e.yml), so
+# it is deliberately excluded here — a plain `make test` needs no Docker stack.
+test:
+	go test ./...
 
 # Default target - show help
 help:
