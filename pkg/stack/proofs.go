@@ -12,10 +12,10 @@ import (
 	"github.com/fil-forge/libforge/commands/space/egress"
 	"github.com/fil-forge/libforge/identity"
 	"github.com/fil-forge/ucantone/did"
+	"github.com/fil-forge/ucantone/multikey"
 	"github.com/fil-forge/ucantone/ucan"
 	"github.com/fil-forge/ucantone/ucan/container"
 	"github.com/fil-forge/ucantone/ucan/delegation"
-	"github.com/fil-forge/ucantone/verification/multikey"
 
 	"github.com/fil-forge/smelt/pkg/manifest"
 )
