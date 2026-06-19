@@ -1,6 +1,6 @@
 {
   "name": "3-piri-filesystem-sqlite",
-  "created_at": "2026-05-29T18:23:31.737818948Z",
+  "created_at": "2026-06-19T12:40:00.896130575Z",
   "volumes": [
     "minio-data",
     "ipni-data",
@@ -36,7 +36,10 @@
   ],
   "proofs": [
     "egress-tracking-proof.txt",
-    "indexing-service-proof.txt"
+    "indexing-service-proof.txt",
+    "piri-0-proof.txt",
+    "piri-1-proof.txt",
+    "piri-2-proof.txt"
   ],
   "images": {
     "blockchain": {
@@ -45,7 +48,7 @@
     },
     "delegator": {
       "tag": "ghcr.io/fil-forge/delegator:main",
-      "digest": "ghcr.io/fil-forge/delegator@sha256:a02f5c0de89bfcecd9bf08903604c33c21b1c8e59dcbab6d84a2b0c954a725ba"
+      "digest": "ghcr.io/fil-forge/delegator@sha256:2994645253d301271b89bca241091b90e6944607d92b34013d8eab80dcaccb08"
     },
     "dynamodb-local": {
       "tag": "amazon/dynamodb-local:latest",
@@ -57,7 +60,7 @@
     },
     "guppy": {
       "tag": "ghcr.io/fil-forge/guppy:main-dev",
-      "digest": "ghcr.io/fil-forge/guppy@sha256:5c3325dd9c956e825f4560415a64325a98bf6f0235a5f32b3460d78f5c112d84"
+      "digest": "ghcr.io/fil-forge/guppy@sha256:cf519b9d8f8c470aaa9920d0e704cc439a4c129db296361dcbfdb1f087476743"
     },
     "indexer": {
       "tag": "ghcr.io/fil-forge/indexing-service:main",
@@ -77,19 +80,19 @@
     },
     "piri-0": {
       "tag": "ghcr.io/fil-forge/piri:main",
-      "digest": "ghcr.io/fil-forge/piri@sha256:f8707f3e5bc250d1875c970ccfe45bd1f370af1754b601c54f7f2fa2a0f0ea10"
+      "digest": "ghcr.io/fil-forge/piri@sha256:31509ada4fb33418b650907dcae96d7178cf6c35b5161cf6a73e2bffe51aca9e"
     },
     "piri-1": {
       "tag": "ghcr.io/fil-forge/piri:main",
-      "digest": "ghcr.io/fil-forge/piri@sha256:f8707f3e5bc250d1875c970ccfe45bd1f370af1754b601c54f7f2fa2a0f0ea10"
+      "digest": "ghcr.io/fil-forge/piri@sha256:31509ada4fb33418b650907dcae96d7178cf6c35b5161cf6a73e2bffe51aca9e"
     },
     "piri-2": {
       "tag": "ghcr.io/fil-forge/piri:main",
-      "digest": "ghcr.io/fil-forge/piri@sha256:f8707f3e5bc250d1875c970ccfe45bd1f370af1754b601c54f7f2fa2a0f0ea10"
+      "digest": "ghcr.io/fil-forge/piri@sha256:31509ada4fb33418b650907dcae96d7178cf6c35b5161cf6a73e2bffe51aca9e"
     },
     "postgres": {
       "tag": "postgres:16-alpine",
-      "digest": "postgres@sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229"
+      "digest": "postgres@sha256:e013e867e712fec275706a6c51c966f0bb0c93cfa8f51000f85a15f9865a28cb"
     },
     "redis": {
       "tag": "redis:7-alpine",
@@ -101,7 +104,7 @@
     },
     "upload": {
       "tag": "ghcr.io/fil-forge/sprue:main",
-      "digest": "ghcr.io/fil-forge/sprue@sha256:954202b1a224f0b494baa32266588173c2cd9c7e13942869b68a2c9334456899"
+      "digest": "ghcr.io/fil-forge/sprue@sha256:dc94ad3b2b05d6c0e8e35caef2a554fd86a4caaf6b722acc404bbf77498d2fcf"
     }
   }
 }

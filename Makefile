@@ -17,9 +17,15 @@ WORKSPACE_OVERRIDE := generated/compose/workspace.override.yml
 # Chain the workspace binary-mount override into every compose call, but only
 # when it exists on disk. `workspace-build` (a prereq of up/build/fresh) creates
 # it when SMELT_WORKSPACE=1 and removes it otherwise, so a plain `make up` never
-# picks up a stale override. Recursive (`=`, not `:=`) so $(wildcard) re-checks
-# at use time — after the prereq has reconciled the file.
-COMPOSE = $(DOCKER) compose $(if $(wildcard $(WORKSPACE_OVERRIDE)),-f compose.yml -f $(WORKSPACE_OVERRIDE))
+# picks up a stale override.
+#
+# The existence check is a shell command substitution ($$(...)), NOT make's
+# $(wildcard)/$(if). workspace-build creates the override mid-recipe (e.g. `up`
+# runs it on one line, then `$(COMPOSE) up` on the next), but make expands a
+# recipe's functions up front and caches directory listings, so $(wildcard)
+# would still report the file absent. Deferring `test -f` to the shell at
+# recipe-execution time always reflects what workspace-build just reconciled.
+COMPOSE = $(DOCKER) compose $$(test -f $(WORKSPACE_OVERRIDE) && echo "-f compose.yml -f $(WORKSPACE_OVERRIDE)")
 
 # workspace-build reconciles the override to the current SMELT_WORKSPACE value:
 # build the selected sibling binaries + write the override when enabled, else
