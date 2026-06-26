@@ -17,8 +17,9 @@ type opItemTemplate struct {
 }
 
 type opField struct {
-	Label string `json:"label"`
+	ID    string `json:"id"`
 	Type  string `json:"type"`
+	Label string `json:"label"`
 	Value string `json:"value"`
 }
 
@@ -59,27 +60,32 @@ func storeInOnePassword(vault, item string, fields map[string]string) ([]string,
 		if err != nil {
 			return nil, fmt.Errorf("reading value for field %q: %w", label, err)
 		}
-		tmpl.Fields = append(tmpl.Fields, opField{Label: label, Type: "CONCEALED", Value: string(content)})
+		tmpl.Fields = append(tmpl.Fields, opField{ID: label, Type: "CONCEALED", Label: label, Value: string(content)})
 	}
 	payload, err := json.Marshal(tmpl)
 	if err != nil {
 		return nil, fmt.Errorf("building 1Password item template: %w", err)
 	}
 
-	// Deliberate overwrite: drop any existing item so create yields exactly our fields.
+	// Edit in place if the item exists, create it otherwise. We deliberately do
+	// NOT delete-then-create: a failed create would otherwise leave the item
+	// deleted with nothing to replace it. keygen supplies the complete field set,
+	// so editing fully refreshes the values either way. Both forms read the JSON
+	// template from stdin (create wants an explicit "-"; edit reads the pipe).
+	var args []string
+	verb := "create"
 	if itemExists(vault, item) {
-		del := exec.Command("op", "item", "delete", item, "--vault", vault)
-		del.Stderr = os.Stderr
-		if err := del.Run(); err != nil {
-			return nil, fmt.Errorf("op item delete failed: %w", err)
-		}
+		verb = "edit"
+		args = []string{"item", "edit", item, "--vault", vault}
+	} else {
+		args = []string{"item", "create", "--vault", vault, "-"}
 	}
 
-	cmd := exec.Command("op", "item", "create", "--vault", vault, "-")
+	cmd := exec.Command("op", args...)
 	cmd.Stdin = bytes.NewReader(payload)
 	cmd.Stderr = os.Stderr // op writes the item summary (no secret values) to stderr
 	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("op item create failed: %w", err)
+		return nil, fmt.Errorf("op item %s failed: %w", verb, err)
 	}
 	return names, nil
 }
