@@ -11,6 +11,7 @@
 #   FORGE_HOST         ssh target            (default: root@23.83.66.244)
 #   FORGE_DIR          on-box repo checkout  (default: /root/fil-one/forge)
 #   FORGE_SECRETS_DIR  host secrets dir      (default: /root/fil-one/forge/secrets)
+#   FORGE_REF          branch/tag/sha to deploy, checked out on the box (default: main)
 #   HEALTH_TIMEOUT     seconds               (default: 300)
 set -euo pipefail
 
@@ -18,6 +19,7 @@ BUNDLE="${1:?usage: staging-deploy.sh <core|piri>}"
 FORGE_HOST="${FORGE_HOST:-root@23.83.66.244}"
 FORGE_DIR="${FORGE_DIR:-/root/fil-one/forge}"
 FORGE_SECRETS_DIR="${FORGE_SECRETS_DIR:-/root/fil-one/forge/secrets}"
+FORGE_REF="${FORGE_REF:-main}"
 HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-300}"
 
 case "$BUNDLE" in
@@ -35,9 +37,25 @@ esac
 DIR="$FORGE_DIR/environments/staging/$BUNDLE"
 COMPOSE="docker compose -p $PROJECT $ENV_FILES"
 
-echo "Deploying $BUNDLE to $FORGE_HOST ($DIR)"
+echo "Deploying $BUNDLE to $FORGE_HOST ($DIR) at ref $FORGE_REF"
 ssh "$FORGE_HOST" bash -s <<REMOTE
 set -euo pipefail
+echo "==> checking out $FORGE_REF in $FORGE_DIR"
+# Refuse to clobber hand-edits: the reset --hard below would silently discard
+# uncommitted changes to tracked files. Untracked files (provisioned secrets,
+# generated artifacts) are intentionally ignored.
+if ! git -C "$FORGE_DIR" diff --quiet || ! git -C "$FORGE_DIR" diff --cached --quiet; then
+  echo "ERROR: $FORGE_DIR has uncommitted changes to tracked files; aborting deploy" >&2
+  git -C "$FORGE_DIR" status --short --untracked-files=no >&2
+  exit 1
+fi
+git -C "$FORGE_DIR" fetch --quiet --tags --force origin
+# reset --hard makes the box a faithful checkout of FORGE_REF. Prefer the
+# freshly-fetched remote branch tip (origin/<ref>); fall back to the bare ref
+# for a tag or commit sha, which the fetch above brought local.
+git -C "$FORGE_DIR" reset --hard "origin/$FORGE_REF" 2>/dev/null \
+  || git -C "$FORGE_DIR" reset --hard "$FORGE_REF"
+echo "    on \$(git -C "$FORGE_DIR" rev-parse --short HEAD)"
 cd "$DIR"
 echo "==> pulling pinned images"
 $COMPOSE pull

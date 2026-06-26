@@ -137,15 +137,17 @@ template, secret, or env value changes.
 
 ## 5. Deploy
 
-Pull the on-box checkout to the commit you're deploying first, then:
-
 ```bash
 make staging-deploy-core               # sprue + signing-service + delegator + deps
 make staging-deploy-piri               # piri-0
 ```
 
-Each pulls the pinned images, recreates changed containers, and waits for healthchecks
-(fails the deploy if any service stays unhealthy past the timeout).
+Each syncs the box's checkout to `FORGE_REF` (`git fetch` + `reset --hard`), then
+pulls the pinned images, recreates changed containers, and waits for healthchecks
+(fails the deploy if any service stays unhealthy past the timeout). The deploy
+**aborts** if the box has uncommitted changes to tracked files (untracked files such
+as provisioned secrets are ignored). `FORGE_REF` defaults to `main`; override it to
+deploy a branch, tag, or commit, e.g. `FORGE_REF=staging-deployment make staging-deploy-core`.
 
 ## 6. Register the piri provider with the core (cross-bundle step)
 
@@ -182,11 +184,11 @@ for h in sprue signing-service delegator; do curl -fsS "https://$h.staging.fil.o
 
 ## 8. Rollback
 
-Re-deploy a previous pinned commit:
+Re-deploy a previous pinned commit (deploy checks it out on the box for you):
 
 ```bash
-ssh root@23.83.66.244 'cd /root/fil-one/forge && git checkout <previous-commit>'
-make staging-deploy-core && make staging-deploy-piri
+FORGE_REF=<previous-commit> make staging-deploy-core
+FORGE_REF=<previous-commit> make staging-deploy-piri
 ```
 
 Image versions are pinned per bundle in `versions.env`, so rolling back the application
