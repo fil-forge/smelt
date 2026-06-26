@@ -47,26 +47,49 @@ $COMPOSE up -d --remove-orphans
 echo "==> waiting for health (timeout ${HEALTH_TIMEOUT}s)"
 deadline=\$(( \$(date +%s) + $HEALTH_TIMEOUT ))
 while :; do
-  # Any service still starting?  Any unhealthy?
-  starting=\$($COMPOSE ps --format '{{.Health}}' | grep -c '^starting$' || true)
-  unhealthy=\$($COMPOSE ps --format '{{.Health}}' | grep -c '^unhealthy$' || true)
-  if [ "\$unhealthy" -gt 0 ]; then
-    echo "DEPLOY FAILED: \$unhealthy service(s) unhealthy"
-    $COMPOSE ps
+  # Inspect State + Health + ExitCode per container — Health alone misses a
+  # crash-looping container with no healthcheck (empty Health), which is exactly
+  # how a broken service used to slip through as "healthy". The '|' delimiter
+  # keeps an empty Health field from shifting the columns.
+  bad=0; pending=0
+  while IFS='|' read -r name state health exitcode; do
+    case "\$state" in
+      running)
+        case "\$health" in
+          starting)  pending=\$((pending+1)) ;;
+          unhealthy) echo "  unhealthy:   \$name"; bad=\$((bad+1)) ;;
+          # healthy, or no healthcheck (empty) -> ready
+        esac
+        ;;
+      exited)
+        # One-shot containers (e.g. minio-init, restart:no) are fine once exit 0.
+        [ "\$exitcode" = "0" ] || { echo "  exited (\$exitcode): \$name"; bad=\$((bad+1)); }
+        ;;
+      restarting|dead)
+        echo "  \$state: \$name"; bad=\$((bad+1)) ;;
+      *)
+        # created/paused/removing/etc. — not ready yet
+        pending=\$((pending+1)) ;;
+    esac
+  done < <($COMPOSE ps -a --format '{{.Name}}|{{.State}}|{{.Health}}|{{.ExitCode}}')
+
+  if [ "\$bad" -gt 0 ]; then
+    echo "DEPLOY FAILED: \$bad service(s) crash-looping, dead, or unhealthy"
+    $COMPOSE ps -a
     exit 1
   fi
-  if [ "\$starting" -eq 0 ]; then
+  if [ "\$pending" -eq 0 ]; then
     echo "all services healthy"
     break
   fi
   if [ "\$(date +%s)" -ge "\$deadline" ]; then
     echo "DEPLOY FAILED: timed out waiting for health"
-    $COMPOSE ps
+    $COMPOSE ps -a
     exit 1
   fi
   sleep 5
 done
-$COMPOSE ps
+$COMPOSE ps -a
 REMOTE
 
 echo "Deploy of $BUNDLE complete."
