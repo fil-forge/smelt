@@ -1,7 +1,7 @@
 # delegator config — STAGING TEMPLATE.
 #
 # Rendered with `op inject` into $FORGE_SECRETS_DIR/delegator.yaml and mounted at
-# /.delegator.yaml. The only secret is contract.transactor.key (op:// ref). The
+# /.delegator.yaml. The only secret is contract.transactor.key (a 1Password reference). The
 # delegator identity is a mounted key file; the delegation proofs are committed
 # and mounted from the git tree at /proofs.
 #

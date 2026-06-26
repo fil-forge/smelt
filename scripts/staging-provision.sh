@@ -47,13 +47,37 @@ done < <(cat "$CONTRACTS_ENV" "$WALLETS_ENV")
 render_chain() { sed "${SED_ARGS[@]}"; }
 
 echo "Provisioning ($BUNDLE) to $FORGE_HOST:$FORGE_SECRETS_DIR"
-ssh "$FORGE_HOST" "mkdir -p '$FORGE_SECRETS_DIR' && chmod 700 '$FORGE_SECRETS_DIR'"
+
+# Reuse a single SSH connection for every transfer below. The box rate-limits new
+# SSH connections, and provisioning opens one per file shipped (configs + keys) —
+# a burst that gets refused partway through. Multiplexing collapses them onto one
+# TCP connection: the first forge_ssh opens a master, the rest ride the control
+# socket. The master lingers briefly (ControlPersist) and is closed on exit.
+SSH_CM_DIR="$(mktemp -d "${TMPDIR:-/tmp}/forge-provision.XXXXXX")"
+SSH_OPTS=(-o ControlMaster=auto -o "ControlPath=$SSH_CM_DIR/cm" -o ControlPersist=30)
+forge_ssh() { ssh "${SSH_OPTS[@]}" "$FORGE_HOST" "$@"; }
+cleanup_ssh() { ssh "${SSH_OPTS[@]}" -O exit "$FORGE_HOST" 2>/dev/null || true; rm -rf "$SSH_CM_DIR"; }
+trap cleanup_ssh EXIT
+
+forge_ssh "mkdir -p '$FORGE_SECRETS_DIR' && chmod 700 '$FORGE_SECRETS_DIR'"
 
 # ship <dest-basename> <mode> — content arrives on stdin, written atomically
 # (temp file, fsync via mv) so a partial transfer never replaces a good file.
 ship() {
   local name="$1" mode="$2" dest="$FORGE_SECRETS_DIR/$1"
-  ssh "$FORGE_HOST" "umask 077; t=\$(mktemp '$FORGE_SECRETS_DIR/.ship.XXXXXX'); cat > \"\$t\" && chmod $mode \"\$t\" && mv \"\$t\" '$dest' || { rm -f \"\$t\"; exit 1; }"
+  # Pipe the script to `bash -s` (like staging-bootstrap.sh) so the remote logic is
+  # plain bash — the box's fish login shell never parses it, so no quote-escaping or
+  # fish/POSIX-subset juggling. Unlike bootstrap, ship's stdin carries the secret
+  # payload, so it's appended after the script: the install line is a single `&&`
+  # chain, and the trailing `cat` streams stdin into the temp file as the final read
+  # (nothing reads stdin afterward). Written atomically — temp file, then mv.
+  {
+    cat <<REMOTE
+umask 077
+t=\$(mktemp '$dest.ship.XXXXXX') && cat > "\$t" && chmod $mode "\$t" && mv "\$t" '$dest' || { rm -f "\$t"; exit 1; }
+REMOTE
+    cat
+  } | forge_ssh bash -s
   echo "  shipped $name ($mode)"
 }
 

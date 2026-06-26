@@ -1,7 +1,7 @@
 # sprue (upload) config — STAGING TEMPLATE.
 #
 # Rendered with `op inject` into $FORGE_SECRETS_DIR/sprue-config.yaml and mounted
-# at /etc/sprue/config.yaml. Only the Postgres password is a secret (op:// ref);
+# at /etc/sprue/config.yaml. Only the Postgres password is a secret (a 1Password reference);
 # everything else is literal. S3/MinIO credentials are supplied via the AWS SDK
 # env vars (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY) set on the container.
 

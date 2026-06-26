@@ -5,8 +5,12 @@
 # producing secrets.env in $FORGE_SECRETS_DIR, consumed via
 #   docker compose --env-file secrets.env
 #
-# NEVER commit the rendered secrets.env. Only this template (op:// references) is
-# tracked. Values resolve from the single 1Password item op://Fil One/FilOne Forge Staging.
+# NEVER commit the rendered secrets.env. Only this template (with 1Password references) is
+# tracked. Values resolve from the single 1Password item "FilOne Forge Staging" (vault "Fil One").
+#
+# Note: op inject scans the entire file, comments included — so never write a bare
+# 1Password reference URL or a template-brace token in a comment; it tries to resolve
+# them and fails the whole render.
 
 # Postgres (sprue metadata store) — must match the password baked into sprue's DSN.
 POSTGRES_PASSWORD={{ op://Fil One/FilOne Forge Staging/sprue-postgres-password }}
