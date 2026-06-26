@@ -84,7 +84,7 @@ help:
 	@echo ""
 	@echo "Staging deployment (see docs/STAGING_DEPLOY.md):"
 	@echo "  make staging-keygen          One-time: generate keys+wallets+proofs, store in 1Password"
-	@echo "  make staging-bootstrap       One-time: prepare the box (repo, dirs, Caddy) — needs REPO_URL"
+	@echo "  make staging-bootstrap       One-time: prepare the box (repo, dirs, Caddy)"
 	@echo "  make staging-provision-core  Render core secrets from 1Password and ship to the box (dev machine only)"
 	@echo "  make staging-provision-piri  Render piri secrets from 1Password and ship to the box (dev machine only)"
 	@echo "  make staging-deploy-core     Deploy the core bundle (sprue + signing-service + delegator)"

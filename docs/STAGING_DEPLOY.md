@@ -111,11 +111,12 @@ Forge Caddy snippet into the host's main Caddyfile, and verifies did:web endpoin
 (warn-only until the services are deployed). Idempotent.
 
 ```bash
-REPO_URL=git@github.com:fil-forge/smelt.git make staging-bootstrap
+make staging-bootstrap
 ```
 
-(Override `FORGE_HOST`, `FORGE_DIR`, `MAIN_CADDYFILE`, `CADDY_SERVICE`, … as env vars; see
-`scripts/staging-bootstrap.sh`.)
+(Override `FORGE_HOST`, `FORGE_DIR`, `MAIN_CADDYFILE`, `CADDY_SERVICE`, `REPO_URL`, `FORGE_REF`,
+… as env vars; see `scripts/staging-bootstrap.sh`. `FORGE_REF` defaults to `main`; override it
+to deploy an unmerged branch, e.g. `FORGE_REF=staging-deployment make staging-bootstrap`.)
 
 ## 4. Provision secrets onto the box (dev machine)
 
