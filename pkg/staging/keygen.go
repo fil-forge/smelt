@@ -167,9 +167,10 @@ func Keygen(opts Options) (*Result, error) {
 		res.ProofsWritten = written
 	}
 
-	// 5. Store everything secret in the single 1Password item. Identity PEMs are
-	//    stored by file; wallets and connection secrets likewise — all via @file
-	//    refs so multi-line PEMs and special characters survive intact.
+	// 5. Store everything secret in the single 1Password item. Identity PEMs,
+	//    wallets, and connection secrets are read from their temp files and written
+	//    into a JSON template (see storeInOnePassword) so multi-line PEMs and
+	//    special characters survive intact and no value lands on a command line.
 	if opts.Store {
 		fields := map[string]string{}
 		for _, name := range serviceIdentityKeys {
