@@ -1,0 +1,32 @@
+# delegator config — STAGING (REDACTED EXAMPLE, structure only).
+# The live file is rendered from delegator.yaml.tpl via `op inject` onto the box.
+
+server:
+  host: "0.0.0.0"
+  port: 80
+
+store:
+  region: "us-east-1"
+  allowlist_table_name: "delegator-allow-list"
+  providerinfo_table_name: "delegator-provider-info"
+  providerweight: 1
+  endpoint: "http://dynamodb-local:8000"
+
+delegator:
+  key_file: "/keys/delegator.pem"
+  did: "did:web:delegator.staging.fil.one"
+  indexing_service_web_did: "did:web:indexer.staging.fil.one"
+  indexing_service_proof_file: "/proofs/indexing-service-proof.txt"
+  egress_tracking_service_did: "did:web:etracker.staging.fil.one"
+  egress_tracking_service_proof_file: "/proofs/egress-tracking-proof.txt"
+  upload_service_did: "did:web:sprue.staging.fil.one"
+
+contract:
+  # All of these are rendered from environments/staging/smart-contracts.env at provision time.
+  chain_client_endpoint: "<LOTUS_RPC_URL from smart-contracts.env>"
+  payments_contract_address: "<FILECOIN_PAY_ADDRESS from smart-contracts.env>"
+  service_contract_address: "<FWSS_ADDRESS from smart-contracts.env>"
+  registry_contract_address: "<SERVICE_PROVIDER_REGISTRY_ADDRESS from smart-contracts.env>"
+  transactor:
+    chain_id: "<CHAIN_ID from smart-contracts.env>"
+    key: "<rendered from 1Password>"

@@ -38,7 +38,7 @@ workspace-build:
 		rm -f $(WORKSPACE_OVERRIDE); \
 	fi
 
-.PHONY: help generate init up down restart clean nuke fresh logs pull build cli status guppy regen debug-upload ensure-state check-docker workspace-build
+.PHONY: help generate init up down restart clean nuke fresh logs pull build cli status guppy regen debug-upload ensure-state check-docker workspace-build staging-keygen staging-bootstrap staging-provision-core staging-provision-piri staging-deploy-core staging-deploy-piri
 
 # Default target - show help
 help:
@@ -81,6 +81,14 @@ help:
 	@echo ""
 	@echo "Debugging:"
 	@echo "  make debug-upload  Run upload (sprue) under Delve on localhost:2345"
+	@echo ""
+	@echo "Staging deployment (see docs/STAGING_DEPLOY.md):"
+	@echo "  make staging-keygen          One-time: generate keys+wallets+proofs, store in 1Password"
+	@echo "  make staging-bootstrap       One-time: prepare the box (repo, dirs, Caddy) — needs REPO_URL"
+	@echo "  make staging-provision-core  Render core secrets from 1Password and ship to the box (dev machine only)"
+	@echo "  make staging-provision-piri  Render piri secrets from 1Password and ship to the box (dev machine only)"
+	@echo "  make staging-deploy-core     Deploy the core bundle (sprue + signing-service + delegator)"
+	@echo "  make staging-deploy-piri     Deploy the piri bundle"
 	@echo ""
 	@echo "Options:"
 	@echo "  YES=1              Skip confirmation prompts (e.g., make nuke YES=1)"
@@ -254,6 +262,36 @@ regen:
 	@echo ""
 	@echo "Keys and proofs regenerated."
 	@echo "Run 'make clean && make up' to restart services with new keys."
+
+# --- Staging deployment ---------------------------------------------------
+# Thin wrappers over the staging tooling; full runbook in docs/STAGING_DEPLOY.md.
+
+# One-time: generate staging keys, EVM wallets, and UCAN proofs; store private
+# keys in 1Password; write proofs to environments/staging/proofs/ (commit them);
+# write PAYER_ADDRESS into environments/staging/smart-contracts.env (commit it).
+staging-keygen:
+	@go run ./cmd/smelt staging keygen
+
+# One-time: prepare the box — clone/update the repo, create secrets + data dirs,
+# wire the Caddy snippet, verify. Pass REPO_URL on first run.
+staging-bootstrap:
+	@./scripts/staging-bootstrap.sh
+
+# Render configs/keys from 1Password and stream them to the box. Developer
+# machine only (needs your op session + SSH); never run from CI. Per-bundle, since
+# we typically deploy one bundle at a time.
+staging-provision-core:
+	@./scripts/staging-provision.sh core
+
+staging-provision-piri:
+	@./scripts/staging-provision.sh piri
+
+# Deploy a bundle: pull pinned images, recreate, verify health.
+staging-deploy-core:
+	@./scripts/staging-deploy.sh core
+
+staging-deploy-piri:
+	@./scripts/staging-deploy.sh piri
 
 # Pull latest pre-built images (ignores failures for local-only images)
 pull: generated/compose/piri.yml ensure-state

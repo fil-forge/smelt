@@ -1,0 +1,195 @@
+# Forge staging — CORE bundle.
+#
+# upload (sprue) + signing-service + delegator, plus their dependency containers
+# (postgres, minio, dynamodb-local). Deployed independently of the piri bundle;
+# the two talk over public https://*.staging.fil.one URLs (fronted by host Caddy).
+#
+# Run via the deploy script, which supplies the env files:
+#   docker compose -p forge-staging-core \
+#     --env-file versions.env --env-file config.env --env-file secrets.env \
+#     up -d
+#
+# All published ports bind to 127.0.0.1 (the box's UFW default-denies inbound and
+# Docker's iptables can bypass it — loopback binding keeps these off the public
+# interface; Caddy fronts them for TLS + did:web).
+name: forge-staging-core
+
+services:
+  dynamodb-local:
+    image: ${DYNAMODB_IMAGE}
+    user: "0:0"
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-dbPath", "/data"]
+    volumes:
+      - ${FORGE_DATA_DIR}/dynamodb:/data
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':>/dev/tcp/127.0.0.1/8000'"]
+      start_interval: 1s
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks: [forge-staging]
+
+  postgres:
+    image: ${POSTGRES_IMAGE}
+    # sprue runs goose migrations on startup; POSTGRES_DB is enough.
+    environment:
+      - POSTGRES_USER=sprue
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=sprue
+    volumes:
+      - ${FORGE_DATA_DIR}/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sprue -d sprue"]
+      start_interval: 1s
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    networks: [forge-staging]
+
+  minio:
+    image: ${MINIO_IMAGE}
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "127.0.0.1:15072:9001" # console (optional, loopback only)
+    volumes:
+      - ${FORGE_DATA_DIR}/minio:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      start_interval: 1s
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks: [forge-staging]
+
+  # Create sprue's buckets once minio is up. Exits 0; sprue waits on completion.
+  minio-init:
+    image: ${MC_IMAGE}
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" &&
+        mc mb -p local/agent-message local/delegation local/upload-shards &&
+        echo "buckets ready"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    restart: "no"
+    networks: [forge-staging]
+
+  signing-service:
+    image: ${SIGNER_IMAGE}
+    user: root
+    ports:
+      - "127.0.0.1:15030:7446"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ${FORGE_SECRETS_DIR}/payer-key.hex:/keys/payer-key.hex:ro
+      - ${FORGE_SECRETS_DIR}/signing-service.pem:/keys/signing-service.pem:ro
+      # signer.yaml carries no secrets and is committed; mounted from the git tree.
+      - ./config/signer/signer.yaml:/signer.yaml:ro
+    command:
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "7446"
+      - "--rpc-url"
+      - "${LOTUS_RPC_URL}"
+      - "--service-contract-address"
+      - "${FWSS_ADDRESS}"
+      - "--signing-key-path"
+      - "/keys/payer-key.hex"
+      - "--service-key-file"
+      - "/keys/signing-service.pem"
+      - "--service-did"
+      - "${SIGNING_SERVICE_DID}"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:7446/healthcheck"]
+      start_interval: 1s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks: [forge-staging]
+
+  delegator:
+    image: ${DELEGATOR_IMAGE}
+    user: "0:0"
+    ports:
+      - "127.0.0.1:15040:80"
+    command: ["serve", "--host", "0.0.0.0", "--port", "80"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ${FORGE_SECRETS_DIR}/delegator.pem:/keys/delegator.pem:ro
+      - ${FORGE_SECRETS_DIR}/delegator.yaml:/.delegator.yaml:ro
+      # Committed delegation proofs (non-secret) come from the git tree.
+      - ../proofs:/proofs:ro
+    depends_on:
+      dynamodb-local:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80/healthcheck"]
+      start_interval: 1s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks: [forge-staging]
+
+  sprue:
+    image: ${SPRUE_IMAGE}
+    command: ["serve", "--config", "/etc/sprue/config.yaml"]
+    ports:
+      - "127.0.0.1:15060:80"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      # sprue reaches S3/MinIO via the AWS SDK default credential chain.
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - SPRUE_SERVER_PUBLIC_URL=${SPRUE_PUBLIC_URL}
+    volumes:
+      - ${FORGE_SECRETS_DIR}/sprue.pem:/keys/sprue.pem:ro
+      - ${FORGE_SECRETS_DIR}/sprue-config.yaml:/etc/sprue/config.yaml:ro
+    # NOTE: unlike local dev, there is NO post_start provider-registration hook —
+    # piri lives in a separate bundle. Register piri providers as an explicit
+    # runbook step after both bundles are healthy (see docs/STAGING_DEPLOY.md).
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:80/health"]
+      start_interval: 1s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks: [forge-staging]
+
+# Persistent data lives on the box's ZFS pool (see FORGE_DATA_DIR in config.env),
+# not Docker named volumes — so no top-level `volumes:` block.
+
+networks:
+  forge-staging:
+    name: forge-staging-core

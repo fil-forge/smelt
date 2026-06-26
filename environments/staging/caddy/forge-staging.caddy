@@ -1,0 +1,31 @@
+# Forge staging — Caddy site blocks.
+#
+# Kept in the repo and shipped to the box under ~/fil-one/forge/caddy/. Import it
+# from the existing main Caddyfile (~/storacha/caddy/Caddyfile) with one line:
+#
+#   import /root/fil-one/forge/caddy/*.caddy
+#
+# then reload:  systemctl reload caddy-guppy
+#
+# Each host terminates TLS (automatic ACME) and reverse-proxies to the bundle's
+# loopback-published container port. This also serves did:web resolution:
+# https://<host>/.well-known/did.json is proxied straight from the service.
+#
+# Prerequisite: A records for these hosts must point at the box (23.83.66.244),
+# proxied=false — see ../dns/fil-one-staging.tf.
+
+sprue.staging.fil.one {
+	reverse_proxy 127.0.0.1:15060
+}
+
+signing-service.staging.fil.one {
+	reverse_proxy 127.0.0.1:15030
+}
+
+delegator.staging.fil.one {
+	reverse_proxy 127.0.0.1:15040
+}
+
+piri-0.staging.fil.one {
+	reverse_proxy 127.0.0.1:15100
+}

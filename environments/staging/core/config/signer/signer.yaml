@@ -1,0 +1,11 @@
+# Signing-service config — STAGING.
+#
+# Contains no secrets and no contract addresses: the signing key and service
+# identity key are mounted as separate files, and the command-line flags in
+# compose.yml (--rpc-url, --service-contract-address, --service-did, ...) supply
+# and override everything chain-related. Those flags read from the shared
+# smart-contracts.env, so there is no address duplicated here. Committed and mounted
+# read-only from the git tree.
+
+host: "0.0.0.0"
+port: 7446

@@ -63,6 +63,13 @@ func GenerateKeys(keysDir string, nodes []manifest.ResolvedPiriNode, force bool)
 	return nil
 }
 
+// GenerateEd25519Key generates an Ed25519 service identity key pair (name.pem +
+// name.pub) in the same PKCS8 PEM format used by the local dev stack. Exported so
+// the staging keygen (pkg/staging) reuses the identical format the services expect.
+func GenerateEd25519Key(keysDir, name string, force bool) error {
+	return generateEd25519Key(keysDir, name, force)
+}
+
 // generateEd25519Key generates an Ed25519 key pair in PEM format.
 func generateEd25519Key(keysDir, name string, force bool) error {
 	privPath := filepath.Join(keysDir, name+".pem")
