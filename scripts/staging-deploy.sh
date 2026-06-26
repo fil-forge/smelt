@@ -64,32 +64,50 @@ $COMPOSE up -d --remove-orphans
 
 echo "==> waiting for health (timeout ${HEALTH_TIMEOUT}s)"
 deadline=\$(( \$(date +%s) + $HEALTH_TIMEOUT ))
+# A crash-looping container oscillates running<->restarting faster than we poll,
+# so a single 'compose ps' State snapshot can catch it mid-restart in a momentary
+# 'running' state with an empty Health field and wrongly count it ready (this is
+# how sprue slipped through). RestartCount is the non-racy signal: a fresh
+# 'up -d' starts every container at 0, so any nonzero count means the container
+# has already died and been restarted at least once -> crash-looping. It is not
+# exposed by 'compose ps --format', so we drive the gate off 'docker inspect'.
+#
+# ready_streak guards the opposite race: a service that comes up clean and only
+# crashes a second or two later. We require the whole stack to read fully-ready
+# on two consecutive polls (>= one 5s sleep apart) before declaring success, so a
+# crash inside that window bumps RestartCount and flips the verdict to failed.
+ready_streak=0
 while :; do
-  # Inspect State + Health + ExitCode per container — Health alone misses a
-  # crash-looping container with no healthcheck (empty Health), which is exactly
-  # how a broken service used to slip through as "healthy". The '|' delimiter
-  # keeps an empty Health field from shifting the columns.
   bad=0; pending=0
-  while IFS='|' read -r name state health exitcode; do
-    case "\$state" in
+  while IFS='|' read -r name status health restarts exitcode; do
+    name="\${name#/}"   # docker inspect .Name carries a leading slash
+    case "\$status" in
       running)
-        case "\$health" in
-          starting)  pending=\$((pending+1)) ;;
-          unhealthy) echo "  unhealthy:   \$name"; bad=\$((bad+1)) ;;
-          # healthy, or no healthcheck (empty) -> ready
-        esac
+        if [ "\$restarts" -gt 0 ]; then
+          echo "  crash-looping (restarts=\$restarts): \$name"; bad=\$((bad+1))
+        else
+          case "\$health" in
+            starting)  pending=\$((pending+1)) ;;
+            unhealthy) echo "  unhealthy:   \$name"; bad=\$((bad+1)) ;;
+            # healthy, or no healthcheck (none) -> ready
+          esac
+        fi
         ;;
+      restarting)
+        echo "  restarting (restarts=\$restarts): \$name"; bad=\$((bad+1)) ;;
       exited)
         # One-shot containers (e.g. minio-init, restart:no) are fine once exit 0.
         [ "\$exitcode" = "0" ] || { echo "  exited (\$exitcode): \$name"; bad=\$((bad+1)); }
         ;;
-      restarting|dead)
-        echo "  \$state: \$name"; bad=\$((bad+1)) ;;
+      dead)
+        echo "  dead: \$name"; bad=\$((bad+1)) ;;
       *)
         # created/paused/removing/etc. — not ready yet
         pending=\$((pending+1)) ;;
     esac
-  done < <($COMPOSE ps -a --format '{{.Name}}|{{.State}}|{{.Health}}|{{.ExitCode}}')
+  done < <(docker inspect \
+    -f '{{.Name}}|{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}|{{.RestartCount}}|{{.State.ExitCode}}' \
+    \$($COMPOSE ps -aq))
 
   if [ "\$bad" -gt 0 ]; then
     echo "DEPLOY FAILED: \$bad service(s) crash-looping, dead, or unhealthy"
@@ -97,8 +115,13 @@ while :; do
     exit 1
   fi
   if [ "\$pending" -eq 0 ]; then
-    echo "all services healthy"
-    break
+    ready_streak=\$((ready_streak+1))
+    if [ "\$ready_streak" -ge 2 ]; then
+      echo "all services healthy"
+      break
+    fi
+  else
+    ready_streak=0
   fi
   if [ "\$(date +%s)" -ge "\$deadline" ]; then
     echo "DEPLOY FAILED: timed out waiting for health"
