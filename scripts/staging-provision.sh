@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
-# Render-and-ship staging secrets onto the box — DEVELOPER-MACHINE ONLY.
+# Wipe-and-reprovision staging onto the box — DEVELOPER-MACHINE ONLY.
 #
-# Pulls secret values from 1Password (op inject for templated config files,
-# op read for standalone key/wallet fields) and streams each result directly into
-# an SSH session that writes it atomically into the host secrets dir. NOTHING
-# secret is ever written to local disk. Never run from CI.
+# For each bundle this (1) tears down the running containers and deletes the
+# bundle's persistent data dirs (postgres / dynamodb / minio / piri-0), so the
+# next deploy comes up on a clean slate, then (2) pulls secret values from
+# 1Password (op inject for templated config files, op read for standalone
+# key/wallet fields) and streams each result directly into an SSH session that
+# writes it atomically into the host secrets dir. NOTHING secret is ever written
+# to local disk. Never run from CI.
+#
+# Destructive by design: provisioning discards all existing staging state. Staging
+# carries no precious data, so the next `staging-deploy` rebuilds everything.
 #
 # Prerequisites on the dev machine:
 #   - an authenticated 1Password session (`op signin`)
@@ -87,6 +93,8 @@ render_plain_tpl()  { render_chain < "$1" | ship "$2" 0440; }   # no secrets
 read_field()        { op read "$OP_ITEM/$1" | ship "$2" "$3"; }
 
 provision_core() {
+  # Clean slate first: tear down the old bundle and its data, then ship fresh config+keys.
+  reset_bundle_data forge-staging-core "$STAGING/core/config.env" dynamodb postgres minio
   echo "[core] rendering configs..."
   render_secret_tpl "$STAGING/core/config/sprue/config.yaml.tpl"        sprue-config.yaml
   render_secret_tpl "$STAGING/core/config/delegator/delegator.yaml.tpl" delegator.yaml
@@ -99,12 +107,42 @@ provision_core() {
   read_field payer-key           payer-key.hex         0400
 }
 
+# Tear down a bundle's containers and wipe its persistent data dirs, so the next
+# `staging-deploy` brings up fresh instances from scratch. Staging carries no
+# precious data — sprue re-runs its Postgres migrations on boot, the delegator
+# re-creates its DynamoDB tables, minio-init re-creates sprue's buckets, and piri
+# re-syncs — so a clean-slate provision is safe, and loud. Removing the containers
+# (not just the data) is required: a live container keeps serving its old in-memory
+# state on deleted inodes, and `up -d` won't recreate it for a mere data-dir change.
+# Postgres specifically bakes POSTGRES_PASSWORD into its data dir at first initdb and
+# ignores the env var thereafter, so a stale dir would also pin a rotated password
+# that no longer matches the freshly provisioned secret — another reason to wipe.
+reset_bundle_data() {
+  local project="$1" config_env="$2"; shift 2
+  local data_dir
+  data_dir="$(grep -E '^FORGE_DATA_DIR=' "$config_env" | cut -d= -f2-)"
+  [ -n "$data_dir" ] || { echo "ERROR: FORGE_DATA_DIR not set in $config_env" >&2; exit 1; }
+  local quoted_dirs=""
+  for sub in "$@"; do quoted_dirs+=" '$data_dir/$sub'"; done
+  local label="${project#forge-staging-}"
+  echo "[$label] wiping bundle — removing containers ($project) and data dirs:$quoted_dirs"
+  forge_ssh bash -s <<REMOTE
+set -euo pipefail
+cids=\$(docker ps -aq --filter label=com.docker.compose.project='$project')
+[ -n "\$cids" ] && docker rm -f \$cids >/dev/null || true
+for d in$quoted_dirs; do rm -rf "\$d" && mkdir -p "\$d"; done
+REMOTE
+  echo "  clean slate (next 'staging-deploy $label' re-creates everything)"
+}
+
 provision_piri() {
   # piri's base config embeds PAYER_ADDRESS — fail loudly if keygen hasn't filled it.
   grep -qE '^PAYER_ADDRESS=0x[0-9a-fA-F]{40}$' "$WALLETS_ENV" || {
     echo "ERROR: PAYER_ADDRESS not set in $WALLETS_ENV — run 'make staging-keygen' and commit it first" >&2
     exit 1
   }
+  # Clean slate first: tear down the old node and its data, then ship fresh config+keys.
+  reset_bundle_data forge-staging-piri "$STAGING/piri/config.env" piri-0
   echo "[piri] rendering base config..."
   render_plain_tpl "$STAGING/piri/config/piri/piri-base-config.toml.tpl" piri-base-config.toml
   echo "[piri] shipping key files..."

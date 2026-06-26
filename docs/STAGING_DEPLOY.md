@@ -15,9 +15,9 @@ design rests on four ideas:
    image references (digests in production use). A deploy applies one set; rollback is
    re-deploying a previous pinned commit. No rolling `:latest`/`:main`.
 2. **Two bundles, deployed independently.** `core` (sprue + signing-service + delegator
-   + their dependency containers) and `piri` (the storage node) deploy and roll back on
-   their own cadence. They communicate over **public `https://*.staging.fil.one` URLs**
-   (fronted by the host's Caddy), not single-network Docker DNS — so the split is real.
+   - their dependency containers) and `piri` (the storage node) deploy and roll back on
+     their own cadence. They communicate over **public `https://*.staging.fil.one` URLs**
+     (fronted by the host's Caddy), not single-network Docker DNS — so the split is real.
 3. **Dependencies are per-environment.** Postgres + S3 (MinIO) + DynamoDB run as
    containers in the stack; persistent data lives on the box's ZFS pool
    (`/mnt/data/fil-one/forge`). The chain RPC is the **host Lotus node** (Calibnet,
@@ -128,12 +128,24 @@ make staging-provision-core            # sprue-config.yaml, delegator.yaml, secr
 make staging-provision-piri            # piri-0 key files
 ```
 
-Renders configs — `op inject` resolves `{{ op:// }}` secret refs and `${VAR}` refs are
-substituted from `smart-contracts.env` + `wallets.env` (core renders sprue/delegator configs
-+ `secrets.env`; piri renders its base config) — and ships key files (via `op read`) into
-`/root/fil-one/forge/secrets/`, atomically, no plaintext on your local disk. (piri provision
-fails fast if `PAYER_ADDRESS` isn't set in `wallets.env` yet.) Re-run only when a config
-template, secret, or env value changes.
+**Provisioning is destructive — it resets the bundle to a clean slate.**
+
+For each bundle it first removes the running containers and deletes that bundle's persistent data
+dirs under `${FORGE_DATA_DIR}`, then recreates them empty. We wipe because Postgres bakes its
+password into the data dir at first `initdb`, so a stale dir would keep an old password that no
+longer matches the freshly provisioned secret. The next `staging-deploy` rebuilds everything from
+scratch (sprue re-runs migrations, the delegator re-creates its DynamoDB tables, `minio-init`
+re-creates buckets, piri re-syncs).
+
+This is safe because staging holds no precious data.
+
+After wiping it renders configs and ships key files (via `op read`) into
+`/root/fil-one/forge/secrets/`, atomically, no plaintext on your local disk.
+
+Because the wipe is unconditional, re-running provision always discards existing
+staging state. Run it on first deploy, after a `make staging-keygen` rotation, or
+whenever you want a clean environment — not for an in-place config tweak you don't
+want to lose data over.
 
 ## 5. Deploy
 
@@ -208,7 +220,7 @@ These are deliberate first-step assumptions to confirm during the manual deploy:
    a container to the host's public IP fails, front the calls via `host.docker.internal` HTTP
    ports instead.
 3. **`no-indexer` config.** sprue runs fine with an empty `indexer.endpoint`. The delegator
-   *requires* indexing + egress service DIDs and proofs at startup even though neither service
+   _requires_ indexing + egress service DIDs and proofs at startup even though neither service
    runs — that's why keygen still issues those proofs and the delegator config still references
    them. The piri base config keeps non-resolving `[ucan.services.indexer]`/`[publisher]`
    sections so `piri init` accepts the config; if piri rejects or misbehaves, remove them.
