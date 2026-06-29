@@ -1,9 +1,10 @@
 # sprue (upload) config — STAGING TEMPLATE.
 #
 # Rendered with `op inject` into $FORGE_SECRETS_DIR/sprue-config.yaml and mounted
-# at /etc/sprue/config.yaml. Only the Postgres password is a secret (a 1Password reference);
-# everything else is literal. S3/MinIO credentials are supplied via the AWS SDK
-# env vars (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY) set on the container.
+# at /etc/sprue/config.yaml. The Postgres password and the S3/MinIO credentials
+# are secrets (1Password references); everything else is literal. sprue reads the
+# S3 credentials from storage.s3 below — it does NOT consult the AWS SDK env vars
+# for a custom endpoint.
 
 deployment:
   environment: "staging"
@@ -40,6 +41,10 @@ storage:
   s3:
     endpoint: "http://minio:9000"
     region: "us-east-1"
+    # MinIO requires path-style addressing.
+    use_path_style: true
+    access_key_id: "{{ op://Fil One/FilOne Forge Staging/minio-access-key }}"
+    secret_access_key: "{{ op://Fil One/FilOne Forge Staging/minio-secret-key }}"
     agent_message_bucket: "agent-message"
     delegation_bucket: "delegation"
     upload_shards_bucket: "upload-shards"

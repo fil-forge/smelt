@@ -32,6 +32,9 @@ storage:
   s3:
     endpoint: "http://minio:9000"
     region: "us-east-1"
+    use_path_style: true
+    access_key_id: "<rendered from 1Password>"
+    secret_access_key: "<rendered from 1Password>"
     agent_message_bucket: "agent-message"
     delegation_bucket: "delegation"
     upload_shards_bucket: "upload-shards"

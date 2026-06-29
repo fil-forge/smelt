@@ -160,9 +160,8 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
-      # sprue reaches S3/MinIO via the AWS SDK default credential chain.
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      # S3/MinIO credentials are read from the mounted sprue-config.yaml
+      # (storage.s3.access_key_id / secret_access_key), not from AWS_* env vars.
       - SPRUE_SERVER_PUBLIC_URL=${SPRUE_PUBLIC_URL}
     volumes:
       - ${FORGE_SECRETS_DIR}/sprue.pem:/keys/sprue.pem:ro

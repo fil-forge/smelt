@@ -15,10 +15,8 @@
 # Postgres (sprue metadata store) — must match the password baked into sprue's DSN.
 POSTGRES_PASSWORD={{ op://Fil One/FilOne Forge Staging/sprue-postgres-password }}
 
-# MinIO root credentials (also used as sprue's S3 access/secret keys).
+# MinIO root credentials. The minio + minio-init containers authenticate with
+# these; sprue receives the same key/secret through its rendered config file
+# (storage.s3 in sprue-config.yaml), not via these env vars.
 MINIO_ROOT_USER={{ op://Fil One/FilOne Forge Staging/minio-access-key }}
 MINIO_ROOT_PASSWORD={{ op://Fil One/FilOne Forge Staging/minio-secret-key }}
-
-# sprue reaches S3/MinIO via the AWS SDK default credential chain.
-AWS_ACCESS_KEY_ID={{ op://Fil One/FilOne Forge Staging/minio-access-key }}
-AWS_SECRET_ACCESS_KEY={{ op://Fil One/FilOne Forge Staging/minio-secret-key }}
