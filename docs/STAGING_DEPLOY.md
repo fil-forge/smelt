@@ -187,7 +187,13 @@ ssh root@23.83.66.244 'cd /root/fil-one/forge/environments/staging/core && docke
 ssh root@23.83.66.244 'cd /root/fil-one/forge/environments/staging/piri && docker compose -p forge-staging-piri ps'
 
 # did:web resolution through Caddy
-for h in sprue signing-service delegator; do curl -fsS "https://$h.staging.fil.one/.well-known/did.json" >/dev/null && echo "$h ok"; done
+# Only sprue and delegator serve a did.json. signing-service does NOT — it has no
+# /.well-known/did.json route by design (it resolves its own DID from an in-memory
+# document, and no peer ever resolves did:web:signing-service: piri uses the
+# configured DID only as the signing-invocation audience, and the signed response
+# is an EIP-712 signature verified on-chain, not a did:web-resolved UCAN receipt).
+# So a 404 here is expected, not a failure.
+for h in sprue delegator; do curl -fsS "https://$h.staging.fil.one/.well-known/did.json" >/dev/null && echo "$h ok"; done
 
 # End-to-end (note: no mailer in staging — email-based login is unavailable; see Known risks):
 #   guppy login ... ; SPACE=$(guppy space generate) ; randdir --size 10KB --output /tmp/d
