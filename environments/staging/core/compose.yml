@@ -14,19 +14,6 @@
 # interface; Caddy fronts them for TLS + did:web).
 name: forge-staging-core
 
-# *.staging.fil.one resolves to the box's PUBLIC IP, which a container cannot reach
-# by hairpin NAT (connecting out to the host's own public address times out). Map
-# these hostnames to the host gateway so outbound calls reach the host's Caddy
-# directly over the Docker bridge. Caddy still terminates TLS for the real hostname
-# (SNI is preserved) and reverse-proxies to the loopback-published container port.
-# Only hosts with a Caddy site are listed — indexer/etracker have none.
-x-staging-hosts: &staging-hosts
-  - "host.docker.internal:host-gateway"
-  - "sprue.staging.fil.one:host-gateway"
-  - "signing-service.staging.fil.one:host-gateway"
-  - "delegator.staging.fil.one:host-gateway"
-  - "piri-0.staging.fil.one:host-gateway"
-
 services:
   dynamodb-local:
     image: ${DYNAMODB_IMAGE}
@@ -107,7 +94,8 @@ services:
     user: root
     ports:
       - "127.0.0.1:15030:7446"
-    extra_hosts: *staging-hosts
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ${FORGE_SECRETS_DIR}/payer-key.hex:/keys/payer-key.hex:ro
       - ${FORGE_SECRETS_DIR}/signing-service.pem:/keys/signing-service.pem:ro
@@ -144,7 +132,8 @@ services:
     ports:
       - "127.0.0.1:15040:80"
     command: ["serve", "--host", "0.0.0.0", "--port", "80"]
-    extra_hosts: *staging-hosts
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ${FORGE_SECRETS_DIR}/delegator.pem:/keys/delegator.pem:ro
       - ${FORGE_SECRETS_DIR}/delegator.yaml:/.delegator.yaml:ro
@@ -168,7 +157,8 @@ services:
     command: ["serve", "--config", "/etc/sprue/config.yaml"]
     ports:
       - "127.0.0.1:15060:80"
-    extra_hosts: *staging-hosts
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       # S3/MinIO credentials are read from the mounted sprue-config.yaml
       # (storage.s3.access_key_id / secret_access_key), not from AWS_* env vars.

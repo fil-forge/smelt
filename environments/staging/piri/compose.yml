@@ -11,19 +11,6 @@
 # Published port binds to 127.0.0.1; host Caddy fronts piri-0.staging.fil.one.
 name: forge-staging-piri
 
-# *.staging.fil.one resolves to the box's PUBLIC IP, which a container cannot reach
-# by hairpin NAT (connecting out to the host's own public address times out — this
-# is what made `piri init`'s registrar request to the delegator hang). Map these
-# hostnames to the host gateway so outbound calls reach the host's Caddy directly
-# over the Docker bridge. Caddy still terminates TLS for the real hostname (SNI is
-# preserved) and reverse-proxies to the loopback-published container port. Only
-# hosts piri actually calls and that have a Caddy site are listed.
-x-staging-hosts: &staging-hosts
-  - "host.docker.internal:host-gateway"
-  - "delegator.staging.fil.one:host-gateway"
-  - "signing-service.staging.fil.one:host-gateway"
-  - "sprue.staging.fil.one:host-gateway"
-
 services:
   piri-0:
     image: ${PIRI_IMAGE}
@@ -34,7 +21,8 @@ services:
     user: "0:0"
     ports:
       - "127.0.0.1:15100:3000"
-    extra_hosts: *staging-hosts
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     entrypoint: ["/entrypoint.sh"]
     environment:
       - LOTUS_ENDPOINT=${LOTUS_RPC_URL}
