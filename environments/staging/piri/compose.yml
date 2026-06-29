@@ -14,6 +14,11 @@ name: forge-staging-piri
 services:
   piri-0:
     image: ${PIRI_IMAGE}
+    # The piri image runs as USER nobody, but the provisioned key files are
+    # 0440 root:root and the host data dir is created root:root, so a non-root
+    # process can neither read the keys nor write /data/piri. Run as root to
+    # match the local-dev stack (pkg/generate emits user: "0:0" for piri too).
+    user: "0:0"
     ports:
       - "127.0.0.1:15100:3000"
     extra_hosts:
