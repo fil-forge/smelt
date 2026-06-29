@@ -45,9 +45,20 @@ mkdir -p "$DATA_DIR" "$TEMP_DIR"
 
 # Step 1: Extract piri's DID from key file
 echo "[1/4] Extracting piri DID..."
-PIRI_DID=$(/usr/bin/piri identity parse "$KEY_FILE" 2>&1 | grep -oE 'did:key:z[a-zA-Z0-9]+')
+# Run the parse on its own line: capturing it inside a `PIRI_DID=$(... | grep)`
+# assignment lets `set -e` abort on a grep no-match (or a parse failure) BEFORE
+# the checks below run, swallowing the real error — e.g. an unreadable key file
+# reports nothing but the silent crash-loop. Separating the steps surfaces the
+# actual stderr (`|| true` on grep so we reach the explicit, informative checks).
+if ! PARSE_OUTPUT=$(/usr/bin/piri identity parse "$KEY_FILE" 2>&1); then
+    echo "ERROR: 'piri identity parse $KEY_FILE' failed:" >&2
+    echo "$PARSE_OUTPUT" >&2
+    exit 1
+fi
+PIRI_DID=$(printf '%s\n' "$PARSE_OUTPUT" | grep -oE 'did:key:z[a-zA-Z0-9]+' || true)
 if [ -z "$PIRI_DID" ]; then
-    echo "ERROR: Failed to extract DID from $KEY_FILE"
+    echo "ERROR: no did:key found in 'piri identity parse $KEY_FILE' output:" >&2
+    echo "$PARSE_OUTPUT" >&2
     exit 1
 fi
 echo "  DID: $PIRI_DID"
