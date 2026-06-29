@@ -221,10 +221,14 @@ These are deliberate first-step assumptions to confirm during the manual deploy:
    connect or watch the chain, switch to `ws://host.docker.internal:1234/rpc/v1` (Lotus serves
    both on `:1234/rpc/v1`) by editing `LOTUS_RPC_URL` in `environments/staging/smart-contracts.env`
    — the single place it's defined — then re-provision and re-deploy.
-2. **Container → public-IP hairpin.** Cross-bundle calls and upload→piri callbacks use
-   `https://*.staging.fil.one`, which resolves to the box's own public IP. If hairpin NAT from
-   a container to the host's public IP fails, front the calls via `host.docker.internal` HTTP
-   ports instead.
+2. **Container → public-IP hairpin** (handled). Cross-bundle calls and upload→piri callbacks use
+   `https://*.staging.fil.one`, which resolves to the box's own public IP — and hairpin NAT from a
+   container back to the host's public IP times out (it broke `piri init`'s registrar request to
+   the delegator). Both bundles' compose files now map every `*.staging.fil.one` host that has a
+   Caddy site to `host-gateway` via `extra_hosts` (the `x-staging-hosts` anchor), so outbound calls
+   reach the host's Caddy directly over the Docker bridge. TLS is unaffected — Caddy still terminates
+   the real hostname's cert (SNI is preserved) and reverse-proxies to the loopback container port.
+   When adding a new public service, add its hostname to the anchor in both compose files.
 3. **`no-indexer` config.** sprue runs fine with an empty `indexer.endpoint`. The delegator
    _requires_ indexing + egress service DIDs and proofs at startup even though neither service
    runs — that's why keygen still issues those proofs and the delegator config still references
