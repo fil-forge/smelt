@@ -150,17 +150,32 @@ want to lose data over.
 
 ## 5. Deploy
 
+Deploy `core` first, allow-list the piri DID with the delegator, then deploy `piri`:
+
 ```bash
 make staging-deploy-core               # sprue + signing-service + delegator + deps
+make staging-allowlist-piri            # add piri's DID to the delegator allow list
 make staging-deploy-piri               # piri-0
 ```
 
-Each syncs the box's checkout to `FORGE_REF` (`git fetch` + `reset --hard`), then
-pulls the pinned images, recreates changed containers, and waits for healthchecks
-(fails the deploy if any service stays unhealthy past the timeout). The deploy
+`staging-deploy-*` each sync the box's checkout to `FORGE_REF` (`git fetch` +
+`reset --hard`), then pull the pinned images, recreate changed containers, and wait for
+healthchecks (fails the deploy if any service stays unhealthy past the timeout). The deploy
 **aborts** if the box has uncommitted changes to tracked files (untracked files such
 as provisioned secrets are ignored). `FORGE_REF` defaults to `main`; override it to
 deploy a branch, tag, or commit, e.g. `FORGE_REF=staging-deployment make staging-deploy-core`.
+
+**Why the allow-list step (order matters).** `piri init` step `[4/7]` ("Requesting
+approval to join contract from Storacha") calls the delegator's
+`/registrar/request-approval`, which **refuses any DID not on its allow list with a 403**.
+In local dev, piri's entrypoint adds its own DID to the shared `dynamodb-local` allow list
+before init; across the split bundles that route doesn't exist (the piri bundle can't reach
+the core bundle's DynamoDB), so the staging entrypoint drops it. `staging-allowlist-piri`
+fills the gap from the core side — it derives piri's DID from its provisioned key and runs
+the delegator's `store allow-did` against the core DynamoDB. Run it **after** the delegator
+is up (`deploy-core`) and **before** `deploy-piri`, so piri's first init is already
+allow-listed. It is idempotent. Skipping it makes `deploy-piri` fail with piri crash-looping
+on `registration failed with status: 403`.
 
 ## 6. Register the piri provider with the core (cross-bundle step)
 

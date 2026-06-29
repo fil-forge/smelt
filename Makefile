@@ -38,7 +38,7 @@ workspace-build:
 		rm -f $(WORKSPACE_OVERRIDE); \
 	fi
 
-.PHONY: help generate init up down restart clean nuke fresh logs pull build cli status guppy regen debug-upload ensure-state check-docker workspace-build staging-keygen staging-bootstrap staging-provision-core staging-provision-piri staging-deploy-core staging-deploy-piri
+.PHONY: help generate init up down restart clean nuke fresh logs pull build cli status guppy regen debug-upload ensure-state check-docker workspace-build staging-keygen staging-bootstrap staging-provision-core staging-provision-piri staging-deploy-core staging-allowlist-piri staging-deploy-piri
 
 # Default target - show help
 help:
@@ -88,6 +88,7 @@ help:
 	@echo "  make staging-provision-core  Render core secrets from 1Password and ship to the box (dev machine only)"
 	@echo "  make staging-provision-piri  Render piri secrets from 1Password and ship to the box (dev machine only)"
 	@echo "  make staging-deploy-core     Deploy the core bundle (sprue + signing-service + delegator)"
+	@echo "  make staging-allowlist-piri  Allow-list the piri DID with the delegator (run before deploy-piri)"
 	@echo "  make staging-deploy-piri     Deploy the piri bundle"
 	@echo ""
 	@echo "Options:"
@@ -289,6 +290,11 @@ staging-provision-piri:
 # Deploy a bundle: pull pinned images, recreate, verify health.
 staging-deploy-core:
 	@./scripts/staging-deploy.sh core
+
+# Allow-list the piri DID with the core delegator. Run after deploy-core and
+# before deploy-piri, else `piri init` step [4/7] gets a 403 from the delegator.
+staging-allowlist-piri:
+	@./scripts/staging-allowlist-piri.sh
 
 staging-deploy-piri:
 	@./scripts/staging-deploy.sh piri
