@@ -107,8 +107,9 @@ there is no email login in staging; see Known risks.)
 ## 3. Bootstrap the box (first time only)
 
 Clones/updates the repo on the box, creates the secrets + data directories, wires the
-Forge Caddy snippet into the host's main Caddyfile, and verifies did:web endpoints
-(warn-only until the services are deployed). Idempotent.
+Forge Caddy snippet into the host's main Caddyfile, opens UFW so containers can reach the
+host's Caddy on `:443`, and verifies did:web endpoints (warn-only until the services are
+deployed). Idempotent.
 
 ```bash
 make staging-bootstrap
@@ -221,10 +222,14 @@ These are deliberate first-step assumptions to confirm during the manual deploy:
    connect or watch the chain, switch to `ws://host.docker.internal:1234/rpc/v1` (Lotus serves
    both on `:1234/rpc/v1`) by editing `LOTUS_RPC_URL` in `environments/staging/smart-contracts.env`
    — the single place it's defined — then re-provision and re-deploy.
-2. **Container → public-IP hairpin.** Cross-bundle calls and upload→piri callbacks use
-   `https://*.staging.fil.one`, which resolves to the box's own public IP. If hairpin NAT from
-   a container to the host's public IP fails, front the calls via `host.docker.internal` HTTP
-   ports instead.
+2. **Container → host Caddy on `:443`** (handled). Cross-bundle calls and upload→piri callbacks
+   use `https://*.staging.fil.one`, which resolves to the box's own public IP. Reaching that IP
+   from a container is local delivery, but the traffic arrives over the Docker bridge while the
+   stock UFW `:443` rule is scoped to the public NIC — so UFW's default deny-incoming dropped it
+   (an i/o timeout; this is what hung `piri init`'s registrar call to the delegator). `staging-bootstrap`
+   now adds `ufw allow from 172.16.0.0/12 to any port 443 proto tcp`, mirroring the existing Lotus
+   `:1234` rule that already lets containers reach the host. If a container still can't reach a
+   `*.staging.fil.one` URL, check `ufw status verbose` for that rule first.
 3. **`no-indexer` config.** sprue runs fine with an empty `indexer.endpoint`. The delegator
    _requires_ indexing + egress service DIDs and proofs at startup even though neither service
    runs — that's why keygen still issues those proofs and the delegator config still references

@@ -48,7 +48,7 @@ echo "Bootstrapping Forge staging on $FORGE_HOST"
   cat <<'REMOTE'
 set -euo pipefail
 
-TOTAL=4
+TOTAL=5
 step() { printf '\n[%d/%d] %s\n' "$1" "$TOTAL" "$2"; }
 
 echo "==> bootstrapping on $(hostname) ($(date -u '+%Y-%m-%dT%H:%M:%SZ'))"
@@ -91,9 +91,26 @@ caddy validate --config "$MAIN_CADDYFILE" --adapter caddyfile
 echo "    reloading $CADDY_SERVICE"
 systemctl reload "$CADDY_SERVICE"
 
-# 4. Verify did:web resolution through Caddy. Warns (does not fail) — the services
+# 4. Let containers reach the host's Caddy on :443 through UFW.
+#    Containers resolve https://*.staging.fil.one to the box's public IP (real DNS)
+#    and connect to it — but that traffic arrives at the host over the Docker bridge,
+#    while the stock ':443 ALLOW' rule is scoped to the public NIC. UFW's default
+#    deny-incoming then drops it, which is the i/o timeout piri hit on the registrar
+#    call. This rule permits the Docker subnet to reach :443 regardless of arrival
+#    interface, mirroring the existing ':1234 from 172.16.0.0/12' Lotus rule that
+#    already lets containers reach the host. Idempotent: ufw skips a duplicate rule.
+step 4 "allowing Docker containers -> host Caddy (:443) through UFW"
+if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q '^Status: active'; then
+  ufw allow from 172.16.0.0/12 to any port 443 proto tcp \
+    comment 'forge containers -> host caddy https'
+  echo "    ufw: 443/tcp from 172.16.0.0/12 allowed"
+else
+  echo "    WARN: ufw not active; ensure containers can reach the host on :443"
+fi
+
+# 5. Verify did:web resolution through Caddy. Warns (does not fail) — the services
 #    must be deployed for these to return; run again after `make staging-deploy-*`.
-step 4 "verifying did:web endpoints (warn-only; needs services deployed)"
+step 5 "verifying did:web endpoints (warn-only; needs services deployed)"
 for h in $HOSTS; do
   if curl -fsS "https://$h.staging.fil.one/.well-known/did.json" >/dev/null 2>&1; then
     echo "    ok:   https://$h.staging.fil.one/.well-known/did.json"
