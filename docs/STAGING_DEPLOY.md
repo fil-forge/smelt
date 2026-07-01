@@ -14,6 +14,8 @@ design rests on four ideas:
 1. **One version-pinned artifact per bundle.** Each bundle's `versions.env` pins exact
    image references (digests in production use). A deploy applies one set; rollback is
    re-deploying a previous pinned commit. No rolling `:latest`/`:main`.
+   _Note: in the initial version, where we deploy manually (no GitHub Actions automation),
+   we keep rolling `:main` reference._
 2. **Two bundles, deployed independently.** `core` (sprue + signing-service + delegator
    - their dependency containers) and `piri` (the storage node) deploy and roll back on
      their own cadence. They communicate over **public `https://*.staging.fil.one` URLs**
@@ -31,9 +33,37 @@ There is **no** indexer / IPNI / redis / Anvil / mailer in staging. (sprue runs 
 empty `indexer.endpoint` and `mailer: nop`; the delegator still validates indexing/egress
 delegations at startup, so those proofs are generated even though neither service runs.)
 
+### Rationale
+
+The goal is to get the staging deployment up as quickly as possible. We are optimising for learning
+and discovering unknown unknowns. See [Open Questions in the Walking Skeleton Notion page](https://app.notion.com/p/filecoin/FilOne-SP-Side-Appliance-Walking-Skeleton-3847631f2825806f876ac0fd478e5a68?source=copy_link#3847631f2825806d90bcc385affd9659).
+
+The two-bundle split is deliberate to force decoupling between Forge core services (operated by
+FilOne in production) and storage nodes (operated by storage providers in production).
+
+### Next Steps
+
+1. Pin the images to digests in `versions.env` (currently rolling `:main`).
+2. Implement GH Action workflows to automatically upgrade pinned versions whenever a new Docker
+   image version is pushed by each service repository (sprue, piri, etc).
+3. Implement a CI/CD workflow to automatically deploy every commit landed to `main` to the staging box.
+4. Add a basic end-to-end test suite (smoke tests).
+
+The outcome of the above: every commit landed to `main` in any Forge repository is automatically
+deployed to the staging box (after it passes CI checks in the original repository and the e2e smoke
+tests in Smelt).
+
+Before we invest more into improving the Docker Compose setup, we should have a discussion about how
+we want to run Forge in production. The current Compose setup has many short-comings, e.g. deploys are
+not atomic and there is no support for rolling upgrades or blue/green deployments.
+
+The staging box is already running [K3s](https://k3s.io/), we could consider moving the core bundle
+to a Kubernetes deployment.
+
 ## Topology
 
-- **Box:** `root@23.83.66.244` (Servers.com Calibnet, hostname `ff`), Ubuntu, key-only SSH.
+- **Box:** `root@23.83.66.244` (Servers.com Calibnet, hostname `ff`), Ubuntu, key-only SSH. Learn
+  more in [Servers.com Calibnet Box Runbook](https://www.notion.so/filecoin/Servers-com-Calibnet-Box-Runbook-36b7631f2825802b8e3ac9f25eadcc34#3907631f282580e198e2dfbc1e1a47ad)
 - **Bundle `core`** — `sprue` (upload) + `signing-service` + `delegator` + `postgres` +
   `minio` + `dynamodb-local`. Project `forge-staging-core`.
 - **Bundle `piri`** — one `piri-0` storage node (sqlite + filesystem). Project `forge-staging-piri`.
@@ -41,6 +71,7 @@ delegations at startup, so those proofs are generated even though neither servic
   existing Caddy (`caddy-guppy.service`). The host Lotus Eth RPC (`0.0.0.0:1234`) is reached
   from containers via `host.docker.internal:host-gateway`.
 - **No** indexer / IPNI / redis / Anvil / smtp4dev in staging.
+- **Logs** - Logs are automatically forwarded to our Grafana Cloud instance.
 
 Host layout:
 
@@ -56,15 +87,16 @@ Host layout:
   sprue.pem signing-service.pem delegator.pem payer-key.hex
   piri-0.pem piri-0-wallet.hex
 /mnt/data/fil-one/forge/                  # persistent data on the ZFS pool
-  postgres/ minio/ dynamodb/ piri-0/
+  postgres/
+  minio/
+  dynamodb/
+  piri-0/
 ```
 
 ## Prerequisites
 
 - **DNS:** A records for `sprue` / `signing-service` / `delegator` / `piri-0` under
-  `staging.fil.one` → `23.83.66.244`, `proxied = false`. Apply
-  [`environments/staging/dns/fil-one-staging.tf`](../environments/staging/dns/fil-one-staging.tf)
-  via `fil-one/infrastructure`.
+  `staging.fil.one` → `23.83.66.244`, `proxied = false`. Already set up via https://github.com/fil-one/infrastructure/pull/35.
 - **Calibnet Forge contract addresses** — already filled in
   [`environments/staging/smart-contracts.env`](../environments/staging/smart-contracts.env),
   the **single source of truth** for the chain id, RPC URL, and every contract address.
@@ -98,8 +130,8 @@ Two token types are needed:
   [Calibnet faucet](https://faucet.calibnet.chainsafe-fil.io).
 - **USDFC (storage payments)** — fund `PAYER_ADDRESS` from the
   [Calibnet USDFC faucet](https://forest-explorer.chainsafe.dev/faucet/calibnet_usdfc).
-  This faucet caps out at **10 USDFC/day**. The USDFC must then be *deposited into the
-  FilecoinPay contract* before piri can create a proof set — that's a separate on-chain
+  This faucet caps out at **10 USDFC/day**. The USDFC must then be _deposited into the
+  FilecoinPay contract_ before piri can create a proof set — that's a separate on-chain
   step, [`make staging-fund-payer`](#5b-fund-the-payers-filecoinpay-account), run around
   deploy time (below).
 
@@ -193,7 +225,7 @@ on `registration failed with status: 403`.
 ### 5b. Fund the payer's FilecoinPay account
 
 `piri init` step `[4/6]` ("Setting up proof set") asks FilecoinPay to lock up a fixed
-amount (~0.9 USDFC) on the payer's behalf. **Lockup can only draw on funds deposited *into*
+amount (~0.9 USDFC) on the payer's behalf. **Lockup can only draw on funds deposited _into_
 the FilecoinPay contract — not the USDFC sitting in the payer wallet.** So a wallet that the
 USDFC faucet just topped up still fails with:
 
@@ -269,23 +301,29 @@ ssh root@23.83.66.244 'cd /root/fil-one/forge/environments/staging/piri && docke
 # So a 404 here is expected, not a failure.
 for h in sprue delegator; do curl -fsS "https://$h.staging.fil.one/.well-known/did.json" >/dev/null && echo "$h ok"; done
 
-# End-to-end upload/download: see §8. (guppy login works despite mailer: nop — the nop
-# mailer logs the validation link to sprue's logs. Retrieval has no indexer to query;
-# that half is verify-as-you-go.)
+# End-to-end upload/download: see §8.
 ```
 
-## 8. End-to-end upload/download test (guppy)
+## 8. End-to-end upload/download test
+
+TODO
+
+The text below describes guppy-based flow that unfortunately does not work as of July 1. It's
+probably not worth exploring this approach further, because we want to move to a different
+architecture:
+
+- FilOne calls Hilt tenant management API to register new users and issue new S3
+  Access key
+- The data plan uses the standard S3 primitives (CreateBucket, PutObject, GetObject), Ingot is the
+  S3 endpoint.
+
+### Guppy-based flow (temporary)
 
 guppy is a client — run it **on your dev machine**, pointed at the public staging URLs.
 `scripts/staging-guppy.sh` wraps `docker run ghcr.io/fil-forge/guppy:main` with the right
-override flags (`--upload-service-did did:web:sprue.staging.fil.one`, `--upload-service-url`,
-`--receipts-url`) and a persistent local state dir under `generated/staging-guppy/`, so the
-one agent identity + delegations survive across the multi-step flow. Nothing runs on the box
+override flags and a persistent local state dir under `generated/staging-guppy/`, so the
+one agent identity + delegations survive across the multi-step flow. Nothing runs on the staging box
 except reading one log line for login.
-
-> **Temporary.** This whole flow (guppy + email login + space provisioning) goes away when
-> Forge moves to the S3/tenant model (Ingot + Hilt). Until then, this is how you smoke-test
-> uploads against staging.
 
 Do this after both bundles are healthy, the piri provider is registered ([§6](#6-register-the-piri-provider-with-the-core-cross-bundle-step)),
 and the payment bypass is on (Known risk #7). Two staging specifics make it work: login reads
@@ -396,7 +434,7 @@ These are deliberate first-step assumptions to confirm during the manual deploy:
    `delegator-provider-info` manually.
 5. **No mailer — but login still works via logs.** staging runs `mailer.type: "nop"`, so no
    validation emails are sent. The `nop` mailer does not silently drop the mail, though — it
-   *logs* the validation link (`SendValidation` logs `to=`/`url=` at Info level). So guppy's
+   _logs_ the validation link (`SendValidation` logs `to=`/`url=` at Info level). So guppy's
    email login completes by reading the link from sprue's logs and opening it; no smtp4dev or
    alternative account path is needed. See [§8](#8-end-to-end-uploaddownload-test-guppy).
 6. **Image pinning.** `versions.env` ships rolling `:main` placeholders — pin every application
