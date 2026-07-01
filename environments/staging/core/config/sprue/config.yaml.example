@@ -3,7 +3,7 @@
 
 deployment:
   environment: "staging"
-  allow_provision_without_payment_plan: false
+  allow_provision_without_payment_plan: true
   max_replicas: 3
 
 server:

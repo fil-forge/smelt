@@ -8,8 +8,8 @@
 
 deployment:
   environment: "staging"
-  # Staging enforces payment plans (unlike dev, which bypasses them).
-  allow_provision_without_payment_plan: false
+  # Staging bypasses payment plans (provisioning without a customer payment plan).
+  allow_provision_without_payment_plan: true
   max_replicas: 3
 
 server:

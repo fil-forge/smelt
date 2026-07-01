@@ -316,3 +316,7 @@ These are deliberate first-step assumptions to confirm during the manual deploy:
    needs an alternative login path (e.g. a pre-provisioned space/account).
 6. **Image pinning.** `versions.env` ships rolling `:main` placeholders — pin every application
    image to a `@sha256:` digest before a real deploy (`docker buildx imagetools inspect ...`).
+7. **Payment-plan bypass.** sprue runs with `deployment.allow_provision_without_payment_plan: true`
+   (in `environments/staging/core/config/sprue/config.yaml.tpl`), so spaces can be provisioned
+   without a customer payment plan. Storacha payment plans are a left-over sprue inherited; FilOne
+   Forge uses a different billing mechanism and does not need them, so we bypass the check here.
