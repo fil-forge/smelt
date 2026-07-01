@@ -43,6 +43,14 @@ FilOne in production) and storage nodes (operated by storage providers in produc
 
 ### Next Steps
 
+Major Gaps:
+
+1. Add Ingot to the piri bundle.
+2. Find out what's the new end-to-end workflow and write an automated script for it
+3. Add a smoke test to the staging deploy that runs the new end-to-end workflow.
+
+Improvements:
+
 1. Pin the images to digests in `versions.env` (currently rolling `:main`).
 2. Implement GH Action workflows to automatically upgrade pinned versions whenever a new Docker
    image version is pushed by each service repository (sprue, piri, etc).
