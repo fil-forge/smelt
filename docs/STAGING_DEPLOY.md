@@ -111,8 +111,9 @@ git commit -m "staging: add delegation proofs and wallet addresses"
 ```
 
 Contract addresses are already set in `smart-contracts.env`, so there is nothing else to
-fill in. Keep `wallets.env` handy — top up both balances periodically. (Mailer is `nop` —
-there is no email login in staging; see Known risks.)
+fill in. Keep `wallets.env` handy — top up both balances periodically. (Mailer is `nop`,
+but it logs the login validation link to sprue's logs rather than dropping it, so guppy
+email login still works — see [§8](#8-end-to-end-uploaddownload-test-guppy).)
 
 ## 3. Bootstrap the box (first time only)
 
@@ -268,12 +269,94 @@ ssh root@23.83.66.244 'cd /root/fil-one/forge/environments/staging/piri && docke
 # So a 404 here is expected, not a failure.
 for h in sprue delegator; do curl -fsS "https://$h.staging.fil.one/.well-known/did.json" >/dev/null && echo "$h ok"; done
 
-# End-to-end (note: no mailer in staging — email-based login is unavailable; see Known risks):
-#   guppy login ... ; SPACE=$(guppy space generate) ; randdir --size 10KB --output /tmp/d
-#   guppy upload source add $SPACE /tmp/d ; guppy upload $SPACE ; guppy retrieve $SPACE <CID> /tmp/out
+# End-to-end upload/download: see §8. (guppy login works despite mailer: nop — the nop
+# mailer logs the validation link to sprue's logs. Retrieval has no indexer to query;
+# that half is verify-as-you-go.)
 ```
 
-## 8. Rollback
+## 8. End-to-end upload/download test (guppy)
+
+guppy is a client — run it **on your dev machine**, pointed at the public staging URLs.
+`scripts/staging-guppy.sh` wraps `docker run ghcr.io/fil-forge/guppy:main` with the right
+override flags (`--upload-service-did did:web:sprue.staging.fil.one`, `--upload-service-url`,
+`--receipts-url`) and a persistent local state dir under `generated/staging-guppy/`, so the
+one agent identity + delegations survive across the multi-step flow. Nothing runs on the box
+except reading one log line for login.
+
+> **Temporary.** This whole flow (guppy + email login + space provisioning) goes away when
+> Forge moves to the S3/tenant model (Ingot + Hilt). Until then, this is how you smoke-test
+> uploads against staging.
+
+Do this after both bundles are healthy, the piri provider is registered ([§6](#6-register-the-piri-provider-with-the-core-cross-bundle-step)),
+and the payment bypass is on (Known risk #7). Two staging specifics make it work: login reads
+the validation link from sprue's logs (mailer is `nop`, Known risk #5), and provisioning skips
+the payment-plan check.
+
+**1. Log in.** Pick an email — it becomes your account identity. This blocks until approved:
+
+```bash
+./scripts/staging-guppy.sh login you@fil.org
+```
+
+The script prints how to fetch the link. In another terminal, read it from sprue's logs and
+open it (it's a public `https://sprue.staging.fil.one/...` URL — browser or `curl`):
+
+```bash
+ssh root@23.83.66.244
+docker logs "$(docker ps -qf name=sprue)" 2>&1 | grep -i "Validation email" | tail -1
+# → ...  "Validation email"  to=you@fil.org  url=https://sprue.staging.fil.one/...
+```
+
+Once approved, the blocked `login` returns and stores the account→agent delegation locally.
+
+**2. Generate and provision a space.** `provision` binds the space to the account you logged
+in as (same email); it succeeds without a payment plan thanks to the bypass:
+
+```bash
+./scripts/staging-guppy.sh space generate        # prints the space DID: did:key:z6Mk...
+./scripts/staging-guppy.sh space provision did:key:z6Mk... you@fil.org
+```
+
+**3. Upload.** Files must be visible inside the container — the script mounts
+`generated/staging-guppy/work/` at `/work`. Drop a test file there (min 1 KB), add it as a
+source, then upload:
+
+```bash
+head -c 10240 </dev/urandom > generated/staging-guppy/work/hello.bin
+./scripts/staging-guppy.sh upload source add did:key:z6Mk... /work/hello.bin
+./scripts/staging-guppy.sh upload did:key:z6Mk...
+# → Upload completed successfully: bafy...   (the root CID)
+```
+
+The upload runs guppy → sprue → piri (`space/blob/add` → `blob/allocate` → HTTP PUT →
+`ucan/conclude` → `blob/accept`); PDP proofs follow asynchronously via signing-service.
+Confirm the blob landed:
+
+```bash
+ssh root@23.83.66.244 'docker logs "$(docker ps -qf name=piri-0)" 2>&1 | tail -30'
+```
+
+**4. Download — verify-as-you-go (no indexer).** guppy's normal `retrieve` queries an indexer
+to locate blobs, and staging runs none (Known risk #3), so:
+
+```bash
+./scripts/staging-guppy.sh retrieve did:key:z6Mk... <root-cid> /work/out
+```
+
+may fail to resolve a location — an expected gap on this stack, not a storage failure. To
+confirm the bytes really landed, fetch a stored blob straight from piri: retrieval there is an
+unauthenticated `GET /piece/<cid>`, where `<cid>` is a stored blob/shard CID (from the upload
+output or `./scripts/staging-guppy.sh ls did:key:z6Mk...`; the exact root-CID→piece-CID mapping
+is itself a verify-as-you-go detail):
+
+```bash
+curl -fsS "https://piri-0.staging.fil.one/piece/<cid>" -o /tmp/piece.bin && ls -l /tmp/piece.bin
+```
+
+Making `guppy retrieve` work end-to-end needs an indexer (or, in the future Hilt/Ingot model,
+Ingot's own read tier). Reset local guppy state any time with `rm -rf generated/staging-guppy`.
+
+## 9. Rollback
 
 Re-deploy a previous pinned commit (deploy checks it out on the box for you):
 
@@ -311,9 +394,11 @@ These are deliberate first-step assumptions to confirm during the manual deploy:
    `minio-init` creates sprue's buckets; sprue runs its own Postgres migrations. If the
    delegator does not auto-create tables, create `delegator-allow-list` and
    `delegator-provider-info` manually.
-5. **No mailer.** staging runs `mailer.type: "nop"`, so no validation emails are sent and
-   guppy's email-based login step won't complete. End-to-end upload verification therefore
-   needs an alternative login path (e.g. a pre-provisioned space/account).
+5. **No mailer — but login still works via logs.** staging runs `mailer.type: "nop"`, so no
+   validation emails are sent. The `nop` mailer does not silently drop the mail, though — it
+   *logs* the validation link (`SendValidation` logs `to=`/`url=` at Info level). So guppy's
+   email login completes by reading the link from sprue's logs and opening it; no smtp4dev or
+   alternative account path is needed. See [§8](#8-end-to-end-uploaddownload-test-guppy).
 6. **Image pinning.** `versions.env` ships rolling `:main` placeholders — pin every application
    image to a `@sha256:` digest before a real deploy (`docker buildx imagetools inspect ...`).
 7. **Payment-plan bypass.** sprue runs with `deployment.allow_provision_without_payment_plan: true`
