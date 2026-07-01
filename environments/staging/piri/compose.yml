@@ -41,7 +41,7 @@ services:
       - ./entrypoint.sh:/entrypoint.sh:ro
       - ${FORGE_DATA_DIR}/piri-0:/data/piri
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/readyz | grep -q '\"status\":\\s*\"ok\"'"]
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/readyz | grep -qE '\"status\":[[:space:]]*\"ok\"'"]
       start_interval: 2s
       interval: 10s
       timeout: 5s

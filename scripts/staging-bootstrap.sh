@@ -56,9 +56,17 @@ echo "==> bootstrapping on $(hostname) ($(date -u '+%Y-%m-%dT%H:%M:%SZ'))"
 # 1. Repo checkout (clone on first run, fast-forward thereafter), pinned to FORGE_REF.
 if [ -d "$FORGE_DIR/.git" ]; then
   step 1 "updating repo at $FORGE_DIR ($FORGE_REF)"
-  git -C "$FORGE_DIR" fetch --quiet origin
-  git -C "$FORGE_DIR" checkout "$FORGE_REF"
-  git -C "$FORGE_DIR" pull --ff-only
+  git -C "$FORGE_DIR" fetch --quiet --tags --force origin
+  # FORGE_REF may be a branch, a tag, or a commit SHA. `git pull --ff-only` only
+  # works on a branch with an upstream and fails outright on a tag/detached SHA, so
+  # branch on the ref kind instead. For a branch, land on the freshly-fetched
+  # origin tip (a stale local branch would otherwise stick). Tags and SHAs are
+  # immutable — a detached checkout of what we just fetched is already correct.
+  if git -C "$FORGE_DIR" show-ref --verify --quiet "refs/remotes/origin/$FORGE_REF"; then
+    git -C "$FORGE_DIR" checkout --quiet -B "$FORGE_REF" "origin/$FORGE_REF"
+  else
+    git -C "$FORGE_DIR" checkout --quiet --detach "$FORGE_REF"
+  fi
 else
   [ -n "$REPO_URL" ] || { echo "ERROR: $FORGE_DIR has no checkout and REPO_URL is unset" >&2; exit 1; }
   step 1 "cloning $REPO_URL ($FORGE_REF) -> $FORGE_DIR"

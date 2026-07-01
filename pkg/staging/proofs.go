@@ -87,9 +87,15 @@ func generateProofs(ucantool, keysDir, proofsDir string) ([]string, error) {
 		cmd.Stdout = out
 		cmd.Stderr = os.Stderr
 		runErr := cmd.Run()
-		out.Close()
-		if runErr != nil {
-			return nil, fmt.Errorf("ucantool delegate for %s: %w", p.out, runErr)
+		closeErr := out.Close()
+		// A failed (or partially-written) proof must not linger on disk: it would be
+		// unusable and risks getting committed. Remove it before returning the error.
+		if runErr != nil || closeErr != nil {
+			os.Remove(outPath)
+			if runErr != nil {
+				return nil, fmt.Errorf("ucantool delegate for %s: %w", p.out, runErr)
+			}
+			return nil, fmt.Errorf("writing %s: %w", p.out, closeErr)
 		}
 		written = append(written, outPath)
 	}

@@ -1,10 +1,11 @@
 # Piri base config — STAGING (REDACTED EXAMPLE, structure only).
-# The live file is rendered from piri-base-config.toml.tpl by substituting
-# ${VAR} from environments/staging/smart-contracts.env, then shipped to the box.
+# The live file is rendered from piri-base-config.toml.tpl by substituting ${VAR}
+# from environments/staging/smart-contracts.env (contract addresses, chain id) and
+# environments/staging/wallets.env (PAYER_ADDRESS), then shipped to the box.
 
 [pdp]
 chain_id = "<CHAIN_ID from smart-contracts.env>"
-payer_address = "<PAYER_ADDRESS from smart-contracts.env (written by keygen)>"
+payer_address = "<PAYER_ADDRESS from wallets.env (written by keygen)>"
 
 [pdp.signing_service]
 did = "did:web:signing-service.staging.fil.one"

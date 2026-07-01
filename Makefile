@@ -270,7 +270,8 @@ regen:
 
 # One-time: generate staging keys, EVM wallets, and UCAN proofs; store private
 # keys in 1Password; write proofs to environments/staging/proofs/ (commit them);
-# write PAYER_ADDRESS into environments/staging/smart-contracts.env (commit it).
+# write wallet addresses (incl. PAYER_ADDRESS) into environments/staging/wallets.env
+# (commit it).
 staging-keygen:
 	@go run ./cmd/smelt staging keygen
 

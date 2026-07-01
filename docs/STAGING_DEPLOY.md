@@ -418,10 +418,12 @@ versions is deterministic. Data/schema rollback is out of scope.
 
 These are deliberate first-step assumptions to confirm during the manual deploy:
 
-1. **RPC scheme (http vs ws).** Configs use `ws://host.docker.internal:1234/rpc/v1` (WebSocket).
-   If signing-service/delegator/piri fail to connect or watch the chain, verify Lotus is reachable
-   from containers on `:1234/rpc/v1` and update `LOTUS_RPC_URL` in `environments/staging/smart-contracts.env`
-   — the single place it's defined — then re-provision and re-deploy.
+1. **RPC scheme (http vs ws).** `LOTUS_RPC_URL` in `environments/staging/smart-contracts.env`
+   — the single place it's defined — is set to `ws://host.docker.internal:1234/rpc/v1`. It must
+   be `ws://`: piri watches for tx confirmations via ChainNotify, a streaming subscription that
+   only delivers events over a WebSocket; over plain HTTP the scheduler never fires and receipts
+   sit pending forever. We use `ws://` (not `wss://`) because the localhost node is plaintext.
+   If Lotus is later fronted by TLS, switch to `wss://` there and re-provision/re-deploy.
 2. **Container → host Caddy on `:443`** (handled). Cross-bundle calls and upload→piri callbacks
    use `https://*.staging.fil.one`, which resolves to the box's own public IP. Reaching that IP
    from a container is local delivery, but the traffic arrives over the Docker bridge while the

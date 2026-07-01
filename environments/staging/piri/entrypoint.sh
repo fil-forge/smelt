@@ -58,33 +58,36 @@ if [ -f "$CONFIG_FILE" ] && grep -q "proof_set" "$CONFIG_FILE" 2>/dev/null; then
 else
     [ -f "$CONFIG_FILE" ] && rm -f "$CONFIG_FILE"
     cd "$DATA_DIR"
-    INIT_CMD="/usr/bin/piri init \
-        --base-config=$BASE_CONFIG \
-        --registrar-url=$REGISTRAR_URL \
-        --data-dir=$DATA_DIR \
-        --temp-dir=$TEMP_DIR \
-        --key-file=$KEY_FILE \
-        --wallet-file=$WALLET_FILE \
-        --lotus-endpoint=$LOTUS_ENDPOINT \
-        --public-url=$PUBLIC_URL \
-        --port=$PORT \
-        --host=$HOST \
-        --operator-email=$OPERATOR_EMAIL"
+    # Build the init command as a positional-parameter list rather than a string
+    # run through `eval`: values reach piri as literal argv entries, so spaces or
+    # shell metacharacters in any of them can't word-split or inject.
+    set -- /usr/bin/piri init \
+        --base-config="$BASE_CONFIG" \
+        --registrar-url="$REGISTRAR_URL" \
+        --data-dir="$DATA_DIR" \
+        --temp-dir="$TEMP_DIR" \
+        --key-file="$KEY_FILE" \
+        --wallet-file="$WALLET_FILE" \
+        --lotus-endpoint="$LOTUS_ENDPOINT" \
+        --public-url="$PUBLIC_URL" \
+        --port="$PORT" \
+        --host="$HOST" \
+        --operator-email="$OPERATOR_EMAIL"
 
     if [ "$DB_BACKEND" = "postgres" ]; then
-        INIT_CMD="$INIT_CMD \
+        set -- "$@" \
             --db-type=postgres \
-            --db-postgres-url=${PIRI_DB_POSTGRES_URL:?PIRI_DB_POSTGRES_URL required for postgres backend}"
+            --db-postgres-url="${PIRI_DB_POSTGRES_URL:?PIRI_DB_POSTGRES_URL required for postgres backend}"
     fi
     if [ "$BLOB_BACKEND" = "s3" ]; then
-        INIT_CMD="$INIT_CMD \
-            --s3-endpoint=${PIRI_S3_ENDPOINT:?PIRI_S3_ENDPOINT required for s3 backend} \
-            --s3-bucket-prefix=${PIRI_S3_BUCKET_PREFIX:-piri-0-} \
-            --s3-access-key-id=${PIRI_S3_ACCESS_KEY_ID:?PIRI_S3_ACCESS_KEY_ID required} \
-            --s3-secret-access-key=${PIRI_S3_SECRET_ACCESS_KEY:?PIRI_S3_SECRET_ACCESS_KEY required}"
+        set -- "$@" \
+            --s3-endpoint="${PIRI_S3_ENDPOINT:?PIRI_S3_ENDPOINT required for s3 backend}" \
+            --s3-bucket-prefix="${PIRI_S3_BUCKET_PREFIX:-piri-0-}" \
+            --s3-access-key-id="${PIRI_S3_ACCESS_KEY_ID:?PIRI_S3_ACCESS_KEY_ID required}" \
+            --s3-secret-access-key="${PIRI_S3_SECRET_ACCESS_KEY:?PIRI_S3_SECRET_ACCESS_KEY required}"
     fi
 
-    eval "$INIT_CMD"
+    "$@"
     echo "  Init complete"
 fi
 

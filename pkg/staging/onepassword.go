@@ -34,9 +34,11 @@ type opField struct {
 // fields maps the 1Password field label to the temp file holding its value.
 // Returns the sorted list of field labels written (names only — never values).
 //
-// The item is fully (re)created: keygen owns every field in it and re-running is
-// a deliberate overwrite, so an existing item is deleted first to avoid stale
-// fields. Requires an authenticated `op` session (run `op signin` first).
+// keygen owns every field in the item and re-running is a deliberate overwrite:
+// an existing item is edited in place (not deleted-then-recreated, which would
+// leave nothing behind if the create failed), a missing one is created. keygen
+// supplies the complete field set, so either path fully refreshes the values.
+// Requires an authenticated `op` session (run `op signin` first).
 func storeInOnePassword(vault, item string, fields map[string]string) ([]string, error) {
 	if vault == "" || item == "" {
 		return nil, fmt.Errorf("1Password vault and item must be set")

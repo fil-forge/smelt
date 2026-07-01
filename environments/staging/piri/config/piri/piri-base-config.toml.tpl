@@ -1,13 +1,14 @@
 # Piri base config — STAGING TEMPLATE (no secrets).
 #
-# Rendered at provision time by substituting ${VAR} from the shared
-# environments/staging/smart-contracts.env (contract addresses, chain id, and the
-# keygen-written PAYER_ADDRESS), then shipped to the box and merged by
-# `piri init`. No address is duplicated — smart-contracts.env is the single source.
+# Rendered at provision time by substituting ${VAR} from environments/staging/
+# smart-contracts.env (contract addresses, chain id) and environments/staging/
+# wallets.env (the keygen-written PAYER_ADDRESS), then shipped to the box and
+# merged by `piri init`. No address is duplicated — those two files are the
+# single source.
 
 [pdp]
 chain_id = "${CHAIN_ID}"
-# The funded signing-service payer address (written into smart-contracts.env by
+# The funded signing-service payer address (written into wallets.env by
 # `smelt staging keygen`).
 payer_address = "${PAYER_ADDRESS}"
 
