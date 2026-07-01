@@ -72,7 +72,8 @@ Host layout:
   nothing to fill by hand. Wallet addresses live in
   [`environments/staging/wallets.env`](../environments/staging/wallets.env), written by keygen.
 - **Dev machine:** `op` (1Password CLI, signed in), `ssh` to the box, `go` (for keygen),
-  `ucantool` (`go install github.com/fil-forge/ucantool@latest`).
+  `ucantool` (`go install github.com/fil-forge/ucantool@latest`), and foundry's `cast`
+  (for `staging-fund-payer`; install via <https://getfoundry.sh>).
 
 ## 1. One-time: generate keys, wallets, proofs
 
@@ -91,9 +92,18 @@ config). It prints the three EVM addresses.
 
 ## 2. Fund the wallets and commit
 
-Fund all three addresses (in `wallets.env`) from the
-[Calibnet faucet](https://faucet.calibnet.chainsafe-fil.io), then commit the generated
-artifacts:
+Two token types are needed:
+
+- **tFIL (gas)** — fund all three addresses (in `wallets.env`) from the
+  [Calibnet faucet](https://faucet.calibnet.chainsafe-fil.io).
+- **USDFC (storage payments)** — fund `PAYER_ADDRESS` from the
+  [Calibnet USDFC faucet](https://forest-explorer.chainsafe.dev/faucet/calibnet_usdfc).
+  This faucet caps out at **10 USDFC/day**. The USDFC must then be *deposited into the
+  FilecoinPay contract* before piri can create a proof set — that's a separate on-chain
+  step, [`make staging-fund-payer`](#5b-fund-the-payers-filecoinpay-account), run around
+  deploy time (below).
+
+Then commit the generated artifacts:
 
 ```bash
 git add environments/staging/proofs environments/staging/wallets.env
@@ -101,7 +111,7 @@ git commit -m "staging: add delegation proofs and wallet addresses"
 ```
 
 Contract addresses are already set in `smart-contracts.env`, so there is nothing else to
-fill in. Keep `wallets.env` handy — top up these balances periodically. (Mailer is `nop` —
+fill in. Keep `wallets.env` handy — top up both balances periodically. (Mailer is `nop` —
 there is no email login in staging; see Known risks.)
 
 ## 3. Bootstrap the box (first time only)
@@ -150,11 +160,13 @@ want to lose data over.
 
 ## 5. Deploy
 
-Deploy `core` first, allow-list the piri DID with the delegator, then deploy `piri`:
+Deploy `core` first, allow-list the piri DID with the delegator, fund the payer's
+FilecoinPay account, then deploy `piri`:
 
 ```bash
 make staging-deploy-core               # sprue + signing-service + delegator + deps
 make staging-allowlist-piri            # add piri's DID to the delegator allow list
+make staging-fund-payer                # deposit USDFC into FilecoinPay (see 5b below)
 make staging-deploy-piri               # piri-0
 ```
 
@@ -176,6 +188,51 @@ the delegator's `store allow-did` against the core DynamoDB. Run it **after** th
 is up (`deploy-core`) and **before** `deploy-piri`, so piri's first init is already
 allow-listed. It is idempotent. Skipping it makes `deploy-piri` fail with piri crash-looping
 on `registration failed with status: 403`.
+
+### 5b. Fund the payer's FilecoinPay account
+
+`piri init` step `[4/6]` ("Setting up proof set") asks FilecoinPay to lock up a fixed
+amount (~0.9 USDFC) on the payer's behalf. **Lockup can only draw on funds deposited *into*
+the FilecoinPay contract — not the USDFC sitting in the payer wallet.** So a wallet that the
+USDFC faucet just topped up still fails with:
+
+```
+Error: creating proof set: failed to send transaction:
+InsufficientLockupFunds(Payer=0x…, MinimumRequired=900000000000000000, Available=0)
+```
+
+The local dev stack never hits this: its Anvil baseline ships with the deposit and operator
+approval baked into the chain state. On Calibnet nobody seeded that, and `piri init` does not
+deposit for you (its `setupProofSet` calls `CreateProofSet` directly) — so we do it once, out
+of band:
+
+```bash
+make staging-fund-payer
+```
+
+The script (`scripts/staging-fund-payer.sh`, developer machine only) reads the payer key from
+1Password and sends three transactions to Calibnet with `cast`:
+
+1. `USDFC.approve(FilecoinPay, amount)` — let FilecoinPay pull the USDFC.
+2. `FilecoinPay.deposit(USDFC, payer, amount)` — credit the payer's FilecoinPay account (this
+   is what clears `Available=0`).
+3. `FilecoinPay.setOperatorApproval(USDFC, FWSS, …)` — let the warm-storage service lock up
+   funds when it creates the proof-set rail (missing this trades the funds error for an
+   approval revert).
+
+Contract addresses come from `smart-contracts.env`, the payer from `wallets.env`. Amounts are
+baked in but overridable via env vars (`USDFC_DEPOSIT_AMOUNT`, `USDFC_LOCKUP_ALLOWANCE`,
+`USDFC_RATE_ALLOWANCE`, `USDFC_MAX_LOCKUP_PERIOD`); defaults are kept **well below 5 USDFC** so
+one daily faucet grant (10 USDFC/day) covers a top-up with headroom. It reads current balances
+first and **skips the deposit if the account already holds enough** (override with
+`FORCE_DEPOSIT=1`), so re-running is safe. The RPC defaults to the public glif Calibnet
+endpoint (`CALIBNET_RPC_URL` to override — the box's `host.docker.internal` Lotus URL in
+`smart-contracts.env` is container-only and not reachable from your dev machine).
+
+Run it **after** `deploy-core` (nothing here depends on it, but the payer wallet must already
+hold USDFC) and **before** `deploy-piri`, so piri's first init finds the lockup funds
+available. Like the wallet balances, this is a **periodic top-up chore** — re-run it if
+proof-set operations later fail with `InsufficientLockupFunds`.
 
 ## 6. Register the piri provider with the core (cross-bundle step)
 

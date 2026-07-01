@@ -38,7 +38,7 @@ workspace-build:
 		rm -f $(WORKSPACE_OVERRIDE); \
 	fi
 
-.PHONY: help generate init up down restart clean nuke fresh logs pull build cli status guppy regen debug-upload ensure-state check-docker workspace-build staging-keygen staging-bootstrap staging-provision-core staging-provision-piri staging-deploy-core staging-allowlist-piri staging-deploy-piri
+.PHONY: help generate init up down restart clean nuke fresh logs pull build cli status guppy regen debug-upload ensure-state check-docker workspace-build staging-keygen staging-bootstrap staging-provision-core staging-provision-piri staging-deploy-core staging-allowlist-piri staging-deploy-piri staging-fund-payer
 
 # Default target - show help
 help:
@@ -90,6 +90,7 @@ help:
 	@echo "  make staging-deploy-core     Deploy the core bundle (sprue + signing-service + delegator)"
 	@echo "  make staging-allowlist-piri  Allow-list the piri DID with the delegator (run before deploy-piri)"
 	@echo "  make staging-deploy-piri     Deploy the piri bundle"
+	@echo "  make staging-fund-payer      Deposit USDFC into FilecoinPay so piri can create a proof set"
 	@echo ""
 	@echo "Options:"
 	@echo "  YES=1              Skip confirmation prompts (e.g., make nuke YES=1)"
@@ -298,6 +299,13 @@ staging-allowlist-piri:
 
 staging-deploy-piri:
 	@./scripts/staging-deploy.sh piri
+
+# Deposit USDFC into FilecoinPay for the payer + grant the warm-storage service
+# operator approval, so `piri init`'s proof-set creation clears
+# InsufficientLockupFunds. Developer machine only (needs your op session + cast).
+# Amounts are baked in but env-overridable; see scripts/staging-fund-payer.sh.
+staging-fund-payer:
+	@./scripts/staging-fund-payer.sh
 
 # Pull latest pre-built images (ignores failures for local-only images)
 pull: generated/compose/piri.yml ensure-state
