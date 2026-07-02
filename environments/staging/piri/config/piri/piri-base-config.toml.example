@@ -19,13 +19,8 @@ service_view = "<FWSS_VIEW_ADDRESS from smart-contracts.env>"
 payments = "<FILECOIN_PAY_ADDRESS from smart-contracts.env>"
 usdfc_token = "<USDFC_TOKEN_ADDRESS from smart-contracts.env>"
 
-[ucan.services.indexer]
-did = "did:web:indexer.staging.fil.one"
-url = "https://indexer.staging.fil.one/claims"
-
+# No [ucan.services.indexer] / [ucan.services.publisher] sections: the
+# indexer/IPNI are not deployed in staging and the integration is disabled.
 [ucan.services.upload]
 did = "did:web:sprue.staging.fil.one"
 url = "https://sprue.staging.fil.one"
-
-[ucan.services.publisher]
-ipni_announce_urls = ["https://indexer.staging.fil.one/announce"]

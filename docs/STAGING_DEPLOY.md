@@ -30,8 +30,10 @@ design rests on four ideas:
    never committed, never written to a developer's local disk, never in CI.
 
 There is **no** indexer / IPNI / redis / Anvil / mailer in staging. (sprue runs with an
-empty `indexer.endpoint` and `mailer: nop`; the delegator still validates indexing/egress
-delegations at startup, so those proofs are generated even though neither service runs.)
+empty `indexer.endpoint` and `mailer: nop`; piri's base config omits the
+`[ucan.services.indexer]`/`[publisher]` sections, which disables claim caching and IPNI
+announcements; the delegator still validates indexing/egress delegations at startup, so
+those proofs are generated even though neither service runs.)
 
 ### Rationale
 
@@ -436,8 +438,13 @@ These are deliberate first-step assumptions to confirm during the manual deploy:
 3. **`no-indexer` config.** sprue runs fine with an empty `indexer.endpoint`. The delegator
    _requires_ indexing + egress service DIDs and proofs at startup even though neither service
    runs — that's why keygen still issues those proofs and the delegator config still references
-   them. The piri base config keeps non-resolving `[ucan.services.indexer]`/`[publisher]`
-   sections so `piri init` accepts the config; if piri rejects or misbehaves, remove them.
+   them. Piri's indexer integration is **disabled** by omitting the
+   `[ucan.services.indexer]`/`[publisher]` sections from the base config (requires piri with
+   optional-indexer support). Pointing those sections at a non-resolving URL does NOT no-op:
+   piri's `blob/accept` POSTs a `claim/cache` invocation to the indexer synchronously, and
+   every upload fails when that call can't connect. Note that `piri init` bakes the base
+   config into the node's merged config, so a node initialized with the old config keeps
+   calling the indexer until it is re-provisioned (or its merged config is edited in place).
 4. **Auto-created tables/buckets.** The delegator is expected to create its DynamoDB tables;
    `minio-init` creates sprue's buckets; sprue runs its own Postgres migrations. If the
    delegator does not auto-create tables, create `delegator-allow-list` and

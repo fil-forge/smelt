@@ -24,16 +24,10 @@ service_view = "${FWSS_VIEW_ADDRESS}"
 payments = "${FILECOIN_PAY_ADDRESS}"
 usdfc_token = "${USDFC_TOKEN_ADDRESS}"
 
-# The indexer/IPNI are NOT deployed in staging. These sections are kept (pointing
-# at non-resolving staging identities) only so `piri init` accepts the config;
-# piri's claim publishing/announce calls will no-op. Remove if piri tolerates it.
-[ucan.services.indexer]
-did = "did:web:indexer.staging.fil.one"
-url = "https://indexer.staging.fil.one/claims"
-
+# The indexer/IPNI are NOT deployed in staging, so the integration is disabled:
+# omitting [ucan.services.indexer] and ipni_announce_urls makes piri skip claim
+# caching and IPNI announcements (blob/accept would otherwise fail hard trying
+# to POST to the indexer). Requires piri with optional-indexer support.
 [ucan.services.upload]
 did = "did:web:sprue.staging.fil.one"
 url = "https://sprue.staging.fil.one"
-
-[ucan.services.publisher]
-ipni_announce_urls = ["https://indexer.staging.fil.one/announce"]
