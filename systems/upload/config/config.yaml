@@ -36,6 +36,10 @@ storage:
   s3:
     endpoint: "http://minio:9000"
     region: "us-west-1"
+    # MinIO only serves path-style requests (minio:9000/<bucket>); sprue now
+    # defaults use_path_style to false (virtual-hosted: <bucket>.minio:9000),
+    # which does not resolve on the compose network. Force path style here.
+    use_path_style: true
     agent_message_bucket: "agent-message"
     delegation_bucket: "delegation"
     upload_shards_bucket: "upload-shards"
