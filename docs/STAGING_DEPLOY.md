@@ -444,7 +444,7 @@ These are deliberate first-step assumptions to confirm during the manual deploy:
    piri's `blob/accept` POSTs a `claim/cache` invocation to the indexer synchronously, and
    every upload fails when that call can't connect. Note that `piri init` bakes the base
    config into the node's merged config, so a node initialized with the old config keeps
-   calling the indexer until it is re-provisioned (or its merged config is edited in place).
+   calling the indexer until the piri bundle is re-provisioned and re-deployed.
 4. **Auto-created tables/buckets.** The delegator is expected to create its DynamoDB tables;
    `minio-init` creates sprue's buckets; sprue runs its own Postgres migrations. If the
    delegator does not auto-create tables, create `delegator-allow-list` and
