@@ -166,9 +166,12 @@ services:
     volumes:
       - ${FORGE_SECRETS_DIR}/sprue.pem:/keys/sprue.pem:ro
       - ${FORGE_SECRETS_DIR}/sprue-config.yaml:/etc/sprue/config.yaml:ro
+      # Committed delegation proofs (non-secret) — provider registration
+      # (scripts/staging-register-piri.sh) passes /proofs/piri-N-proof.txt.
+      - ../proofs:/proofs:ro
     # NOTE: unlike local dev, there is NO post_start provider-registration hook —
-    # piri lives in a separate bundle. Register piri providers as an explicit
-    # runbook step after both bundles are healthy (see docs/STAGING_DEPLOY.md).
+    # piri lives in a separate bundle. Register piri providers explicitly after
+    # both bundles are healthy: `make staging-register-piri`.
     depends_on:
       postgres:
         condition: service_healthy

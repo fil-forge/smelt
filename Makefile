@@ -38,7 +38,7 @@ workspace-build:
 		rm -f $(WORKSPACE_OVERRIDE); \
 	fi
 
-.PHONY: help generate init up down restart clean nuke fresh logs pull build cli status guppy regen debug-upload ensure-state check-docker workspace-build staging-keygen staging-bootstrap staging-provision-core staging-provision-piri staging-deploy-core staging-allowlist-piri staging-deploy-piri staging-fund-payer
+.PHONY: help generate init up down restart clean nuke fresh logs pull build cli status guppy regen debug-upload ensure-state check-docker workspace-build staging-keygen staging-bootstrap staging-provision-core staging-provision-piri staging-deploy-core staging-allowlist-piri staging-deploy-piri staging-register-piri staging-fund-payer
 
 # Default target - show help
 help:
@@ -90,6 +90,7 @@ help:
 	@echo "  make staging-deploy-core     Deploy the core bundle (sprue + signing-service + delegator)"
 	@echo "  make staging-allowlist-piri  Allow-list the piri DID with the delegator (run before deploy-piri)"
 	@echo "  make staging-deploy-piri     Deploy the piri bundle"
+	@echo "  make staging-register-piri   Register piri as a storage provider with sprue (run after both deploys)"
 	@echo "  make staging-fund-payer      Deposit USDFC into FilecoinPay so piri can create a proof set"
 	@echo ""
 	@echo "Options:"
@@ -300,6 +301,12 @@ staging-allowlist-piri:
 
 staging-deploy-piri:
 	@./scripts/staging-deploy.sh piri
+
+# Register the piri node as a storage provider with sprue. Run after BOTH
+# bundles are healthy, else uploads fail with "no storage providers available"
+# (locally sprue's post_start hook does this; across bundles it can't).
+staging-register-piri:
+	@./scripts/staging-register-piri.sh
 
 # Deposit USDFC into FilecoinPay for the payer + grant the warm-storage service
 # operator approval, so `piri init`'s proof-set creation clears

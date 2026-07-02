@@ -202,13 +202,14 @@ want to lose data over.
 ## 5. Deploy
 
 Deploy `core` first, allow-list the piri DID with the delegator, fund the payer's
-FilecoinPay account, then deploy `piri`:
+FilecoinPay account, deploy `piri`, then register the piri provider with sprue:
 
 ```bash
 make staging-deploy-core               # sprue + signing-service + delegator + deps
 make staging-allowlist-piri            # add piri's DID to the delegator allow list
 make staging-fund-payer                # deposit USDFC into FilecoinPay (see 5b below)
 make staging-deploy-piri               # piri-0
+make staging-register-piri             # register piri as a storage provider (see 6)
 ```
 
 `staging-deploy-*` each sync the box's checkout to `FORGE_REF` (`git fetch` +
@@ -278,20 +279,20 @@ proof-set operations later fail with `InsufficientLockupFunds`.
 ## 6. Register the piri provider with the core (cross-bundle step)
 
 In local dev, sprue's `post_start.sh` auto-registers piri providers; across bundles that
-can't run, so register explicitly once both bundles are healthy:
+can't run, so register explicitly once both bundles are healthy. Without this step,
+uploads fail with `CandidateUnavailable: no storage providers available`.
 
 ```bash
-ssh root@23.83.66.244
-cd /root/fil-one/forge/environments/staging/core
-PIRI_DID=$(docker compose -p forge-staging-piri exec piri-0 /usr/bin/piri identity parse /keys/piri.pem | grep -oE 'did:key:z[a-zA-Z0-9]+')
-docker compose -p forge-staging-core exec sprue \
-  sprue client admin provider register "$PIRI_DID" https://piri-0.staging.fil.one /proofs/piri-0-proof.txt
-docker compose -p forge-staging-core exec sprue \
-  sprue client admin provider weight set "$PIRI_DID" 100 100
+make staging-register-piri
 ```
 
-(The committed `piri-0-proof.txt` must be mounted into the sprue container, or pass it by
-path — adjust if needed.)
+The script (`scripts/staging-register-piri.sh`) derives the piri DID from the piri
+bundle's provisioned key, then runs the same admin calls as the local post_start hook
+inside the sprue container: `sprue client admin provider register <did>
+https://piri-0.staging.fil.one /proofs/piri-0-proof.txt` followed by `provider weight set
+<did> 100 100`. The committed proofs directory is mounted into sprue at `/proofs` by the
+core compose file. Idempotent: an already-registered provider is tolerated and the weight
+is simply re-applied.
 
 ## 7. Verify
 
