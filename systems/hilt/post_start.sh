@@ -3,9 +3,9 @@
 #
 # Runs as a Docker Compose post_start hook after the hilt container starts.
 # Hilt requires a registered provider/region before any tenant can be created
-# (PUT /tenants/{id} fails with "unknown region" otherwise). Hilt's storage
-# runs in memory mode, so providers vanish on every container restart — this
-# hook re-registers on each start, which is exactly what's needed.
+# (PUT /tenants/{id} fails with "unknown region" otherwise). Registration is
+# idempotent: the provider record persists in hilt-postgres, so re-runs hit
+# the tolerated "already registered" path below.
 #
 # The provider DID comes from /piri-keys/piri-0.did, emitted by
 # `smelt generate` (the hilt image has no DID tooling to derive it from the

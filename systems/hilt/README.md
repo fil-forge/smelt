@@ -2,7 +2,7 @@
 
 Hilt manages Fil One tenants and their S3-style access credentials, mapping
 them to UCAN authorizations in the Forge network (see the
-[Forge S3 tenant management RFC](https://github.com/fil-one/rfc)). It exposes:
+[Forge S3 tenant management RFC](https://github.com/fil-one/rfc/blob/main/rfcs/2026-06-forge-s3-tenant-management.md)). It exposes:
 
 - The **Tenant API** — partner-key (bearer token) REST API used by Fil One to
   create tenants and access keys.

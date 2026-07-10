@@ -41,9 +41,9 @@ type delegateFn func(issuer ucan.Issuer, audience, subject did.DID, opts ...dele
 // ucantone delegation.Decode.
 //
 // As of ucan1.0 these are: indexer → delegator (/claim/cache), etracker →
-// delegator (/space/egress/track) and upload → hilt (/customer/add). Per-node
-// piri → upload proofs are no longer required — provider registration stopped
-// consuming proof files (see systems/upload/post_start.sh).
+// delegator (/space/egress/track) and upload → hilt (/customer/add), plus one
+// piri-N → upload proof per node — upload's post_start.sh still passes each
+// node's proof file to `sprue client admin provider register`.
 func generateProofs(tempDir string, nodes []manifest.ResolvedPiriNode) error {
 	keysDir := filepath.Join(tempDir, "generated", "keys")
 	proofsDir := filepath.Join(tempDir, "generated", "proofs")
@@ -86,7 +86,6 @@ func generateProofs(tempDir string, nodes []manifest.ResolvedPiriNode) error {
 		}
 	}
 
-	_ = nodes // piri → upload proofs are obsolete as of ucan1.0
 	return nil
 }
 
