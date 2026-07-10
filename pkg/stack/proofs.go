@@ -11,14 +11,12 @@ import (
 	pdpcmds "github.com/fil-forge/libforge/commands/pdp"
 	"github.com/fil-forge/libforge/commands/space/egress"
 	"github.com/fil-forge/libforge/identity"
+	"github.com/fil-forge/smelt/pkg/manifest"
 	"github.com/fil-forge/ucantone/did"
-	"github.com/fil-forge/ucantone/principal"
-	"github.com/fil-forge/ucantone/principal/signer"
+	"github.com/fil-forge/ucantone/multikey"
 	"github.com/fil-forge/ucantone/ucan"
 	"github.com/fil-forge/ucantone/ucan/container"
 	"github.com/fil-forge/ucantone/ucan/delegation"
-
-	"github.com/fil-forge/smelt/pkg/manifest"
 )
 
 // piriCommands are delegated from each piri-N node to the upload service
@@ -33,7 +31,7 @@ var piriCommands = []ucan.Command{
 
 // delegateFn matches the method value of a libforge bound command's Delegate
 // (e.g. claim.Cache.Delegate, egress.Track.Delegate).
-type delegateFn func(issuer ucan.Signer, audience, subject did.DID, opts ...delegation.Option) (ucan.Delegation, error)
+type delegateFn func(issuer ucan.Issuer, audience, subject did.DID, opts ...delegation.Option) (ucan.Delegation, error)
 
 // generateProofs writes the UCAN delegation proofs the delegator consumes at
 // startup. It mirrors delegator/cmd/gen.go — the same generator the compose
@@ -89,21 +87,18 @@ func writeProofs(keysDir, proofsDir, issuerKeyName, issuerDidWeb, audienceDID, o
 		return fmt.Errorf("reading issuer key %s: %w", issuerKeyName, err)
 	}
 
-	var issuer principal.Signer
-	issuer, err = identity.DecodeEd25519SignerFromPEM(pemData)
+	signer, err := identity.DecodeSignerFromPEM(pemData)
 	if err != nil {
 		return fmt.Errorf("decoding issuer key %s: %w", issuerKeyName, err)
 	}
 
+	issuer := multikey.KeyIssuer(signer)
 	if issuerDidWeb != "" {
 		web, err := did.Parse(issuerDidWeb)
 		if err != nil {
 			return fmt.Errorf("parsing issuer did:web %s: %w", issuerDidWeb, err)
 		}
-		issuer, err = signer.Wrap(issuer, web)
-		if err != nil {
-			return fmt.Errorf("wrapping issuer %s: %w", issuerDidWeb, err)
-		}
+		issuer = multikey.NewIssuer(web, signer)
 	}
 
 	audience, err := did.Parse(audienceDID)
@@ -140,21 +135,19 @@ func writeDelegation(keysDir, proofsDir, issuerKeyName, issuerDidWeb, audienceDI
 		return fmt.Errorf("read issuer key %s: %w", issuerKeyName, err)
 	}
 
-	var issuer principal.Signer
-	issuer, err = identity.DecodeEd25519SignerFromPEM(pemData)
+	signer, err := identity.DecodeSignerFromPEM(pemData)
 	if err != nil {
 		return fmt.Errorf("decode issuer key %s: %w", issuerKeyName, err)
 	}
 
+	var issuer multikey.Issuer
+	issuer = multikey.KeyIssuer(signer)
 	if issuerDidWeb != "" {
 		web, err := did.Parse(issuerDidWeb)
 		if err != nil {
 			return fmt.Errorf("parse issuer did:web %s: %w", issuerDidWeb, err)
 		}
-		issuer, err = signer.Wrap(issuer, web)
-		if err != nil {
-			return fmt.Errorf("wrap issuer %s: %w", issuerDidWeb, err)
-		}
+		issuer = multikey.NewIssuer(web, signer)
 	}
 
 	audience, err := did.Parse(audienceDID)
