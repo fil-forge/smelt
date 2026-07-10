@@ -1,7 +1,7 @@
 # Hilt System - Forge tenant-management service
 #
 # Implements the Fil One Tenant API (partner-key REST) and a UCAN RPC API
-# (for Ingot). Publishes tenant did:plc identities to the mock PLC directory
+# (for Ingot). Publishes tenant did:plc identities to the local PLC directory
 # and registers tenants as customers with the upload service (sprue).
 # Used by: external partner tooling / Ingot (not yet in the stack)
 
@@ -21,7 +21,7 @@ services:
       - HILT_AUTH_PARTNER_KEY=${HILT_PARTNER_KEY:-dev-partner-key}
       - HILT_STORAGE_TYPE=memory
       - HILT_VAULT_TYPE=memory
-      - HILT_PLC_DIRECTORY=http://plc:80
+      - HILT_PLC_DIRECTORY=http://plc:3000
       - HILT_UPLOAD_SERVICE_ID=did:web:upload
       - HILT_UPLOAD_SERVICE_URL=http://upload:80
       - HILT_UPLOAD_PRODUCT_ID=did:web:hilt

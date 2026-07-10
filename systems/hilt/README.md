@@ -11,7 +11,7 @@ them to UCAN authorizations in the Forge network (see the
   registration.
 
 On tenant creation, hilt generates a `did:plc` tenant key, publishes its
-genesis operation to the local mock [PLC directory](../plc/), and registers
+genesis operation to the local [PLC directory](../plc/), and registers
 the tenant as a customer with the upload service via `/customer/add`.
 
 ## Services
@@ -35,7 +35,7 @@ All configuration is via `HILT_*` environment variables in `compose.yml`:
   only; never use a production key here.
 - Storage and vault both run in `memory` mode: no database or Vault container,
   but **all tenants/buckets/access keys are lost when the container restarts**.
-- PLC directory: the local mock at `http://plc:80`.
+- PLC directory: the local reference server at `http://plc:3000`.
 - Upload service: `did:web:upload` at `http://upload:80`, presenting the
   `upload → hilt` `/customer/add` delegation from
   `../../generated/proofs/hilt-customer-add-proof.txt`.
@@ -84,7 +84,7 @@ curl -s http://localhost:15110/.well-known/did.json | jq .id   # "did:web:hilt"
 # No bearer key -> 401
 curl -si http://localhost:15110/tenants/smoke-1
 
-# Create a tenant (201; publishes did:plc genesis to the mock PLC and
+# Create a tenant (201; publishes did:plc genesis to the PLC directory and
 # registers the tenant as a sprue customer via /customer/add)
 curl -si -X PUT http://localhost:15110/tenants/smoke-1 \
   -H "Authorization: Bearer dev-partner-key" \

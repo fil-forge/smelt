@@ -1,46 +1,64 @@
-# PLC (Mock did:plc Directory)
+# PLC (did:plc Directory)
 
-A minimal in-memory stand-in for the public [PLC directory](https://plc.directory).
-Hilt publishes tenant `did:plc` identities (genesis operations, key rotations,
-tombstones) to this service instead of the real directory, keeping local test
-data off the public internet.
+The reference [did:plc](https://github.com/did-method-plc/did-method-plc)
+directory server (`@did-plc/server` — the same implementation behind the
+public [plc.directory](https://plc.directory)). Hilt publishes tenant
+`did:plc` identities (genesis operations, key rotations, tombstones) here,
+keeping local test data off the public internet while still exercising real
+validation:
 
-The service is dependency-free Go (`main.go`) built by Docker Compose from this
-directory — there is no published image.
+- Operation signature verification against the DID's rotation keys
+- `did:plc` derivation from the genesis operation (sha256 → base32 → 24 chars)
+- `prev` CID chain integrity and tombstone rules
 
 ## Services
 
-- **plc** - Mock did:plc directory (HTTP)
+- **plc** - PLC directory server (Node, built from source)
+- **plc-postgres** - PostgreSQL for the operation log (migrations run at
+  startup)
+
+## Build
+
+No usable published image exists, so `plc` builds from a **pinned git
+context** in `compose.yml`:
+
+```yaml
+build:
+  context: https://github.com/did-method-plc/did-method-plc.git#<sha>
+  dockerfile: packages/server/Dockerfile
+```
+
+The first build takes a few minutes (yarn monorepo install/build); Docker's
+layer cache makes rebuilds fast. The service's `image:` tag embeds the pinned
+SHA — compose only builds when that image is missing, so to pick up upstream
+changes bump the SHA in **both** the context URL and the `image:` tag (the new
+tag triggers the rebuild automatically).
 
 ## Ports
 
 | Host Port | Container Port | Service | Description |
 |-----------|----------------|---------|-------------|
-| 15120 | 80 | plc | PLC directory API |
+| 15120 | 3000 | plc | PLC directory API |
+| 15121 | 5432 | plc-postgres | PostgreSQL |
 
 ## Endpoints
 
-URL shapes match `ucantone`'s `did/plc` `DirectoryClient`/`Resolver`:
-
-- `POST /{did}` - Publish a `plc_operation` or `plc_tombstone` (dag-json body).
-  Operations are stored raw, per-DID, append-only.
-- `GET /{did}/log/last` - The last published operation, byte-for-byte.
-- `GET /{did}` - A DID document derived from the last operation's
-  `verificationMethods` (404 once tombstoned).
-- `GET /health` - Liveness probe.
-
-## Non-goals
-
-Deliberately not validated (this is a dev mock, not a PLC implementation):
-
-- Operation signatures and rotation-key authority
-- `prev` CID chain integrity
-- did:plc identifier derivation from the genesis operation
+- `POST /{did}` - Publish a signed `plc_operation` or `plc_tombstone`
+- `GET /{did}` - Resolved DID document (404 once tombstoned)
+- `GET /{did}/data` - Current DID data state
+- `GET /{did}/log` / `GET /{did}/log/last` / `GET /{did}/log/audit` - Op log
+- `GET /export` - Paginated JSONL export of all operations
+- `GET /_health` - Health probe
 
 ## Configuration
 
-None. State is in-memory and lost on restart.
+Via environment in `compose.yml`: `DATABASE_URL` (dev credentials `plc:plc`,
+local stack only), `LOG_ENABLED`, `LOG_LEVEL`. The server holds no keys.
+
+## Volumes
+
+- `plc-postgres-data` - PLC operation log (persists across restarts)
 
 ## Used By
 
-- hilt (`HILT_PLC_DIRECTORY=http://plc:80`)
+- hilt (`HILT_PLC_DIRECTORY=http://plc:3000`)
