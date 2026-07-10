@@ -309,6 +309,7 @@ All host-side ports live in a dedicated `15XXX` range to avoid collision with co
 | piri-{N} | 15100 + N | HTTP/UCAN | Storage node(s); N defined by `smelt.yml` (default 1, max 9) |
 | hilt | 15110 | HTTP/UCAN | Tenant management (Tenant API + UCAN RPC) |
 | hilt-postgres | 15111 | PostgreSQL | Hilt tenant/provider store |
+| hilt-vault | 15112 | HTTP | Hilt key vault (HashiCorp Vault dev mode) |
 | plc | 15120 | HTTP | did:plc directory (reference implementation) |
 | guppy | (none) | CLI | Client container |
 
