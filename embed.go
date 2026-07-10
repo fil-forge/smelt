@@ -29,8 +29,6 @@ import "embed"
 //go:embed systems/indexing/indexer/compose.yml
 
 //go:embed systems/plc/compose.yml
-//go:embed systems/plc/Dockerfile
-//go:embed systems/plc/main.go
 
 //go:embed systems/piri/entrypoint.sh
 //go:embed systems/piri/register-did.sh
