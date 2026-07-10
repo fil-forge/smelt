@@ -19,6 +19,8 @@ the tenant as a customer with the upload service via `/customer/add`.
 - **hilt** - Tenant management service (`ghcr.io/fil-forge/hilt:main`)
 - **hilt-postgres** - PostgreSQL for hilt's tenant/provider/access-key stores
   (goose migrations run at hilt startup)
+- **hilt-vault** - HashiCorp Vault in dev mode for tenant/access-key private
+  keys (KV v2 at the `secret` mount)
 
 ## Ports
 
@@ -26,6 +28,7 @@ the tenant as a customer with the upload service via `/customer/add`.
 |-----------|----------------|---------|-------------|
 | 15110 | 80 | hilt | Tenant API + UCAN RPC (`POST /`), did:web doc |
 | 15111 | 5432 | hilt-postgres | PostgreSQL |
+| 15112 | 8200 | hilt-vault | Vault HTTP API |
 
 ## Configuration
 
@@ -37,8 +40,11 @@ All configuration is via `HILT_*` environment variables in `compose.yml`:
   override with `HILT_PARTNER_KEY=... make up`. Local-dev pre-shared value
   only; never use a production key here.
 - Storage: postgres via the `hilt-postgres` sidecar (dev-only `hilt:hilt`
-  credentials; data persists in the `hilt-postgres-data` volume). The vault
-  still runs in `memory` mode.
+  credentials; data persists in the `hilt-postgres-data` volume).
+- Vault: HashiCorp Vault dev mode via `hilt-vault`, token auth with the
+  dev root token (`HILT_VAULT_TOKEN`, default `dev-root-token` — local dev
+  only). Keys survive hilt restarts, but dev-mode Vault stores in memory, so
+  a vault container restart clears them.
 - PLC directory: the local mock at `http://plc:80`.
 - Upload service: `did:web:upload` at `http://upload:80`, presenting the
   `upload → hilt` `/customer/add` delegation from
@@ -67,6 +73,7 @@ registration fails for any other reason (mirroring
 - plc (service_healthy)
 - upload (service_healthy)
 - hilt-postgres (service_healthy)
+- hilt-vault (service_healthy)
 
 ## Requirements and Notes
 

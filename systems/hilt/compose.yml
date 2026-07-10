@@ -21,7 +21,11 @@ services:
       - HILT_AUTH_PARTNER_KEY=${HILT_PARTNER_KEY:-dev-partner-key}
       - HILT_STORAGE_TYPE=postgres
       - HILT_STORAGE_POSTGRES_DSN=postgres://hilt:hilt@hilt-postgres:5432/hilt?sslmode=disable
-      - HILT_VAULT_TYPE=memory
+      - HILT_VAULT_TYPE=hashicorp
+      - HILT_VAULT_HASHICORP_ADDRESS=http://hilt-vault:8200
+      - HILT_VAULT_HASHICORP_AUTH_METHOD=token
+      # Dev-mode root token (local dev only, like the partner key above)
+      - HILT_VAULT_HASHICORP_TOKEN=${HILT_VAULT_TOKEN:-dev-root-token}
       - HILT_PLC_DIRECTORY=http://plc:80
       - HILT_UPLOAD_SERVICE_ID=did:web:upload
       - HILT_UPLOAD_SERVICE_URL=http://upload:80
@@ -47,8 +51,34 @@ services:
         condition: service_healthy
       hilt-postgres:
         condition: service_healthy
+      hilt-vault:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:80/health"]
+      start_interval: 1s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - forge-network
+
+  # HashiCorp Vault in dev mode for hilt's tenant/access-key private keys.
+  # Dev mode auto-unseals and mounts KV v2 at `secret` (hilt's default
+  # mount). Storage is in-memory: keys survive hilt restarts but not a
+  # vault container restart.
+  hilt-vault:
+    image: hashicorp/vault:2.0
+    ports:
+      - "${SMELT_HILT_VAULT_PORT:-15112:8200}"
+    environment:
+      - VAULT_DEV_ROOT_TOKEN_ID=${HILT_VAULT_TOKEN:-dev-root-token}
+      - VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200
+    cap_add:
+      - IPC_LOCK
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8200/v1/sys/health"]
       start_interval: 1s
       interval: 10s
       timeout: 5s
