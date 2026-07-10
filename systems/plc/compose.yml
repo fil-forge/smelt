@@ -1,0 +1,22 @@
+# PLC System - Mock did:plc directory
+#
+# Stand-in for https://plc.directory so hilt can publish tenant did:plc
+# genesis/update/tombstone operations locally. Built from Go source in this
+# directory (no published image).
+# Used by: hilt
+
+services:
+  plc:
+    build: .
+    ports:
+      - "${SMELT_PLC_PORT:-15120:80}"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80/health"]
+      start_interval: 1s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - forge-network

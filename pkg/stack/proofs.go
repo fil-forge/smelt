@@ -8,6 +8,7 @@ import (
 	blobcmds "github.com/fil-forge/libforge/commands/blob"
 	replicacmds "github.com/fil-forge/libforge/commands/blob/replica"
 	"github.com/fil-forge/libforge/commands/claim"
+	customercmds "github.com/fil-forge/libforge/commands/customer"
 	pdpcmds "github.com/fil-forge/libforge/commands/pdp"
 	"github.com/fil-forge/libforge/commands/space/egress"
 	"github.com/fil-forge/libforge/identity"
@@ -39,10 +40,10 @@ type delegateFn func(issuer ucan.Issuer, audience, subject did.DID, opts ...dele
 // ucantone envelope encoding, so the proofs parse with the delegator's
 // ucantone delegation.Decode.
 //
-// As of ucan1.0 there are exactly two: indexer → delegator (/claim/cache) and
-// etracker → delegator (/space/egress/track). Per-node piri → upload proofs are
-// no longer generated — provider registration stopped consuming proof files
-// (see systems/upload/post_start.sh).
+// As of ucan1.0 these are: indexer → delegator (/claim/cache), etracker →
+// delegator (/space/egress/track) and upload → hilt (/customer/add). Per-node
+// piri → upload proofs are no longer required — provider registration stopped
+// consuming proof files (see systems/upload/post_start.sh).
 func generateProofs(tempDir string, nodes []manifest.ResolvedPiriNode) error {
 	keysDir := filepath.Join(tempDir, "generated", "keys")
 	proofsDir := filepath.Join(tempDir, "generated", "proofs")
@@ -58,6 +59,16 @@ func generateProofs(tempDir string, nodes []manifest.ResolvedPiriNode) error {
 	if err := writeDelegation(keysDir, proofsDir,
 		"etracker", "did:web:etracker", "did:web:delegator",
 		"egress-tracking-proof.txt", egress.Track.Delegate); err != nil {
+		return err
+	}
+
+	// upload → hilt (/customer/add): hilt presents this to the upload service
+	// when registering tenants as customers (mirrors the hilt section of
+	// generate-proofs.sh; hilt parses it with ucantone container.Decode).
+	if err := writeProofs(keysDir, proofsDir,
+		"upload", "did:web:upload", "did:web:hilt",
+		"hilt-customer-add-proof.txt",
+		[]ucan.Command{customercmds.Add.Command}); err != nil {
 		return err
 	}
 
@@ -81,7 +92,13 @@ func generateProofs(tempDir string, nodes []manifest.ResolvedPiriNode) error {
 
 // writeProofs writes a UCAN container of delegations from issuerKeyName's key
 // (optionally wrapped as issuerDidWeb) to audienceDID for each passed command.
+// Skips writing when outputFile already exists (mirrors generate-proofs.sh),
+// so snapshot-restored proofs are only topped up, never replaced.
 func writeProofs(keysDir, proofsDir, issuerKeyName, issuerDidWeb, audienceDID, outputFile string, cmds []ucan.Command) error {
+	if _, err := os.Stat(filepath.Join(proofsDir, outputFile)); err == nil {
+		return nil
+	}
+
 	pemData, err := os.ReadFile(filepath.Join(keysDir, issuerKeyName+".pem"))
 	if err != nil {
 		return fmt.Errorf("reading issuer key %s: %w", issuerKeyName, err)
@@ -129,7 +146,13 @@ func writeProofs(keysDir, proofsDir, issuerKeyName, issuerDidWeb, audienceDID, o
 // writeDelegation creates one delegation from issuerKeyName's key (optionally
 // wrapped as issuerDidWeb) to audienceDID, using the given libforge command,
 // and writes the ucantone-encoded envelope to proofsDir/outputFile.
+// Skips writing when outputFile already exists (mirrors generate-proofs.sh),
+// so snapshot-restored proofs are only topped up, never replaced.
 func writeDelegation(keysDir, proofsDir, issuerKeyName, issuerDidWeb, audienceDID, outputFile string, delegate delegateFn) error {
+	if _, err := os.Stat(filepath.Join(proofsDir, outputFile)); err == nil {
+		return nil
+	}
+
 	pemData, err := os.ReadFile(filepath.Join(keysDir, issuerKeyName+".pem"))
 	if err != nil {
 		return fmt.Errorf("read issuer key %s: %w", issuerKeyName, err)

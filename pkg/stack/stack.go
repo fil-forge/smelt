@@ -107,6 +107,16 @@ func NewStack(ctx context.Context, t *testing.T, opts ...Option) (*Stack, error)
 		}
 		t.Logf("smeltery: booting from snapshot %s (%d piri node(s), %d volume(s))",
 			snapDir, len(resolvedNodes), len(snapDesc.Volumes))
+		// Top up keys/proofs the snapshot may predate (e.g. hilt.pem and the
+		// upload → hilt proof). Both generators skip files that already exist,
+		// so the snapshot's own keys and proofs are left untouched.
+		keysDir := filepath.Join(tempDir, "generated", "keys")
+		if err := generate.GenerateKeys(keysDir, resolvedNodes, false); err != nil {
+			return nil, fmt.Errorf("top up keys: %w", err)
+		}
+		if err := generateProofs(tempDir, resolvedNodes); err != nil {
+			return nil, fmt.Errorf("top up proofs: %w", err)
+		}
 	} else {
 		resolvedNodes = cfg.resolveNodes()
 		keysDir := filepath.Join(tempDir, "generated", "keys")
@@ -241,7 +251,9 @@ func NewStack(ctx context.Context, t *testing.T, opts ...Option) (*Stack, error)
 		WaitForService("upload", wait.ForHTTP("/health").WithPort("80/tcp").WithStartupTimeout(2*time.Minute)).
 		WaitForService("indexer", wait.ForHTTP("/").WithPort("80/tcp").WithStartupTimeout(2*time.Minute)).
 		WaitForService("delegator", wait.ForHTTP("/healthcheck").WithPort("80/tcp").WithStartupTimeout(2*time.Minute)).
-		WaitForService("email", wait.ForHTTP("/api/server").WithPort("80/tcp").WithStartupTimeout(2*time.Minute))
+		WaitForService("email", wait.ForHTTP("/api/server").WithPort("80/tcp").WithStartupTimeout(2*time.Minute)).
+		WaitForService("plc", wait.ForHTTP("/health").WithPort("80/tcp").WithStartupTimeout(2*time.Minute)).
+		WaitForService("hilt", wait.ForHTTP("/health").WithPort("80/tcp").WithStartupTimeout(2*time.Minute))
 
 	// Wait for all piri nodes
 	for _, node := range resolvedNodes {

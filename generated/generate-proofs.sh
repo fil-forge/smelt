@@ -3,6 +3,9 @@
 #
 # This script generates the delegation proofs needed for services to communicate:
 # - indexing-service-proof: indexer delegates claim/cache to delegator
+# - egress-tracking-proof: etracker delegates egress/track to delegator
+# - piri-N-proof: each piri node delegates blob/* + pdp/info to upload
+# - hilt-customer-add-proof: upload delegates customer/add to hilt
 #
 # Prerequisites:
 # - Keys must exist in generated/keys/ (run 'make generate' first)
@@ -45,6 +48,7 @@ mkdir -p "$PROOFS_DIR"
 check_key "$KEYS_DIR/indexer.pem"
 check_key "$KEYS_DIR/delegator.pem"
 check_key "$KEYS_DIR/etracker.pem"
+check_key "$KEYS_DIR/upload.pem"
 # Per-node piri keys (piri-0.pem, piri-1.pem, ...) are checked by the loop below.
 
 # The delegator identifies as did:web:delegator when signing delegations to providers.
@@ -143,6 +147,34 @@ if [[ "$PIRI_KEYS_FOUND" -eq 0 ]]; then
     echo ""
     echo "WARNING: No piri-N.pem keys found in $KEYS_DIR — skipping piri proofs."
     echo "         Run 'make generate' to create them."
+fi
+
+# Generate hilt customer-add proof (upload → hilt, /customer/add).
+# Hilt presents this to the upload service when registering tenants as
+# customers. NOTE: hilt's upload.proofs loader parses a UCAN *container*
+# (hilt pkg/fx/upload.go), so --container is required here — the bare
+# envelope emitted for the indexer/etracker proofs will not parse.
+HILT_PROOF_FILE="$PROOFS_DIR/hilt-customer-add-proof.txt"
+if [[ -f "$HILT_PROOF_FILE" && "$FORCE" != "--force" ]]; then
+    echo ""
+    echo "[skip] hilt-customer-add-proof.txt already exists"
+else
+    echo ""
+    echo "Generating hilt customer-add proof..."
+    echo "  Issuer: $UPLOAD_WEB_DID (key: upload.pem)"
+    echo "  Audience: did:web:hilt"
+    echo "  Commands: /customer/add"
+
+    "$UCANTOOL" delegate \
+        --issuer-private-key-file "$KEYS_DIR/upload.pem" \
+        --issuer-did-web "$UPLOAD_WEB_DID" \
+        --audience "did:web:hilt" \
+        --subject "$UPLOAD_WEB_DID" \
+        --command "/customer/add" \
+        --container "base64+gzip" \
+        > "$HILT_PROOF_FILE"
+
+    echo "  [new] hilt-customer-add-proof.txt"
 fi
 
 echo ""

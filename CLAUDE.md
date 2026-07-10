@@ -72,6 +72,8 @@ smelt/
 │   │   └── indexer/       # Content claims cache
 │   ├── piri/              # Storage node template (generator reads config from here)
 │   ├── upload/            # Upload orchestration (mock w3infra)
+│   ├── hilt/              # Tenant management (Fil One Tenant API + UCAN RPC)
+│   ├── plc/               # Mock did:plc directory (hilt publishes tenant DIDs here)
 │   ├── guppy/             # CLI client
 │   ├── telemetry/         # Observability stack (present but not wired into Makefile)
 │   └── stress-tester/     # Load test runner (present but not wired into Makefile)
@@ -305,6 +307,8 @@ All host-side ports live in a dedicated `15XXX` range to avoid collision with co
 | ipni admin | 15091 | HTTP | IPNI admin |
 | ipni p2p | 15092 | libp2p | Advertisement sync |
 | piri-{N} | 15100 + N | HTTP/UCAN | Storage node(s); N defined by `smelt.yml` (default 1, max 9) |
+| hilt | 15110 | HTTP/UCAN | Tenant management (Tenant API + UCAN RPC) |
+| plc | 15120 | HTTP | Mock did:plc directory |
 | guppy | (none) | CLI | Client container |
 
 **Piri Shared Storage** (only emitted when at least one node uses that backend):
@@ -425,6 +429,7 @@ The capability string must match exactly. `space/blob/add` is not `blob/add`. Ch
 | `fil-forge/guppy` | CLI client |
 | `fil-forge/indexing-service` | Indexer service |
 | `fil-forge/delegator` | Delegation service |
+| `fil-forge/hilt` | Tenant management service |
 | `fil-forge/go-ucanto` | UCAN implementation in Go |
 | `fil-forge/specs` | Protocol specifications |
 
@@ -440,7 +445,7 @@ PIRI_IMAGE=ghcr.io/fil-forge/piri:v1.2.3 make up
 PIRI_IMAGE=myregistry/piri:test GUPPY_IMAGE=myregistry/guppy:test make up
 ```
 
-Available variables: `PIRI_IMAGE`, `GUPPY_IMAGE`, `DELEGATOR_IMAGE`, `INDEXER_IMAGE`, `IPNI_IMAGE`, `SIGNER_IMAGE`, `UPLOAD_IMAGE`, `BLOCKCHAIN_IMAGE`. Defaults live in `.env`.
+Available variables: `PIRI_IMAGE`, `GUPPY_IMAGE`, `DELEGATOR_IMAGE`, `INDEXER_IMAGE`, `IPNI_IMAGE`, `SIGNER_IMAGE`, `UPLOAD_IMAGE`, `HILT_IMAGE`, `BLOCKCHAIN_IMAGE`. Defaults live in `.env`.
 
 ## Developing Against Sibling Service Repos
 
@@ -474,6 +479,7 @@ Module → service / container binary map (see `pkg/workspace`):
 | `indexing-service` | indexer | `/usr/bin/indexer` |
 | `delegator` | delegator | `/usr/bin/registrar` |
 | `guppy` | guppy | `/usr/bin/guppy` |
+| `hilt` | hilt | `/usr/bin/hilt` |
 
 In Go tests, `stack.WithWorkspaceBinaries()` does the same; `stack.WithServiceBinary(name, path)`
 mounts a specific prebuilt binary without the workspace machinery.
