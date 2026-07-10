@@ -19,7 +19,8 @@ services:
       - HILT_IDENTITY_SERVICE_ID=did:web:hilt
       # Local-dev pre-shared bearer key for the Tenant API (not a production secret)
       - HILT_AUTH_PARTNER_KEY=${HILT_PARTNER_KEY:-dev-partner-key}
-      - HILT_STORAGE_TYPE=memory
+      - HILT_STORAGE_TYPE=postgres
+      - HILT_STORAGE_POSTGRES_DSN=postgres://hilt:hilt@hilt-postgres:5432/hilt?sslmode=disable
       - HILT_VAULT_TYPE=memory
       - HILT_PLC_DIRECTORY=http://plc:80
       - HILT_UPLOAD_SERVICE_ID=did:web:upload
@@ -44,6 +45,8 @@ services:
         condition: service_healthy
       plc:
         condition: service_healthy
+      hilt-postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:80/health"]
       start_interval: 1s
@@ -54,3 +57,31 @@ services:
     restart: unless-stopped
     networks:
       - forge-network
+
+  # Postgres for hilt's tenant/provider/access-key stores. Hilt runs goose
+  # migrations on startup, so the `hilt` database created by POSTGRES_DB is
+  # enough — no init sidecar needed. Named hilt-postgres because `postgres`
+  # is taken by upload's sidecar.
+  hilt-postgres:
+    image: postgres:16-alpine
+    ports:
+      - "${SMELT_HILT_POSTGRES_PORT:-15111:5432}"
+    environment:
+      - POSTGRES_USER=hilt
+      - POSTGRES_PASSWORD=hilt
+      - POSTGRES_DB=hilt
+    volumes:
+      - hilt-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hilt -d hilt"]
+      start_interval: 1s
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - forge-network
+
+volumes:
+  hilt-postgres-data:

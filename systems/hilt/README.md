@@ -17,12 +17,15 @@ the tenant as a customer with the upload service via `/customer/add`.
 ## Services
 
 - **hilt** - Tenant management service (`ghcr.io/fil-forge/hilt:main`)
+- **hilt-postgres** - PostgreSQL for hilt's tenant/provider/access-key stores
+  (goose migrations run at hilt startup)
 
 ## Ports
 
 | Host Port | Container Port | Service | Description |
 |-----------|----------------|---------|-------------|
 | 15110 | 80 | hilt | Tenant API + UCAN RPC (`POST /`), did:web doc |
+| 15111 | 5432 | hilt-postgres | PostgreSQL |
 
 ## Configuration
 
@@ -33,8 +36,9 @@ All configuration is via `HILT_*` environment variables in `compose.yml`:
 - Tenant API auth: `HILT_AUTH_PARTNER_KEY` — defaults to `dev-partner-key`,
   override with `HILT_PARTNER_KEY=... make up`. Local-dev pre-shared value
   only; never use a production key here.
-- Storage and vault both run in `memory` mode: no database or Vault container,
-  but **all tenants/buckets/access keys are lost when the container restarts**.
+- Storage: postgres via the `hilt-postgres` sidecar (dev-only `hilt:hilt`
+  credentials; data persists in the `hilt-postgres-data` volume). The vault
+  still runs in `memory` mode.
 - PLC directory: the local mock at `http://plc:80`.
 - Upload service: `did:web:upload` at `http://upload:80`, presenting the
   `upload → hilt` `/customer/add` delegation from
@@ -45,18 +49,24 @@ All configuration is via `HILT_*` environment variables in `compose.yml`:
 `post_start.sh` runs on every container start and registers **piri-0** as the
 regional provider for **us-west-1** via `hilt client admin provider add`,
 reading the DID from `/piri-keys/piri-0.did` (emitted by `smelt generate`).
-Because storage runs in memory mode the provider record is lost on restart —
-re-registering on each start is intentional. The script fails the container if
-registration fails (mirroring `systems/upload/post_start.sh`).
+Registration is idempotent — when the record already exists in postgres the
+"already registered" response is tolerated. The script fails the container if
+registration fails for any other reason (mirroring
+`systems/upload/post_start.sh`).
 
 ## Keys
 
 - `../../generated/keys/hilt.pem` - Hilt service identity (Ed25519)
 
+## Volumes
+
+- `hilt-postgres-data` - Hilt's tenant/provider/access-key records
+
 ## Dependencies
 
 - plc (service_healthy)
 - upload (service_healthy)
+- hilt-postgres (service_healthy)
 
 ## Requirements and Notes
 
