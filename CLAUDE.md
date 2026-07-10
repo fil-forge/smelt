@@ -308,8 +308,8 @@ All host-side ports live in a dedicated `15XXX` range to avoid collision with co
 | ipni p2p | 15092 | libp2p | Advertisement sync |
 | piri-{N} | 15100 + N | HTTP/UCAN | Storage node(s); N defined by `smelt.yml` (default 1, max 9) |
 | hilt | 15110 | HTTP/UCAN | Tenant management (Tenant API + UCAN RPC) |
+| hilt-postgres | 15111 | PostgreSQL | Hilt tenant/provider store |
 | plc | 15120 | HTTP | did:plc directory (reference implementation) |
-| plc-postgres | 15121 | PostgreSQL | PLC operation log storage |
 | guppy | (none) | CLI | Client container |
 
 **Piri Shared Storage** (only emitted when at least one node uses that backend):
