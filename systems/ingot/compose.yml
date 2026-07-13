@@ -1,0 +1,72 @@
+# Ingot System - S3-compatible facade for the Forge network
+#
+# Serves the AWS S3 API (path-style), authorizing requests via hilt's UCAN
+# RPC (/s3/request/authorize, /s3/bucket/*) and shipping object data to the
+# Forge network via the upload service (sprue) and piri.
+# Used by: S3 clients (aws cli, SDKs)
+
+services:
+  ingot:
+    # No published image — built from the sibling checkout at ../ingot
+    # (hilt-integration branch, PR fil-forge/ingot#36). The explicit tag lets
+    # already-built images be reused by test stacks whose extracted compose
+    # tree has no ../ingot to build from.
+    image: ${INGOT_IMAGE:-smelt-ingot:dev}
+    build:
+      context: ../../../ingot
+    user: "0:0"  # Run as root for volume permissions (key files are 600)
+    command: ["serve"]
+    ports:
+      - "${SMELT_INGOT_PORT:-15130:9000}"
+    volumes:
+      - ingot-data:/data
+      - ../../generated/keys/ingot.pem:/keys/ingot.pem:ro
+      - ../../generated/proofs:/proofs:ro
+      # /etc/ingot is on ingot's default config search path
+      - ./config:/etc/ingot:ro
+    depends_on:
+      hilt:
+        condition: service_healthy
+      upload:
+        condition: service_healthy
+      ingot-postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:9000/health"]
+      start_interval: 1s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+    networks:
+      - forge-network
+
+  # Postgres for ingot's registry/metadata stores (schema `ingot`). Ingot
+  # runs goose migrations on startup, so the empty database created by
+  # POSTGRES_DB is enough — no init sidecar needed.
+  ingot-postgres:
+    image: postgres:16-alpine
+    ports:
+      - "${SMELT_INGOT_POSTGRES_PORT:-15131:5432}"
+    environment:
+      - POSTGRES_USER=ingot
+      - POSTGRES_PASSWORD=ingot
+      - POSTGRES_DB=ingot
+    volumes:
+      - ingot-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ingot -d ingot"]
+      start_interval: 1s
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - forge-network
+
+volumes:
+  # LSM log segments, blob spool, and token store (ingot's data_dir)
+  ingot-data:
+  ingot-postgres-data:

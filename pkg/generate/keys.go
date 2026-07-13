@@ -26,6 +26,7 @@ var nonPiriServiceKeys = []string{
 	"etracker",
 	"guppy",
 	"hilt",
+	"ingot",
 }
 
 // GenerateKeys generates all cryptographic keys for the stack.

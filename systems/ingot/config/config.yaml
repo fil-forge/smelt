@@ -1,0 +1,30 @@
+# Ingot configuration for the smelt compose stack.
+#
+# Config lives in this mounted file (not env vars): ingot's viper setup uses
+# AutomaticEnv without explicit bindings, so INGOT_* env vars do not populate
+# keys that are absent from defaults/config-file. Env vars still override any
+# key that appears here.
+
+addr: 0.0.0.0:9000
+data_dir: /data
+region: us-west-1 # must match hilt's provider region and sigv4 clients
+log_level: info
+
+postgres_dsn: postgres://ingot:ingot@ingot-postgres:5432/ingot?sslmode=disable
+
+identity:
+  key_file: /keys/ingot.pem
+
+# Dev-only root S3 credentials (local stack only, like sprue's postgres creds)
+root_access: ingot-root
+root_secret: ingot-root-secret
+
+# Forge upload service (sprue)
+upload_service_url: http://upload:80
+upload_service_did: did:web:upload
+
+# S3 authorization service (hilt); the DID is used verbatim (no resolution)
+auth_service_url: http://hilt:80
+auth_service_did: did:web:hilt
+# hilt → ingot delegations for /s3/request/authorize and /s3/bucket/*
+auth_service_proofs: /proofs/hilt-ingot-s3-proof.txt

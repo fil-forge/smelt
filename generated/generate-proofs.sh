@@ -6,6 +6,7 @@
 # - egress-tracking-proof: etracker delegates egress/track to delegator
 # - piri-N-proof: each piri node delegates blob/* + pdp/info to upload
 # - hilt-customer-add-proof: upload delegates customer/add to hilt
+# - hilt-ingot-s3-proof: hilt delegates the /s3/* commands to ingot
 #
 # Prerequisites:
 # - Keys must exist in generated/keys/ (run 'make generate' first)
@@ -175,6 +176,43 @@ else
         > "$HILT_PROOF_FILE"
 
     echo "  [new] hilt-customer-add-proof.txt"
+fi
+
+# Generate hilt → ingot S3 proof (all /s3/* commands ingot invokes on hilt).
+# Ingot presents these when calling hilt's UCAN RPC API. Audience is ingot's
+# did:key, read from the ingot.did file emitted by `smelt generate`.
+INGOT_PROOF_FILE="$PROOFS_DIR/hilt-ingot-s3-proof.txt"
+if [[ -f "$INGOT_PROOF_FILE" && "$FORCE" != "--force" ]]; then
+    echo ""
+    echo "[skip] hilt-ingot-s3-proof.txt already exists"
+else
+    check_key "$KEYS_DIR/hilt.pem"
+    if [[ ! -f "$KEYS_DIR/ingot.did" ]]; then
+        echo "Error: $KEYS_DIR/ingot.did not found — run 'make generate' first"
+        exit 1
+    fi
+    INGOT_DID=$(cat "$KEYS_DIR/ingot.did")
+
+    echo ""
+    echo "Generating hilt → ingot S3 proof..."
+    echo "  Issuer: did:web:hilt (key: hilt.pem)"
+    echo "  Audience: $INGOT_DID"
+    echo "  Commands: /s3/request/authorize, /s3/bucket/{create,delete,info,list}"
+
+    "$UCANTOOL" delegate \
+        --issuer-private-key-file "$KEYS_DIR/hilt.pem" \
+        --issuer-did-web "did:web:hilt" \
+        --audience "$INGOT_DID" \
+        --subject "did:web:hilt" \
+        --command "/s3/request/authorize" \
+        --command "/s3/bucket/create" \
+        --command "/s3/bucket/delete" \
+        --command "/s3/bucket/info" \
+        --command "/s3/bucket/list" \
+        --container "base64+gzip" \
+        > "$INGOT_PROOF_FILE"
+
+    echo "  [new] hilt-ingot-s3-proof.txt"
 fi
 
 echo ""

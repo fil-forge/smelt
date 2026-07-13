@@ -74,6 +74,7 @@ smelt/
 │   ├── upload/            # Upload orchestration (mock w3infra)
 │   ├── hilt/              # Tenant management (Fil One Tenant API + UCAN RPC)
 │   ├── plc/               # did:plc directory (reference impl; hilt publishes tenant DIDs here)
+│   ├── ingot/             # S3 facade (built from sibling ../ingot checkout)
 │   ├── guppy/             # CLI client
 │   ├── telemetry/         # Observability stack (present but not wired into Makefile)
 │   └── stress-tester/     # Load test runner (present but not wired into Makefile)
@@ -311,6 +312,8 @@ All host-side ports live in a dedicated `15XXX` range to avoid collision with co
 | hilt-postgres | 15111 | PostgreSQL | Hilt tenant/provider store |
 | hilt-vault | 15112 | HTTP | Hilt key vault (HashiCorp Vault dev mode) |
 | plc | 15120 | HTTP | did:plc directory (reference implementation) |
+| ingot | 15130 | S3/HTTP | S3 facade (path-style) |
+| ingot-postgres | 15131 | PostgreSQL | Ingot registry/metadata |
 | guppy | (none) | CLI | Client container |
 
 **Piri Shared Storage** (only emitted when at least one node uses that backend):
@@ -432,6 +435,7 @@ The capability string must match exactly. `space/blob/add` is not `blob/add`. Ch
 | `fil-forge/indexing-service` | Indexer service |
 | `fil-forge/delegator` | Delegation service |
 | `fil-forge/hilt` | Tenant management service |
+| `fil-forge/ingot` | S3 facade |
 | `fil-forge/go-ucanto` | UCAN implementation in Go |
 | `fil-forge/specs` | Protocol specifications |
 
@@ -482,6 +486,7 @@ Module → service / container binary map (see `pkg/workspace`):
 | `delegator` | delegator | `/usr/bin/registrar` |
 | `guppy` | guppy | `/usr/bin/guppy` |
 | `hilt` | hilt | `/usr/bin/hilt` |
+| `ingot` | ingot | `/usr/bin/ingot` |
 
 In Go tests, `stack.WithWorkspaceBinaries()` does the same; `stack.WithServiceBinary(name, path)`
 mounts a specific prebuilt binary without the workspace machinery.
