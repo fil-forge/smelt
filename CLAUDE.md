@@ -73,6 +73,7 @@ smelt/
 │   ├── piri/              # Storage node template (generator reads config from here)
 │   ├── upload/            # Upload orchestration (mock w3infra)
 │   ├── guppy/             # CLI client
+│   ├── ingot/             # S3 gateway over Forge (+ its own postgres)
 │   ├── telemetry/         # Observability stack (present but not wired into Makefile)
 │   └── stress-tester/     # Load test runner (present but not wired into Makefile)
 └── docs/
@@ -305,6 +306,8 @@ All host-side ports live in a dedicated `15XXX` range to avoid collision with co
 | ipni admin | 15091 | HTTP | IPNI admin |
 | ipni p2p | 15092 | libp2p | Advertisement sync |
 | piri-{N} | 15100 + N | HTTP/UCAN | Storage node(s); N defined by `smelt.yml` (default 1, max 9) |
+| ingot | 15110 | S3 | S3 gateway over Forge |
+| ingot-postgres | 15111 | PostgreSQL | Ingot registry/meta |
 | guppy | (none) | CLI | Client container |
 
 **Piri Shared Storage** (only emitted when at least one node uses that backend):
@@ -440,7 +443,7 @@ PIRI_IMAGE=ghcr.io/fil-forge/piri:v1.2.3 make up
 PIRI_IMAGE=myregistry/piri:test GUPPY_IMAGE=myregistry/guppy:test make up
 ```
 
-Available variables: `PIRI_IMAGE`, `GUPPY_IMAGE`, `DELEGATOR_IMAGE`, `INDEXER_IMAGE`, `IPNI_IMAGE`, `SIGNER_IMAGE`, `UPLOAD_IMAGE`, `BLOCKCHAIN_IMAGE`. Defaults live in `.env`.
+Available variables: `PIRI_IMAGE`, `GUPPY_IMAGE`, `DELEGATOR_IMAGE`, `INDEXER_IMAGE`, `IPNI_IMAGE`, `SIGNER_IMAGE`, `UPLOAD_IMAGE`, `INGOT_IMAGE`, `BLOCKCHAIN_IMAGE`. Defaults live in `.env`.
 
 ## Developing Against Sibling Service Repos
 
@@ -474,6 +477,7 @@ Module → service / container binary map (see `pkg/workspace`):
 | `indexing-service` | indexer | `/usr/bin/indexer` |
 | `delegator` | delegator | `/usr/bin/registrar` |
 | `guppy` | guppy | `/usr/bin/guppy` |
+| `ingot` | ingot | `/usr/bin/ingot` |
 
 In Go tests, `stack.WithWorkspaceBinaries()` does the same; `stack.WithServiceBinary(name, path)`
 mounts a specific prebuilt binary without the workspace machinery.

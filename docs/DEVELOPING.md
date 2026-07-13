@@ -51,6 +51,35 @@ file also makes your editor and `go test` resolve the local sibling source, so t
 
 The `use`-list is the **single source of truth** for what gets rebuilt.
 
+### Including guppy or ingot: the genproto replace
+
+If you put `./guppy` (or `./ingot`) in the `use`-list, the build fails with an *ambiguous import*
+for `google.golang.org/genproto/googleapis/{rpc,api}/...`: those modules pull the **pre-split
+monolithic** `google.golang.org/genproto` (≈2021) transitively, and its `rpc`/`api` packages
+collide with the **split** genproto modules smelt requires. Add a workspace-local `replace` that
+bumps the monolith to a post-split version (where those packages are delegated to the split
+modules):
+
+```
+go 1.26.1
+
+use (
+	./smelt
+	./guppy
+	./ingot
+)
+
+replace google.golang.org/genproto => google.golang.org/genproto v0.0.0-20260526163538-3dc84a4a5aaa
+```
+
+This lives only in `go.work` (gitignored), so it never touches any committed `go.mod`. Other
+siblings (piri-pdp, sprue, …) don't need it.
+
+> The ingot e2e tests (`tests/e2e/ingot_*.go`, build tag `e2e`) import
+> `github.com/fil-forge/ingot/testing`, which smelt pins in its `go.mod` — no workspace needed
+> to run them against the published ingot image. Put `./ingot` in the `use`-list (plus the
+> replace above) only when you want `SMELT_WORKSPACE=1` to rebuild ingot from local source.
+
 ### Selection and the `libforge` rule
 
 A service is rebuilt from local source when its module dir is in the `use`-list. Because the

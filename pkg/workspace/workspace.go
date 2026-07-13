@@ -47,6 +47,7 @@ var Services = map[string]serviceBuild{
 	"indexer":         {moduleDir: "indexing-service", buildTarget: "./cmd", binPath: "/usr/bin/indexer"},
 	"delegator":       {moduleDir: "delegator", buildTarget: ".", binPath: "/usr/bin/registrar"},
 	"guppy":           {moduleDir: "guppy", buildTarget: ".", binPath: "/usr/bin/guppy"},
+	"ingot":           {moduleDir: "ingot", buildTarget: "./cmd/ingot", binPath: "/usr/bin/ingot"},
 }
 
 // libforgeDir is the workspace dir of the shared library. Its presence in the

@@ -1,0 +1,73 @@
+# Ingot System - Embeddable S3 gateway over the Forge network
+#
+# Presents an S3 REST endpoint. Splits each object into a data-plane CAR
+# (object bodies) and a catalog-plane CAR (MST nodes + manifests), and
+# ships each plane to the Forge network through the upload service (sprue)
+# as a guppy-style edge client (/blob/add -> /ucan/conclude ->
+# /blob/accept -> /index/add). Per-plane shipping is configurable.
+#
+# Requires: upload (sprue), piri, indexer.
+#
+# NOTE: forge mode needs ingot authorized for a space on sprue. Either run
+# `ingot login <email>` once (delegations persist in the ingot-data
+# volume) or provision delegations out of band. See README.md.
+
+services:
+  ingot:
+    image: ${INGOT_IMAGE:-ghcr.io/fil-forge/ingot:main}
+    command: ["serve", "--config", "/etc/ingot/config.yaml"]
+    ports:
+      - "${SMELT_INGOT_PORT:-15110:9000}" # host:container — container S3 port
+    volumes:
+      - ingot-data:/data
+      - ../../generated/keys/ingot.pem:/keys/ingot.pem:ro
+      - ./config:/etc/ingot:ro
+    environment:
+      - INGOT_LOG_LEVEL=${INGOT_LOG_LEVEL:-info}
+    depends_on:
+      upload:
+        condition: service_healthy
+      piri-0:
+        condition: service_healthy
+      indexer:
+        condition: service_healthy
+      ingot-postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:9000/health"]
+      start_interval: 1s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - forge-network
+
+  # Postgres for ingot's registry/meta. ingot runs its own goose
+  # migrations under the `ingot` schema on startup; the `ingot` database
+  # created by POSTGRES_DB is enough.
+  ingot-postgres:
+    image: postgres:16-alpine
+    ports:
+      - "${SMELT_INGOT_POSTGRES_PORT:-15111:5432}"
+    environment:
+      - POSTGRES_USER=ingot
+      - POSTGRES_PASSWORD=ingot
+      - POSTGRES_DB=ingot
+    volumes:
+      - ingot-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ingot -d ingot"]
+      start_interval: 1s
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - forge-network
+
+volumes:
+  ingot-data:
+  ingot-postgres-data:

@@ -105,6 +105,15 @@ func NewStack(ctx context.Context, t *testing.T, opts ...Option) (*Stack, error)
 		if err != nil {
 			return nil, fmt.Errorf("load snapshot files: %w", err)
 		}
+		// Fill in keys for services added since the snapshot was captured
+		// (force=false keeps every restored key, preserving registered
+		// identities). Without this, compose bind-mounts a nonexistent key
+		// file and Docker materializes it as an empty directory — e.g. a
+		// pre-ingot snapshot leaves ingot crashlooping on
+		// "reading agent key /keys/ingot.pem: is a directory".
+		if err := generate.GenerateKeys(filepath.Join(tempDir, "generated", "keys"), resolvedNodes, false); err != nil {
+			return nil, fmt.Errorf("generate missing keys: %w", err)
+		}
 		t.Logf("smeltery: booting from snapshot %s (%d piri node(s), %d volume(s))",
 			snapDir, len(resolvedNodes), len(snapDesc.Volumes))
 	} else {
@@ -401,6 +410,31 @@ func (s *Stack) EmailEndpoint() string {
 	port, err := container.MappedPort(context.Background(), "80/tcp")
 	if err != nil {
 		s.t.Fatalf("getting email port: %v", err)
+	}
+	return fmt.Sprintf("http://%s:%s", host, port.Port())
+}
+
+// IngotEndpoint returns the host S3 endpoint for the ingot gateway
+// (container port 9000). The host is normalized to 127.0.0.1 rather than
+// "localhost": the AWS SDK uses virtual-host-style addressing
+// (bucket.host) for a hostname endpoint but path-style for an IP, and
+// ingot's versitygw front end is path-style — a hostname endpoint yields
+// 405 MethodNotAllowed on CreateBucket.
+func (s *Stack) IngotEndpoint() string {
+	container, err := s.compose.ServiceContainer(context.Background(), "ingot")
+	if err != nil {
+		s.t.Fatalf("getting ingot container: %v", err)
+	}
+	host, err := container.Host(context.Background())
+	if err != nil {
+		s.t.Fatalf("getting ingot host: %v", err)
+	}
+	if host == "localhost" {
+		host = "127.0.0.1"
+	}
+	port, err := container.MappedPort(context.Background(), "9000/tcp")
+	if err != nil {
+		s.t.Fatalf("getting ingot port: %v", err)
 	}
 	return fmt.Sprintf("http://%s:%s", host, port.Port())
 }
