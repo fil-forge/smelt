@@ -5,6 +5,7 @@ package e2e
 import (
 	"context"
 	"log"
+	"net/http"
 	"os"
 	"testing"
 	"time"
@@ -32,4 +33,21 @@ func TestMain(m *testing.M) {
 	}
 	cancel()
 	os.Exit(m.Run())
+}
+
+// waitHTTPOK polls url until it returns 2xx or the timeout elapses.
+func waitHTTPOK(t *testing.T, url string, timeout time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		resp, err := http.Get(url)
+		if err == nil {
+			resp.Body.Close()
+			if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+				return
+			}
+		}
+		time.Sleep(time.Second)
+	}
+	t.Fatalf("%s not healthy after %s", url, timeout)
 }

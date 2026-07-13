@@ -480,11 +480,28 @@ Module → service / container binary map (see `pkg/workspace`):
 | `ingot` | ingot | `/usr/bin/ingot` |
 
 In Go tests, `stack.WithWorkspaceBinaries()` does the same; `stack.WithServiceBinary(name, path)`
-mounts a specific prebuilt binary without the workspace machinery.
+mounts a specific prebuilt binary without the workspace machinery, and
+`stack.WithServiceConfig(name, path)` mounts a test-provided config file over the service's
+in-container config path.
+
+## Service Repos Own Their E2E Tests (Smelt as SDK)
+
+The inverse direction of the workspace flow: a service repo imports `smelt/pkg/stack` as a
+test dependency, boots the stack from its own e2e tests, and injects its working-tree binary
+via `stack.WithServiceBinary`. Compose files, configs, and embedded snapshots travel with the
+Go import (`go:embed`), so no smelt checkout is needed. Smelt owns each service's *system
+definition* (topology, ports, default config, keys) and asserts it boots healthy; the service
+repo owns its *behavior* tests. Ingot is the reference implementation
+(`ingot/testing/forge_*_test.go`); see docs/DEVELOPING.md "Service repos own their e2e tests".
 
 ## CI/CD
 
-There is no CI wired up in this repository yet. When CI lands, this section will describe the triggers, workflows, and test structure.
+GitHub Actions run on every PR and push to main (`.github/workflows/`):
+
+- **Go Test** / **Go Checks** — unit tests, vet, lint via the shared unified workflows.
+- **E2E** (`e2e.yml`) — `go test -tags e2e ./tests/e2e/...`: Docker-backed full-stack tests
+  (upload/retrieve smoke over the four storage-backend permutations, snapshot boot, ingot
+  system health). Dumps every container's logs on failure.
 
 ## Further Reading
 
