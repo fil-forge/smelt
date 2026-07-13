@@ -4,7 +4,6 @@ package e2e
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"os"
 	"regexp"
@@ -15,7 +14,6 @@ import (
 
 	ingottest "github.com/fil-forge/ingot/testing"
 	"github.com/versity/versitygw/tests/integration"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/fil-forge/smelt/pkg/clients/guppy"
 	"github.com/fil-forge/smelt/pkg/stack"
@@ -216,33 +214,11 @@ func ingotSpaceDID(t *testing.T, ctx context.Context, s *stack.Stack) string {
 	return m[1]
 }
 
-// guppyLoginViaEmail logs the guppy agent in as email by racing the
-// (blocking) `guppy login` CLI command against smelt's SMTP4Dev
-// email-clicker, which fetches the access-request email and POSTs its
-// in-network validation link from inside the guppy container.
+// guppyLoginViaEmail logs the guppy agent in as email; the validation link is
+// clicked from inside the guppy container.
 func guppyLoginViaEmail(t *testing.T, ctx context.Context, s *stack.Stack, email string) {
 	t.Helper()
-	validator, err := guppy.NewSMTP4DevLoginValidator(
-		s.EmailEndpoint(),
-		guppy.WithSMTP4DevLoginValidatorClicker(&guppy.ExecDoer{Stack: s, Service: "guppy"}),
-	)
-	if err != nil {
-		t.Fatalf("email validator: %v", err)
-	}
-
-	lctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-	defer cancel()
-	g, gctx := errgroup.WithContext(lctx)
-	g.Go(func() error {
-		if _, stderr, err := s.Exec(gctx, "guppy", "guppy", "login", email); err != nil {
-			return fmt.Errorf("guppy login command: %v (stderr=%s)", err, stderr)
-		}
-		return nil
-	})
-	g.Go(func() error {
-		return validator.ValidateEmailLogin(gctx, email)
-	})
-	if err := g.Wait(); err != nil {
+	if err := guppy.LoginViaEmail(ctx, s, "guppy", email, "guppy", "login", email); err != nil {
 		t.Fatalf("guppy login via email: %v", err)
 	}
 }

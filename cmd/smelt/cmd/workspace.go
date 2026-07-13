@@ -67,7 +67,7 @@ func runWorkspaceBuild(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	data, err := workspace.RenderOverride(binaries, nodeNames)
+	data, err := workspace.RenderOverride(binaries, nil, nodeNames)
 	if err != nil {
 		return err
 	}

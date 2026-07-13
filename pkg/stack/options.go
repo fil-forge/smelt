@@ -24,6 +24,7 @@ type config struct {
 	signerImage     string
 	blockchainImage string
 	ipniImage       string
+	ingotImage      string
 
 	// Binary injection: bind-mount host-built binaries over the published
 	// images instead of rebuilding the image. serviceBinaries holds explicit
@@ -31,6 +32,10 @@ type config struct {
 	// auto-detect-and-build of services from the active go.work use-list.
 	serviceBinaries   map[string]string
 	workspaceBinaries bool
+
+	// Config injection: bind-mount test-provided config files over a service's
+	// in-container config path, keyed by smelt service name.
+	serviceConfigs map[string]string
 
 	// Piri node topology. When nil, a single default node is used.
 	piriNodes []PiriNodeConfig
@@ -81,6 +86,9 @@ func (c *config) buildEnv() map[string]string {
 	}
 	if c.ipniImage != "" {
 		env["IPNI_IMAGE"] = c.ipniImage
+	}
+	if c.ingotImage != "" {
+		env["INGOT_IMAGE"] = c.ingotImage
 	}
 
 	return env
@@ -149,6 +157,21 @@ func WithPiriBinary(path string) Option {
 	return WithServiceBinary("piri", path)
 }
 
+// WithServiceConfig mounts a test-provided config file over a service's
+// in-container config path (e.g. ingot's /etc/ingot/config.yaml), replacing
+// the default that ships with smelt's system definition. This lets a service
+// repo's e2e tests exercise config changes without a smelt release. Only
+// services with a registered config path support this (see pkg/workspace);
+// NewStack errors for others.
+func WithServiceConfig(service, path string) Option {
+	return func(c *config) {
+		if c.serviceConfigs == nil {
+			c.serviceConfigs = map[string]string{}
+		}
+		c.serviceConfigs[service] = path
+	}
+}
+
 // WithWorkspaceBinaries builds every service selected by the active Go
 // workspace (go.work) from local sibling source and mounts the resulting
 // binaries over the published images. Selection follows the use-list: a service
@@ -210,6 +233,13 @@ func WithBlockchainImage(image string) Option {
 func WithIPNIImage(image string) Option {
 	return func(c *config) {
 		c.ipniImage = image
+	}
+}
+
+// WithIngotImage sets the ingot container image.
+func WithIngotImage(image string) Option {
+	return func(c *config) {
+		c.ingotImage = image
 	}
 }
 

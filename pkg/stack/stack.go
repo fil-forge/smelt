@@ -474,7 +474,20 @@ func maybeBinaryOverride(t *testing.T, tempDir string, cfg *config, nodes []mani
 		t.Logf("smeltery: mounting %s binary from %s", svc, abs)
 	}
 
-	if len(bins) == 0 {
+	configs := map[string]string{}
+	for svc, path := range cfg.serviceConfigs {
+		abs, err := filepath.Abs(path)
+		if err != nil {
+			return "", err
+		}
+		if _, err := os.Stat(abs); err != nil {
+			return "", fmt.Errorf("%s config not found at %s: %w", svc, abs, err)
+		}
+		configs[svc] = abs
+		t.Logf("smeltery: mounting %s config from %s", svc, abs)
+	}
+
+	if len(bins) == 0 && len(configs) == 0 {
 		return "", nil
 	}
 
@@ -482,7 +495,7 @@ func maybeBinaryOverride(t *testing.T, tempDir string, cfg *config, nodes []mani
 	for i, n := range nodes {
 		nodeNames[i] = n.Name
 	}
-	data, err := workspace.RenderOverride(bins, nodeNames)
+	data, err := workspace.RenderOverride(bins, configs, nodeNames)
 	if err != nil {
 		return "", err
 	}

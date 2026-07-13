@@ -4,14 +4,12 @@ package e2e
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
 	ingottest "github.com/fil-forge/ingot/testing"
-	"golang.org/x/sync/errgroup"
 
 	// The guppy package here is smelt's email-login test helper (SMTP4Dev
 	// validator + in-network curl ExecDoer) — NOT the guppy CLI. This test
@@ -80,34 +78,13 @@ func TestIngotNativeProvision(t *testing.T) {
 	}
 }
 
-// ingotLoginViaEmail logs the ingot agent in as email by racing the blocking
-// `ingot login` CLI (run in the ingot container) against smelt's SMTP4Dev
-// email-clicker, which POSTs the in-network validation link from inside the
-// ingot container itself — so the whole login is guppy-free.
+// ingotLoginViaEmail logs the ingot agent in as email — guppy-free: the
+// blocking `ingot login` CLI runs in the ingot container and the validation
+// link is clicked from inside that same container.
 func ingotLoginViaEmail(t *testing.T, ctx context.Context, s *stack.Stack, email string) {
 	t.Helper()
-	validator, err := guppy.NewSMTP4DevLoginValidator(
-		s.EmailEndpoint(),
-		guppy.WithSMTP4DevLoginValidatorClicker(&guppy.ExecDoer{Stack: s, Service: "ingot"}),
-	)
-	if err != nil {
-		t.Fatalf("email validator: %v", err)
-	}
-
-	lctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-	defer cancel()
-	g, gctx := errgroup.WithContext(lctx)
-	g.Go(func() error {
-		if _, stderr, err := s.Exec(gctx, "ingot",
-			"ingot", "--config", ingotConfigPath, "login", email); err != nil {
-			return fmt.Errorf("ingot login command: %v (stderr=%s)", err, stderr)
-		}
-		return nil
-	})
-	g.Go(func() error {
-		return validator.ValidateEmailLogin(gctx, email)
-	})
-	if err := g.Wait(); err != nil {
+	if err := guppy.LoginViaEmail(ctx, s, "ingot", email,
+		"ingot", "--config", ingotConfigPath, "login", email); err != nil {
 		t.Fatalf("ingot login via email: %v", err)
 	}
 }
