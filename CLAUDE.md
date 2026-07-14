@@ -492,7 +492,7 @@ via `stack.WithServiceBinary`. Compose files, configs, and embedded snapshots tr
 Go import (`go:embed`), so no smelt checkout is needed. Smelt owns each service's *system
 definition* (topology, ports, default config, keys) and asserts it boots healthy; the service
 repo owns its *behavior* tests. Ingot is the reference implementation
-(`ingot/testing/forge_*_test.go`); see docs/DEVELOPING.md "Service repos own their e2e tests".
+(`ingot/itest`); see docs/DEVELOPING.md "Service repos own their e2e tests".
 
 ## CI/CD
 

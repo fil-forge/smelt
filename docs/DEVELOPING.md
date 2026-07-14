@@ -75,7 +75,7 @@ replace google.golang.org/genproto => google.golang.org/genproto v0.0.0-20260526
 This lives only in `go.work` (gitignored), so it never touches any committed `go.mod`. Other
 siblings (piri-pdp, sprue, …) don't need it.
 
-> Ingot's forge e2e tests live in the **ingot repo** (`testing/forge_*_test.go`), not in smelt
+> Ingot's forge e2e tests live in the **ingot repo** (`itest/`), not in smelt
 > — see "Service repos own their e2e tests" below. Put `./ingot` in the `use`-list (plus the
 > replace above) only when you want `SMELT_WORKSPACE=1` smelt runs to rebuild ingot from local
 > source.
@@ -171,7 +171,7 @@ s := stack.MustNewStack(t,
     stack.WithPiriNodes(stack.PiriNodeConfig{}),
     // Mount the working tree's binary over the published image. Build it
     // yourself (CGO_ENABLED=0 GOOS=linux GOARCH=<host arch>); see ingot's
-    // testing/stack_e2e_test.go for a sync.Once build helper.
+    // itest/stack_test.go for a sync.Once build helper.
     stack.WithServiceBinary("ingot", localBinary),
     // Optional: exercise a config change without a smelt release.
     stack.WithServiceConfig("ingot", "testdata/config.yaml"),
@@ -191,5 +191,5 @@ calls `stack.CleanupLeaked` to sweep `smeltery-*` leftovers from crashed runs, a
 **Division of responsibility:** smelt owns each service's *system definition* (compose
 topology, ports, default config, key wiring) and asserts it boots healthy; the service repo
 owns its *behavior* tests. Ingot is the reference implementation of this pattern
-(`ingot/testing/forge_*_test.go` + its `e2e` CI workflow); new services should follow it
+(`ingot/itest` + its gated `itest` CI job); new services should follow it
 rather than adding behavior tests to smelt's `tests/e2e/`.
