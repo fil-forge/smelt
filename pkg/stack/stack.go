@@ -105,6 +105,15 @@ func NewStack(ctx context.Context, t *testing.T, opts ...Option) (*Stack, error)
 		if err != nil {
 			return nil, fmt.Errorf("load snapshot files: %w", err)
 		}
+		// Fill in keys for services added since the snapshot was captured
+		// (force=false keeps every restored key, preserving registered
+		// identities). Without this, compose bind-mounts a nonexistent key
+		// file and Docker materializes it as an empty directory — e.g. a
+		// pre-ingot snapshot leaves ingot crashlooping on
+		// "reading agent key /keys/ingot.pem: is a directory".
+		if err := generate.GenerateKeys(filepath.Join(tempDir, "generated", "keys"), resolvedNodes, false); err != nil {
+			return nil, fmt.Errorf("generate missing keys: %w", err)
+		}
 		t.Logf("smeltery: booting from snapshot %s (%d piri node(s), %d volume(s))",
 			snapDir, len(resolvedNodes), len(snapDesc.Volumes))
 	} else {
@@ -405,6 +414,31 @@ func (s *Stack) EmailEndpoint() string {
 	return fmt.Sprintf("http://%s:%s", host, port.Port())
 }
 
+// IngotEndpoint returns the host S3 endpoint for the ingot gateway
+// (container port 9000). The host is normalized to 127.0.0.1 rather than
+// "localhost": the AWS SDK uses virtual-host-style addressing
+// (bucket.host) for a hostname endpoint but path-style for an IP, and
+// ingot's versitygw front end is path-style — a hostname endpoint yields
+// 405 MethodNotAllowed on CreateBucket.
+func (s *Stack) IngotEndpoint() string {
+	container, err := s.compose.ServiceContainer(context.Background(), "ingot")
+	if err != nil {
+		s.t.Fatalf("getting ingot container: %v", err)
+	}
+	host, err := container.Host(context.Background())
+	if err != nil {
+		s.t.Fatalf("getting ingot host: %v", err)
+	}
+	if host == "localhost" {
+		host = "127.0.0.1"
+	}
+	port, err := container.MappedPort(context.Background(), "9000/tcp")
+	if err != nil {
+		s.t.Fatalf("getting ingot port: %v", err)
+	}
+	return fmt.Sprintf("http://%s:%s", host, port.Port())
+}
+
 // maybeBinaryOverride builds workspace-selected service binaries (when enabled)
 // and writes a compose override mounting them — plus any explicitly-provided
 // binaries (WithServiceBinary / WithPiriBinary) — over the published images.
@@ -440,7 +474,20 @@ func maybeBinaryOverride(t *testing.T, tempDir string, cfg *config, nodes []mani
 		t.Logf("smeltery: mounting %s binary from %s", svc, abs)
 	}
 
-	if len(bins) == 0 {
+	configs := map[string]string{}
+	for svc, path := range cfg.serviceConfigs {
+		abs, err := filepath.Abs(path)
+		if err != nil {
+			return "", err
+		}
+		if _, err := os.Stat(abs); err != nil {
+			return "", fmt.Errorf("%s config not found at %s: %w", svc, abs, err)
+		}
+		configs[svc] = abs
+		t.Logf("smeltery: mounting %s config from %s", svc, abs)
+	}
+
+	if len(bins) == 0 && len(configs) == 0 {
 		return "", nil
 	}
 
@@ -448,7 +495,7 @@ func maybeBinaryOverride(t *testing.T, tempDir string, cfg *config, nodes []mani
 	for i, n := range nodes {
 		nodeNames[i] = n.Name
 	}
-	data, err := workspace.RenderOverride(bins, nodeNames)
+	data, err := workspace.RenderOverride(bins, configs, nodeNames)
 	if err != nil {
 		return "", err
 	}
