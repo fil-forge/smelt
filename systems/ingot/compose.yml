@@ -10,13 +10,7 @@
 
 services:
   ingot:
-    # No published image — built from the sibling checkout at ../ingot
-    # (hilt-integration branch, PR fil-forge/ingot#36). The explicit tag lets
-    # already-built images be reused by test stacks whose extracted compose
-    # tree has no ../ingot to build from.
-    image: ${INGOT_IMAGE:-smelt-ingot:dev}
-    build:
-      context: ../../../ingot
+    image: ${INGOT_IMAGE:-ghcr.io/fil-forge/ingot:main}
     user: "0:0"  # Run as root for volume permissions (key files are 600)
     command: ["serve", "--config", "/etc/ingot/config.yaml"]
     ports:
