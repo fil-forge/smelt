@@ -1,9 +1,12 @@
-# Ingot System - S3-compatible facade for the Forge network
+# Ingot System - Embeddable S3 gateway over the Forge network
 #
-# Serves the AWS S3 API (path-style), authorizing requests via hilt's UCAN
-# RPC (/s3/request/authorize, /s3/bucket/*) and shipping object data to the
-# Forge network via the upload service (sprue) and piri.
-# Used by: S3 clients (aws cli, SDKs)
+# Presents an S3 REST endpoint. Splits each object into a data-plane CAR
+# (object bodies) and a catalog-plane CAR (MST nodes + manifests), and
+# ships each plane to the Forge network through the upload service (sprue)
+# as a guppy-style edge client (/blob/add -> /ucan/conclude ->
+# /blob/accept -> /index/add). Per-plane shipping is configurable.
+#
+# Requires: hilt, upload (sprue), piri, indexer.
 
 services:
   ingot:
@@ -15,7 +18,7 @@ services:
     build:
       context: ../../../ingot
     user: "0:0"  # Run as root for volume permissions (key files are 600)
-    command: ["serve"]
+    command: ["serve", "--config", "/etc/ingot/config.yaml"]
     ports:
       - "${SMELT_INGOT_PORT:-15130:9000}"
     volumes:
@@ -24,10 +27,16 @@ services:
       - ../../generated/proofs:/proofs:ro
       # /etc/ingot is on ingot's default config search path
       - ./config:/etc/ingot:ro
+    environment:
+      - INGOT_LOG_LEVEL=${INGOT_LOG_LEVEL:-info}
     depends_on:
       hilt:
         condition: service_healthy
       upload:
+        condition: service_healthy
+      piri-0:
+        condition: service_healthy
+      indexer:
         condition: service_healthy
       ingot-postgres:
         condition: service_healthy
@@ -37,14 +46,14 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 15s
+      start_period: 10s
     restart: unless-stopped
     networks:
       - forge-network
 
-  # Postgres for ingot's registry/metadata stores (schema `ingot`). Ingot
-  # runs goose migrations on startup, so the empty database created by
-  # POSTGRES_DB is enough — no init sidecar needed.
+  # Postgres for ingot's registry/meta. ingot runs its own goose
+  # migrations under the `ingot` schema on startup; the `ingot` database
+  # created by POSTGRES_DB is enough.
   ingot-postgres:
     image: postgres:16-alpine
     ports:
@@ -67,6 +76,5 @@ services:
       - forge-network
 
 volumes:
-  # LSM log segments, blob spool, and token store (ingot's data_dir)
   ingot-data:
   ingot-postgres-data:

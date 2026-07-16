@@ -1,18 +1,16 @@
-# Ingot (S3 Facade)
+# Ingot
 
-Ingot serves the AWS S3 API on top of the Forge network (see the
-[Forge S3 tenant management RFC](https://github.com/fil-one/rfc/blob/main/rfcs/2026-06-forge-s3-tenant-management.md)).
-Bucket operations and request authorization are forwarded to [hilt](../hilt/)
-over UCAN RPC (`/s3/bucket/*`, `/s3/request/authorize`); object data ships to
-the Forge network via the upload service (sprue) and is read back from piri.
+Embeddable S3 gateway over the Forge network, run as a daemon. Presents an
+S3 REST endpoint; splits each object into a **data-plane** CAR (object
+bodies) and a **catalog-plane** CAR (MST nodes + manifests), and ships each
+plane independently to Forge through the upload service (sprue) as a
+guppy-style edge client.
 
 ## Services
 
-- **ingot** - S3 facade (built from the sibling `../ingot` checkout — no
-  published image; the hilt integration is PR
-  [fil-forge/ingot#36](https://github.com/fil-forge/ingot/pull/36))
-- **ingot-postgres** - PostgreSQL for ingot's registry/metadata (schema
-  `ingot`, goose migrations run at startup)
+- **ingot** — the S3 gateway daemon (forge mode).
+- **ingot-postgres** — Postgres for ingot's registry/segment metadata
+  (own `ingot` schema; ingot runs its own goose migrations on startup).
 
 ## Ports
 

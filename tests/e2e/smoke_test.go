@@ -51,6 +51,13 @@ func TestUploadAndRetrieve(t *testing.T) {
 			}
 
 			s := stack.MustNewStack(t, opts...)
+
+			// Smelt owns ingot's *system definition* (topology, config,
+			// keys); ingot's behavior tests live in the ingot repo
+			// (testing/forge_*_test.go), which imports this stack SDK.
+			// Here we only assert the definition boots to healthy.
+			waitHTTPOK(t, s.IngotEndpoint()+"/health", 2*time.Minute)
+
 			gup, err := guppy.NewContainerClient(s)
 			if err != nil {
 				t.Fatal(err)

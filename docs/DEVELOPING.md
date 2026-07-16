@@ -51,6 +51,35 @@ file also makes your editor and `go test` resolve the local sibling source, so t
 
 The `use`-list is the **single source of truth** for what gets rebuilt.
 
+### Including guppy or ingot: the genproto replace
+
+If you put `./guppy` (or `./ingot`) in the `use`-list, the build fails with an *ambiguous import*
+for `google.golang.org/genproto/googleapis/{rpc,api}/...`: those modules pull the **pre-split
+monolithic** `google.golang.org/genproto` (≈2021) transitively, and its `rpc`/`api` packages
+collide with the **split** genproto modules smelt requires. Add a workspace-local `replace` that
+bumps the monolith to a post-split version (where those packages are delegated to the split
+modules):
+
+```
+go 1.26.1
+
+use (
+	./smelt
+	./guppy
+	./ingot
+)
+
+replace google.golang.org/genproto => google.golang.org/genproto v0.0.0-20260526163538-3dc84a4a5aaa
+```
+
+This lives only in `go.work` (gitignored), so it never touches any committed `go.mod`. Other
+siblings (piri-pdp, sprue, …) don't need it.
+
+> Ingot's forge e2e tests live in the **ingot repo** (`itest/`), not in smelt
+> — see "Service repos own their e2e tests" below. Put `./ingot` in the `use`-list (plus the
+> replace above) only when you want `SMELT_WORKSPACE=1` smelt runs to rebuild ingot from local
+> source.
+
 ### Selection and the `libforge` rule
 
 A service is rebuilt from local source when its module dir is in the `use`-list. Because the
@@ -130,3 +159,37 @@ what you're working on.
 - **A service won't come up healthy:** that's your local code running — check its logs
   (`docker compose logs -f <service>`). The injection is working; the failure is in the binary
   you just built.
+
+## Service repos own their e2e tests (smelt as SDK)
+
+The workspace flow above is for validating changes *inside smelt runs*. The complementary —
+and for day-to-day service development, preferred — direction is the service repo importing
+**smelt as a Go test dependency** and orchestrating the stack from its own e2e tests:
+
+```go
+s := stack.MustNewStack(t,
+    stack.WithPiriNodes(stack.PiriNodeConfig{}),
+    // Mount the working tree's binary over the published image. Build it
+    // yourself (CGO_ENABLED=0 GOOS=linux GOARCH=<host arch>); see ingot's
+    // itest/stack_test.go for a sync.Once build helper.
+    stack.WithServiceBinary("ingot", localBinary),
+    // Optional: exercise a config change without a smelt release.
+    stack.WithServiceConfig("ingot", "testdata/config.yaml"),
+)
+endpoint := s.IngotEndpoint()
+```
+
+Everything travels with the Go import — compose files, per-service configs, and embedded
+snapshots ride along via `go:embed`, so no smelt checkout is required. Add a `TestMain` that
+calls `stack.CleanupLeaked` to sweep `smeltery-*` leftovers from crashed runs, and
+`guppy.LoginViaEmail` for flows that need a logged-in agent.
+
+> **One e2e run per host at a time.** `CleanupLeaked` sweeps *every* `smeltery-*` container,
+> including live ones — concurrently starting another repo's e2e suite on the same Docker
+> host will tear the first run's stacks out from under it mid-boot.
+
+**Division of responsibility:** smelt owns each service's *system definition* (compose
+topology, ports, default config, key wiring) and asserts it boots healthy; the service repo
+owns its *behavior* tests. Ingot is the reference implementation of this pattern
+(`ingot/itest` + its gated `itest` CI job); new services should follow it
+rather than adding behavior tests to smelt's `tests/e2e/`.
