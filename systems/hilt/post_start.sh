@@ -49,7 +49,7 @@ if [ -z "$ingot_did" ]; then
     exit 1
 fi
 
-region="us-west-1"
+region="${INGOT_REGION:-us-west-1}"
 echo "post_start: registering ingot (${ingot_did}) as provider for ${region}"
 # Tolerate "already registered" — expected if the hook re-fires against a
 # hilt whose provider store still holds the record. Any other failure is

@@ -44,6 +44,8 @@ services:
       - ./post_start.sh:/post_start.sh:ro
     post_start:
       - command: sh ./post_start.sh
+        environment:
+          - INGOT_REGION=${INGOT_REGION:-us-west-1}
     depends_on:
       upload:
         condition: service_healthy

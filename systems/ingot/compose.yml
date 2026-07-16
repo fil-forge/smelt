@@ -22,6 +22,7 @@ services:
       # /etc/ingot is on ingot's default config search path
       - ./config:/etc/ingot:ro
     environment:
+      - INGOT_REGION=${INGOT_REGION:-us-west-1}
       - INGOT_LOG_LEVEL=${INGOT_LOG_LEVEL:-info}
     depends_on:
       hilt:
