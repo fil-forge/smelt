@@ -27,11 +27,21 @@ func TestCurioPiriValidation(t *testing.T) {
 		t.Skip("set ITEST_PIRI_BIN to a piri binary built from the curio branch (skiff nosupraseal tags)")
 	}
 
-	ctx := t.Context()
-	s := stack.MustNewStack(t,
+	opts := []stack.Option{
 		stack.WithPiriNodes(stack.PiriNodeConfig{Postgres: true}),
 		stack.WithServiceBinary("piri", piriBin),
-	)
+	}
+	// The published filecoin-localdev:main image emits nil-Ticket mock
+	// tipsets that lotus ≥1.36.0 clients reject, silently starving
+	// chainsched (see LANDING.md Track V). Point this at an image carrying
+	// the mockrpc Ticket fix (e.g. filecoin-localdev:curio-local) until the
+	// published image is rebuilt.
+	if img := os.Getenv("ITEST_BLOCKCHAIN_IMAGE"); img != "" {
+		opts = append(opts, stack.WithBlockchainImage(img))
+	}
+
+	ctx := t.Context()
+	s := stack.MustNewStack(t, opts...)
 
 	gup, err := guppy.NewContainerClient(s)
 	if err != nil {
