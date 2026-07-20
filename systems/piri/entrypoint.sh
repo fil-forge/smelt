@@ -65,10 +65,15 @@ else
 
     cd "$DATA_DIR"
 
-    # Build init command with base flags
+    # Build init command with base flags. --plc-directory points did:plc
+    # resolution at the in-network PLC container (hilt publishes tenant
+    # did:plc genesis ops there); without it piri defaults to the public
+    # https://plc.directory and can't resolve local tenants, so the
+    # ingot->piri /content/retrieve read path fails chain validation.
     INIT_CMD="/usr/bin/piri init \
         --base-config=$BASE_CONFIG \
         --registrar-url=$REGISTRAR_URL \
+        --plc-directory=${PIRI_PLC_DIRECTORY:-http://plc:3000} \
         --data-dir=$DATA_DIR \
         --temp-dir=$TEMP_DIR \
         --key-file=$KEY_FILE \
