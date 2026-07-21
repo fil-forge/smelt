@@ -6,12 +6,33 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/fil-forge/smelt/pkg/clients/guppy"
 	"github.com/fil-forge/smelt/pkg/stack"
 )
+
+// stackSem bounds how many full stacks are alive at once. Each storage
+// permutation spins up ~20 containers (blockchain, three postgres, vault,
+// the JVM-based dynamodb-local, piri, ...). Letting all four permutations
+// boot in parallel saturates a 4-vCPU CI runner, and the slow-starting
+// JVM services (dynamodb-local, vault) then miss their Docker healthcheck
+// windows — compose gives up with "dependency failed to start ...
+// is unhealthy" and the subtest flakes. Capping concurrency keeps peak
+// load in check while still overlapping the expensive boots. Override with
+// SMELT_E2E_MAX_PARALLEL on beefier machines.
+var stackSem = make(chan struct{}, maxParallelStacks())
+
+func maxParallelStacks() int {
+	if v := os.Getenv("SMELT_E2E_MAX_PARALLEL"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+	return 2
+}
 
 func TestUploadAndRetrieve(t *testing.T) {
 	if runtime.GOOS == "darwin" {
@@ -32,6 +53,11 @@ func TestUploadAndRetrieve(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
+			// Bound concurrent stack boots — see stackSem.
+			stackSem <- struct{}{}
+			defer func() { <-stackSem }()
+
 			ctx := t.Context()
 
 			opts := []stack.Option{
