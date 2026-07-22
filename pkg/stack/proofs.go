@@ -4,11 +4,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	blobcmds "github.com/fil-forge/libforge/commands/blob"
 	replicacmds "github.com/fil-forge/libforge/commands/blob/replica"
 	"github.com/fil-forge/libforge/commands/claim"
+	customercmds "github.com/fil-forge/libforge/commands/customer"
 	pdpcmds "github.com/fil-forge/libforge/commands/pdp"
+	s3bkt "github.com/fil-forge/libforge/commands/s3/bucket"
+	s3req "github.com/fil-forge/libforge/commands/s3/request"
 	"github.com/fil-forge/libforge/commands/space/egress"
 	"github.com/fil-forge/libforge/identity"
 	"github.com/fil-forge/smelt/pkg/manifest"
@@ -39,10 +43,11 @@ type delegateFn func(issuer ucan.Issuer, audience, subject did.DID, opts ...dele
 // ucantone envelope encoding, so the proofs parse with the delegator's
 // ucantone delegation.Decode.
 //
-// As of ucan1.0 there are exactly two: indexer → delegator (/claim/cache) and
-// etracker → delegator (/space/egress/track). Per-node piri → upload proofs are
-// no longer generated — provider registration stopped consuming proof files
-// (see systems/upload/post_start.sh).
+// As of ucan1.0 these are: indexer → delegator (/claim/cache), etracker →
+// delegator (/space/egress/track), upload → hilt (/customer/add) and hilt →
+// ingot (/s3/*), plus one piri-N → upload proof per node — upload's
+// post_start.sh still passes each node's proof file to
+// `sprue client admin provider register`.
 func generateProofs(tempDir string, nodes []manifest.ResolvedPiriNode) error {
 	keysDir := filepath.Join(tempDir, "generated", "keys")
 	proofsDir := filepath.Join(tempDir, "generated", "proofs")
@@ -61,6 +66,36 @@ func generateProofs(tempDir string, nodes []manifest.ResolvedPiriNode) error {
 		return err
 	}
 
+	// upload → hilt (/customer/add): hilt presents this to the upload service
+	// when registering tenants as customers (mirrors the hilt section of
+	// generate-proofs.sh; hilt parses it with ucantone container.Decode).
+	if err := writeProofs(keysDir, proofsDir,
+		"upload", "did:web:upload", "did:web:hilt",
+		"hilt-customer-add-proof.txt",
+		[]ucan.Command{customercmds.Add.Command}); err != nil {
+		return err
+	}
+
+	// hilt → ingot (/s3/*): ingot presents these when invoking hilt's UCAN
+	// RPC API. Audience is ingot's did:key, read from the ingot.did file
+	// emitted by key generation (which always runs before proofs).
+	ingotDID, err := os.ReadFile(filepath.Join(keysDir, "ingot.did"))
+	if err != nil {
+		return fmt.Errorf("read ingot DID: %w", err)
+	}
+	if err := writeProofs(keysDir, proofsDir,
+		"hilt", "did:web:hilt", strings.TrimSpace(string(ingotDID)),
+		"hilt-ingot-s3-proof.txt",
+		[]ucan.Command{
+			s3req.Authorize.Command,
+			s3bkt.Create.Command,
+			s3bkt.Delete.Command,
+			s3bkt.Info.Command,
+			s3bkt.List.Command,
+		}); err != nil {
+		return err
+	}
+
 	for _, node := range nodes {
 		if err := writeProofs(
 			keysDir,
@@ -75,7 +110,6 @@ func generateProofs(tempDir string, nodes []manifest.ResolvedPiriNode) error {
 		}
 	}
 
-	_ = nodes // piri → upload proofs are obsolete as of ucan1.0
 	return nil
 }
 

@@ -6,25 +6,27 @@
 # as a guppy-style edge client (/blob/add -> /ucan/conclude ->
 # /blob/accept -> /index/add). Per-plane shipping is configurable.
 #
-# Requires: upload (sprue), piri, indexer.
-#
-# NOTE: forge mode needs ingot authorized for a space on sprue. Either run
-# `ingot login <email>` once (delegations persist in the ingot-data
-# volume) or provision delegations out of band. See README.md.
+# Requires: hilt, upload (sprue), piri, indexer.
 
 services:
   ingot:
     image: ${INGOT_IMAGE:-ghcr.io/fil-forge/ingot:main}
+    user: "0:0"  # Run as root for volume permissions (key files are 600)
     command: ["serve", "--config", "/etc/ingot/config.yaml"]
     ports:
-      - "${SMELT_INGOT_PORT:-15110:9000}" # host:container — container S3 port
+      - "${SMELT_INGOT_PORT:-15130:9000}"
     volumes:
       - ingot-data:/data
       - ../../generated/keys/ingot.pem:/keys/ingot.pem:ro
+      - ../../generated/proofs:/proofs:ro
+      # /etc/ingot is on ingot's default config search path
       - ./config:/etc/ingot:ro
     environment:
+      - INGOT_REGION=${INGOT_REGION:-us-west-1}
       - INGOT_LOG_LEVEL=${INGOT_LOG_LEVEL:-info}
     depends_on:
+      hilt:
+        condition: service_healthy
       upload:
         condition: service_healthy
       piri-0:
@@ -50,7 +52,7 @@ services:
   ingot-postgres:
     image: postgres:16-alpine
     ports:
-      - "${SMELT_INGOT_POSTGRES_PORT:-15111:5432}"
+      - "${SMELT_INGOT_POSTGRES_PORT:-15131:5432}"
     environment:
       - POSTGRES_USER=ingot
       - POSTGRES_PASSWORD=ingot

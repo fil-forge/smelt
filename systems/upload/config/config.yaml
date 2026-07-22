@@ -4,6 +4,12 @@ deployment:
   environment: "development"
   allow_provision_without_payment_plan: true # allows provision without customer
   max_replicas: 3
+  # Hilt invokes /customer/add as did:web:hilt; sprue must resolve that DID
+  # over plain HTTP inside the compose network (http://hilt/.well-known/did.json).
+  insecure_did_resolution: true
+  # did:plc directory for resolving tenant (did:plc) issuers, e.g. hilt's
+  # /provider/add invocations during bucket provisioning.
+  plc_directory: "http://plc:3000"
 
 server:
   host: "0.0.0.0"

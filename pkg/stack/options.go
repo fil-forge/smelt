@@ -21,6 +21,7 @@ type config struct {
 	indexerImage    string
 	delegatorImage  string
 	uploadImage     string
+	hiltImage       string
 	signerImage     string
 	blockchainImage string
 	ipniImage       string
@@ -77,6 +78,9 @@ func (c *config) buildEnv() map[string]string {
 	}
 	if c.uploadImage != "" {
 		env["UPLOAD_IMAGE"] = c.uploadImage
+	}
+	if c.hiltImage != "" {
+		env["HILT_IMAGE"] = c.hiltImage
 	}
 	if c.signerImage != "" {
 		env["SIGNER_IMAGE"] = c.signerImage
@@ -212,6 +216,13 @@ func WithDelegatorImage(image string) Option {
 func WithUploadImage(image string) Option {
 	return func(c *config) {
 		c.uploadImage = image
+	}
+}
+
+// WithHiltImage sets the hilt (tenant management) container image.
+func WithHiltImage(image string) Option {
+	return func(c *config) {
+		c.hiltImage = image
 	}
 }
 

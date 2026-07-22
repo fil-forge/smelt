@@ -48,6 +48,7 @@ var Services = map[string]serviceBuild{
 	"indexer":         {moduleDir: "indexing-service", buildTarget: "./cmd", binPath: "/usr/bin/indexer"},
 	"delegator":       {moduleDir: "delegator", buildTarget: ".", binPath: "/usr/bin/registrar"},
 	"guppy":           {moduleDir: "guppy", buildTarget: ".", binPath: "/usr/bin/guppy"},
+	"hilt":            {moduleDir: "hilt", buildTarget: "./cmd/main.go", binPath: "/usr/bin/hilt"},
 	"ingot":           {moduleDir: "ingot", buildTarget: "./cmd/ingot", binPath: "/usr/bin/ingot", configPath: "/etc/ingot/config.yaml"},
 }
 

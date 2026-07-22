@@ -12,7 +12,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/fil-forge/libforge/identity"
 	"github.com/fil-forge/smelt/pkg/manifest"
+	"github.com/fil-forge/ucantone/multikey"
 )
 
 // nonPiriServiceKeys is the list of services that need Ed25519 keys (excluding piri).
@@ -23,6 +25,7 @@ var nonPiriServiceKeys = []string{
 	"signing-service",
 	"etracker",
 	"guppy",
+	"hilt",
 	"ingot",
 }
 
@@ -64,7 +67,9 @@ func GenerateKeys(keysDir string, nodes []manifest.ResolvedPiriNode, force bool)
 	return nil
 }
 
-// generateEd25519Key generates an Ed25519 key pair in PEM format.
+// generateEd25519Key generates an Ed25519 key pair in PEM format, plus a
+// <name>.did file holding the key's did:key identifier (consumed by shell
+// scripts that have no DID tooling, e.g. systems/hilt/post_start.sh).
 func generateEd25519Key(keysDir, name string, force bool) error {
 	privPath := filepath.Join(keysDir, name+".pem")
 	if !force && fileExists(privPath) {
@@ -101,6 +106,17 @@ func generateEd25519Key(keysDir, name string, force bool) error {
 	pubPath := filepath.Join(keysDir, name+".pub")
 	if err := os.WriteFile(pubPath, pubPEM, 0644); err != nil {
 		return fmt.Errorf("write public key: %w", err)
+	}
+
+	// Emit <name>.did alongside the freshly-generated key.
+	signer, err := identity.DecodeSignerFromPEM(privPEM)
+	if err != nil {
+		return fmt.Errorf("decode private key for DID derivation: %w", err)
+	}
+	id := multikey.KeyIssuer(signer).DID().String()
+	didPath := filepath.Join(keysDir, name+".did")
+	if err := os.WriteFile(didPath, []byte(id+"\n"), 0644); err != nil {
+		return fmt.Errorf("write DID file: %w", err)
 	}
 
 	return nil
