@@ -12,7 +12,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/fil-forge/libforge/identity"
 	"github.com/fil-forge/smelt/pkg/manifest"
+	"github.com/fil-forge/ucantone/multikey"
 )
 
 // nonPiriServiceKeys is the list of services that need Ed25519 keys (excluding piri).
@@ -104,6 +106,17 @@ func generateEd25519Key(keysDir, name string, force bool) error {
 	pubPath := filepath.Join(keysDir, name+".pub")
 	if err := os.WriteFile(pubPath, pubPEM, 0644); err != nil {
 		return fmt.Errorf("write public key: %w", err)
+	}
+
+	// Emit <name>.did alongside the freshly-generated key.
+	signer, err := identity.DecodeSignerFromPEM(privPEM)
+	if err != nil {
+		return fmt.Errorf("decode private key for DID derivation: %w", err)
+	}
+	id := multikey.KeyIssuer(signer).DID().String()
+	didPath := filepath.Join(keysDir, name+".did")
+	if err := os.WriteFile(didPath, []byte(id+"\n"), 0644); err != nil {
+		return fmt.Errorf("write DID file: %w", err)
 	}
 
 	return nil
