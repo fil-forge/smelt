@@ -115,13 +115,7 @@ func generateProofs(tempDir string, nodes []manifest.ResolvedPiriNode) error {
 
 // writeProofs writes a UCAN container of delegations from issuerKeyName's key
 // (optionally wrapped as issuerDidWeb) to audienceDID for each passed command.
-// Skips writing when outputFile already exists (mirrors generate-proofs.sh),
-// so snapshot-restored proofs are only topped up, never replaced.
 func writeProofs(keysDir, proofsDir, issuerKeyName, issuerDidWeb, audienceDID, outputFile string, cmds []ucan.Command) error {
-	if _, err := os.Stat(filepath.Join(proofsDir, outputFile)); err == nil {
-		return nil
-	}
-
 	pemData, err := os.ReadFile(filepath.Join(keysDir, issuerKeyName+".pem"))
 	if err != nil {
 		return fmt.Errorf("reading issuer key %s: %w", issuerKeyName, err)
@@ -169,13 +163,7 @@ func writeProofs(keysDir, proofsDir, issuerKeyName, issuerDidWeb, audienceDID, o
 // writeDelegation creates one delegation from issuerKeyName's key (optionally
 // wrapped as issuerDidWeb) to audienceDID, using the given libforge command,
 // and writes the ucantone-encoded envelope to proofsDir/outputFile.
-// Skips writing when outputFile already exists (mirrors generate-proofs.sh),
-// so snapshot-restored proofs are only topped up, never replaced.
 func writeDelegation(keysDir, proofsDir, issuerKeyName, issuerDidWeb, audienceDID, outputFile string, delegate delegateFn) error {
-	if _, err := os.Stat(filepath.Join(proofsDir, outputFile)); err == nil {
-		return nil
-	}
-
 	pemData, err := os.ReadFile(filepath.Join(keysDir, issuerKeyName+".pem"))
 	if err != nil {
 		return fmt.Errorf("read issuer key %s: %w", issuerKeyName, err)

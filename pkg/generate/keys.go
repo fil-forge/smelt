@@ -12,9 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/fil-forge/libforge/identity"
 	"github.com/fil-forge/smelt/pkg/manifest"
-	"github.com/fil-forge/ucantone/multikey"
 )
 
 // nonPiriServiceKeys is the list of services that need Ed25519 keys (excluding piri).
@@ -73,9 +71,7 @@ func GenerateKeys(keysDir string, nodes []manifest.ResolvedPiriNode, force bool)
 func generateEd25519Key(keysDir, name string, force bool) error {
 	privPath := filepath.Join(keysDir, name+".pem")
 	if !force && fileExists(privPath) {
-		// Top-up: keys generated before .did emission (or restored from an
-		// older snapshot) get their DID file derived from the existing PEM.
-		return ensureDIDFile(keysDir, name, force)
+		return nil
 	}
 
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
@@ -110,30 +106,6 @@ func generateEd25519Key(keysDir, name string, force bool) error {
 		return fmt.Errorf("write public key: %w", err)
 	}
 
-	return ensureDIDFile(keysDir, name, force)
-}
-
-// ensureDIDFile writes <name>.did containing the did:key identifier derived
-// from <name>.pem. Skips when the file already exists unless force is true.
-func ensureDIDFile(keysDir, name string, force bool) error {
-	didPath := filepath.Join(keysDir, name+".did")
-	if !force && fileExists(didPath) {
-		return nil
-	}
-
-	pemData, err := os.ReadFile(filepath.Join(keysDir, name+".pem"))
-	if err != nil {
-		return fmt.Errorf("read private key for DID derivation: %w", err)
-	}
-	signer, err := identity.DecodeSignerFromPEM(pemData)
-	if err != nil {
-		return fmt.Errorf("decode private key for DID derivation: %w", err)
-	}
-
-	id := multikey.KeyIssuer(signer).DID().String()
-	if err := os.WriteFile(didPath, []byte(id+"\n"), 0644); err != nil {
-		return fmt.Errorf("write DID file: %w", err)
-	}
 	return nil
 }
 
