@@ -13,26 +13,23 @@ validation:
 
 ## Services
 
-- **plc** - PLC directory server (Node, built from source)
+- **plc** - PLC directory server (Node)
 - **plc-postgres** - PostgreSQL for the operation log (migrations run at
   startup)
 
-## Build
+## Image
 
-No usable published image exists, so `plc` builds from a **pinned git
-context** in `compose.yml`:
+`plc` pulls a published image rather than building from source:
 
 ```yaml
-build:
-  context: https://github.com/did-method-plc/did-method-plc.git#<sha>
-  dockerfile: packages/server/Dockerfile
+image: ${PLC_IMAGE:-ghcr.io/fil-forge/did-method-plc:main}
 ```
 
-The first build takes a few minutes (yarn monorepo install/build); Docker's
-layer cache makes rebuilds fast. The service's `image:` tag embeds the pinned
-SHA — compose only builds when that image is missing, so to pick up upstream
-changes bump the SHA in **both** the context URL and the `image:` tag (the new
-tag triggers the rebuild automatically).
+The image is published by the [fil-forge fork](https://github.com/fil-forge/did-method-plc)
+of did-method-plc. Upstream's own ghcr workflow produced an unpullable image
+(malformed tag, private package), so the fork carries the publish fix pending an
+upstream PR. Override `PLC_IMAGE` (e.g. a specific SHA tag) to pin a different
+build.
 
 ## Ports
 

@@ -453,7 +453,7 @@ PIRI_IMAGE=ghcr.io/fil-forge/piri:v1.2.3 make up
 PIRI_IMAGE=myregistry/piri:test GUPPY_IMAGE=myregistry/guppy:test make up
 ```
 
-Available variables: `PIRI_IMAGE`, `GUPPY_IMAGE`, `DELEGATOR_IMAGE`, `INDEXER_IMAGE`, `IPNI_IMAGE`, `SIGNER_IMAGE`, `UPLOAD_IMAGE`, `HILT_IMAGE`, `INGOT_IMAGE`, `BLOCKCHAIN_IMAGE`. Defaults live in `.env`.
+Available variables: `PIRI_IMAGE`, `GUPPY_IMAGE`, `DELEGATOR_IMAGE`, `INDEXER_IMAGE`, `IPNI_IMAGE`, `SIGNER_IMAGE`, `UPLOAD_IMAGE`, `HILT_IMAGE`, `INGOT_IMAGE`, `PLC_IMAGE`, `BLOCKCHAIN_IMAGE`. Defaults live in `.env`.
 
 ## Developing Against Sibling Service Repos
 
