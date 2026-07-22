@@ -22,11 +22,15 @@ services:
       # seeds scratch from it on first run and `make clean` / `make nuke`
       # clears scratch to force a true cold boot.
       - ../../generated/snapshot-scratch/anvil-state.json:/app/anvil-state.json:ro
-      # NOT read-only: init mode's deploy-local.sh writes the deployed contract
-      # addresses here (a :ro mount makes the deploy fail with "Read-only file
-      # system" and the container restart-loops).
-      - ../../generated/snapshot-scratch/deployed-addresses.json:/deployed-addresses.json
       - ../../generated/snapshot-scratch:/output
+      # NB: deployed-addresses.json is deliberately NOT single-file bind-mounted.
+      # init mode's deploy-local.sh writes /deployed-addresses.json and the
+      # SIGTERM dump reads it back; a single-file mount that gets rewritten is
+      # unreliable on Docker Desktop for macOS (the host file vanishes mid-run,
+      # breaking the dump). Instead the deploy writes it inside the container and
+      # the dump copies it out through the /output dir mount above. Services read
+      # contract addresses from the committed systems/blockchain/state copy, not
+      # from here, so nothing else needs this file mounted.
     environment:
       - ANVIL_BLOCK_TIME=3
     # The SIGTERM state dump (anvil --dump-state flush + copy to /output) takes
