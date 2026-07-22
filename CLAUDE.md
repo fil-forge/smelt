@@ -313,6 +313,7 @@ All host-side ports live in a dedicated `15XXX` range to avoid collision with co
 | hilt-postgres | 15111 | PostgreSQL | Hilt tenant/provider store |
 | hilt-vault | 15112 | HTTP | Hilt key vault (HashiCorp Vault dev mode) |
 | plc | 15120 | HTTP | did:plc directory (reference implementation) |
+| plc-postgres | 15121 | PostgreSQL | did:plc directory store |
 | ingot | 15130 | S3/HTTP | S3 gateway over Forge |
 | ingot-postgres | 15131 | PostgreSQL | Ingot registry/metadata |
 | guppy | (none) | CLI | Client container |

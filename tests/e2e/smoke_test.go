@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"runtime"
-	"strconv"
 	"testing"
 	"time"
 
@@ -14,26 +13,14 @@ import (
 	"github.com/fil-forge/smelt/pkg/stack"
 )
 
-// stackSem bounds how many full stacks are alive at once. Each storage
-// permutation spins up ~20 containers (blockchain, three postgres, vault,
-// the JVM-based dynamodb-local, piri, ...). Letting all four permutations
-// boot in parallel saturates a 4-vCPU CI runner, and the slow-starting
-// JVM services (dynamodb-local, vault) then miss their Docker healthcheck
-// windows — compose gives up with "dependency failed to start ...
-// is unhealthy" and the subtest flakes. Capping concurrency keeps peak
-// load in check while still overlapping the expensive boots. Override with
-// SMELT_E2E_MAX_PARALLEL on beefier machines.
-var stackSem = make(chan struct{}, maxParallelStacks())
-
-func maxParallelStacks() int {
-	if v := os.Getenv("SMELT_E2E_MAX_PARALLEL"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			return n
-		}
-	}
-	return 2
-}
-
+// Each storage permutation boots a full stack (~20 containers, including
+// three postgres, vault, and the JVM-based dynamodb-local). Booting all
+// four at once saturates a 4-vCPU CI runner and the slow-starting JVM
+// services miss their healthcheck windows, so concurrency is bounded via
+// `go test -parallel N` (see e2e.yml, defaulting to 2). The -parallel
+// token is held until each subtest fully completes — including the stack
+// teardown registered by MustNewStack via t.Cleanup — so it caps live
+// stacks correctly.
 func TestUploadAndRetrieve(t *testing.T) {
 	if runtime.GOOS == "darwin" {
 		t.Skip("skipping on darwin (docker-in-docker flakiness)")
@@ -53,11 +40,6 @@ func TestUploadAndRetrieve(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-
-			// Bound concurrent stack boots — see stackSem.
-			stackSem <- struct{}{}
-			defer func() { <-stackSem }()
-
 			ctx := t.Context()
 
 			opts := []stack.Option{
