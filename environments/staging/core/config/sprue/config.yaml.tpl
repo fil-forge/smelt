@@ -11,6 +11,9 @@ deployment:
   # Staging bypasses payment plans (provisioning without a customer payment plan).
   allow_provision_without_payment_plan: true
   max_replicas: 3
+  # did:plc directory for resolving tenant (did:plc) issuers during bucket
+  # provisioning. Internal to the core bundle — plc has no public route.
+  plc_directory: "http://plc:3000"
 
 server:
   host: "0.0.0.0"

@@ -29,3 +29,16 @@ delegator.staging.fil.one {
 piri-0.staging.fil.one {
 	reverse_proxy 127.0.0.1:15100
 }
+
+hilt.staging.fil.one {
+	reverse_proxy 127.0.0.1:15110
+}
+
+# S3 endpoint (ingot). PATH-STYLE ONLY: no wildcard *.ingot.staging.fil.one
+# DNS/TLS exists, so virtual-hosted bucket addressing does not work — clients
+# must set force_path_style / addressing_style=path. Caddy imposes no default
+# body-size limit and streams proxied bodies, so large S3 PUTs need no extra
+# directives. ingot serves no did.json (it acts under a did:key).
+ingot.staging.fil.one {
+	reverse_proxy 127.0.0.1:15130
+}

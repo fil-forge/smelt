@@ -34,10 +34,12 @@ type opField struct {
 // fields maps the 1Password field label to the temp file holding its value.
 // Returns the sorted list of field labels written (names only — never values).
 //
-// keygen owns every field in the item and re-running is a deliberate overwrite:
-// an existing item is edited in place (not deleted-then-recreated, which would
-// leave nothing behind if the create failed), a missing one is created. keygen
-// supplies the complete field set, so either path fully refreshes the values.
+// keygen owns every field in the item: an existing item is edited in place (not
+// deleted-then-recreated, which would leave nothing behind if the create
+// failed), a missing one is created. keygen supplies the complete field set —
+// reused values byte-for-byte as read back, fresh values for fields the item
+// didn't hold yet — so the edit both refreshes existing fields (a no-op for
+// reused values) and adds new ones.
 // Requires an authenticated `op` session (run `op signin` first).
 func storeInOnePassword(vault, item string, fields map[string]string) ([]string, error) {
 	if vault == "" || item == "" {
@@ -95,4 +97,63 @@ func storeInOnePassword(vault, item string, fields map[string]string) ([]string,
 func itemExists(vault, item string) bool {
 	cmd := exec.Command("op", "item", "get", item, "--vault", vault)
 	return cmd.Run() == nil
+}
+
+// readOnePasswordFields returns label->value for every field the item already
+// holds, or an empty map when the item does not exist yet. Keygen uses it to
+// reuse existing secrets instead of rotating them (see Keygen). --reveal is
+// required on newer op CLIs for CONCEALED values to appear in the JSON output;
+// older CLIs reject the flag, so we retry without it.
+func readOnePasswordFields(vault, item string) (map[string]string, error) {
+	if vault == "" || item == "" {
+		return nil, fmt.Errorf("1Password vault and item must be set")
+	}
+	if _, err := exec.LookPath("op"); err != nil {
+		return nil, fmt.Errorf("1Password CLI %q not found in PATH: %w", "op", err)
+	}
+	if !itemExists(vault, item) {
+		return map[string]string{}, nil
+	}
+
+	out, err := opItemGetJSON(vault, item, true)
+	if err != nil {
+		out, err = opItemGetJSON(vault, item, false)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("op item get failed: %w", err)
+	}
+
+	var parsed struct {
+		Fields []opField `json:"fields"`
+	}
+	if err := json.Unmarshal(out, &parsed); err != nil {
+		return nil, fmt.Errorf("parsing op item get output: %w", err)
+	}
+	fields := make(map[string]string, len(parsed.Fields))
+	for _, f := range parsed.Fields {
+		label := f.Label
+		if label == "" {
+			label = f.ID
+		}
+		if label == "" || f.Value == "" {
+			continue
+		}
+		fields[label] = f.Value
+	}
+	return fields, nil
+}
+
+func opItemGetJSON(vault, item string, reveal bool) ([]byte, error) {
+	args := []string{"item", "get", item, "--vault", vault, "--format", "json"}
+	if reveal {
+		args = append(args, "--reveal")
+	}
+	cmd := exec.Command("op", args...)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return nil, err
+	}
+	return out.Bytes(), nil
 }

@@ -65,6 +65,35 @@ func TestPiriWalletHexDecodesToDelegatedJSON(t *testing.T) {
 	}
 }
 
+// The keygen reuses wallets stored in 1Password by parsing their serialized
+// form back into a wallet; each format must round-trip to the same address.
+func TestParseEVMWalletRoundTrips(t *testing.T) {
+	cases := []struct {
+		name      string
+		serialize func(*EVMWallet) string
+		parse     func(string) (*EVMWallet, error)
+	}{
+		{"RawHex", (*EVMWallet).RawHex, ParseEVMWalletRawHex},
+		{"Hex0x", (*EVMWallet).Hex0x, ParseEVMWalletHex0x},
+		{"PiriWalletHex", (*EVMWallet).PiriWalletHex, ParseEVMWalletPiriHex},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			w, err := GenerateEVMWallet()
+			if err != nil {
+				t.Fatalf("GenerateEVMWallet: %v", err)
+			}
+			parsed, err := tc.parse(tc.serialize(w))
+			if err != nil {
+				t.Fatalf("parse %s: %v", tc.name, err)
+			}
+			if parsed.Address != w.Address {
+				t.Fatalf("round-tripped address = %q, want %q", parsed.Address, w.Address)
+			}
+		})
+	}
+}
+
 func TestDistinctWalletsHaveDistinctAddresses(t *testing.T) {
 	a, err := GenerateEVMWallet()
 	if err != nil {

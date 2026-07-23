@@ -3,7 +3,9 @@ package staging
 import (
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"strings"
 
 	secec "gitlab.com/yawning/secp256k1-voi/secec"
 	"golang.org/x/crypto/sha3"
@@ -28,7 +30,11 @@ func GenerateEVMWallet() (*EVMWallet, error) {
 	if err != nil {
 		return nil, fmt.Errorf("generate secp256k1 key: %w", err)
 	}
+	return newEVMWallet(priv)
+}
 
+// newEVMWallet derives the EVM address for an existing secp256k1 private key.
+func newEVMWallet(priv *secec.PrivateKey) (*EVMWallet, error) {
 	// Uncompressed public key is 0x04 || X(32) || Y(32); the EVM address is
 	// keccak256(X || Y)[12:].
 	pub := priv.PublicKey().Bytes()
@@ -43,6 +49,56 @@ func GenerateEVMWallet() (*EVMWallet, error) {
 		priv:    priv.Bytes(),
 		Address: toChecksumAddress(addr),
 	}, nil
+}
+
+// ParseEVMWalletRawHex parses the serialization produced by RawHex (64 lowercase
+// hex chars, no 0x prefix) back into a wallet, re-deriving its address.
+func ParseEVMWalletRawHex(stored string) (*EVMWallet, error) {
+	return newEVMWalletFromKeyHex(strings.TrimSpace(stored))
+}
+
+// ParseEVMWalletHex0x parses the serialization produced by Hex0x (0x-prefixed
+// hex) back into a wallet, re-deriving its address.
+func ParseEVMWalletHex0x(stored string) (*EVMWallet, error) {
+	return newEVMWalletFromKeyHex(strings.TrimPrefix(strings.TrimSpace(stored), "0x"))
+}
+
+// ParseEVMWalletPiriHex parses the serialization produced by PiriWalletHex
+// (hex-encoded Filecoin delegated-wallet JSON) back into a wallet, re-deriving
+// its address.
+func ParseEVMWalletPiriHex(stored string) (*EVMWallet, error) {
+	raw, err := hex.DecodeString(strings.TrimSpace(stored))
+	if err != nil {
+		return nil, fmt.Errorf("decode wallet hex: %w", err)
+	}
+	var wallet struct {
+		Type       string `json:"Type"`
+		PrivateKey string `json:"PrivateKey"`
+	}
+	if err := json.Unmarshal(raw, &wallet); err != nil {
+		return nil, fmt.Errorf("decode wallet JSON: %w", err)
+	}
+	keyBytes, err := base64.StdEncoding.DecodeString(wallet.PrivateKey)
+	if err != nil {
+		return nil, fmt.Errorf("decode wallet private key base64: %w", err)
+	}
+	return newEVMWalletFromKeyBytes(keyBytes)
+}
+
+func newEVMWalletFromKeyHex(keyHex string) (*EVMWallet, error) {
+	keyBytes, err := hex.DecodeString(keyHex)
+	if err != nil {
+		return nil, fmt.Errorf("decode private key hex: %w", err)
+	}
+	return newEVMWalletFromKeyBytes(keyBytes)
+}
+
+func newEVMWalletFromKeyBytes(key []byte) (*EVMWallet, error) {
+	priv, err := secec.NewPrivateKey(key)
+	if err != nil {
+		return nil, fmt.Errorf("parse secp256k1 private key: %w", err)
+	}
+	return newEVMWallet(priv)
 }
 
 // RawHex returns the private key as 64 lowercase hex chars with no 0x prefix —

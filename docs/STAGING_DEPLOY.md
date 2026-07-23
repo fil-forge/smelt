@@ -33,7 +33,9 @@ There is **no** indexer / IPNI / redis / Anvil / mailer in staging. (sprue runs 
 empty `indexer.endpoint` and `mailer: nop`; piri's base config omits the
 `[ucan.services.indexer]`/`[publisher]` sections, which disables claim caching and IPNI
 announcements; the delegator still validates indexing/egress delegations at startup, so
-those proofs are generated even though neither service runs.)
+those proofs are generated even though neither service runs. ingot doesn't need an
+indexer either — its reads resolve from its local `blob_locations` registry, Known
+risk #11.)
 
 ### Rationale
 
@@ -47,9 +49,9 @@ FilOne in production) and storage nodes (operated by storage providers in produc
 
 Major Gaps:
 
-1. Add Ingot to the piri bundle.
-2. Find out what's the new end-to-end workflow and write an automated script for it
-3. Add a smoke test to the staging deploy that runs the new end-to-end workflow.
+1. Write an automated script for the Hilt/Ingot end-to-end workflow ([§8](#8-end-to-end-uploaddownload-test)).
+2. Add a smoke test to the staging deploy that runs the end-to-end workflow.
+3. Persistent Vault for hilt (the dev-mode Vault is in-memory — see Known risk #8).
 
 Improvements:
 
@@ -74,9 +76,14 @@ to a Kubernetes deployment.
 
 - **Box:** `root@23.83.66.244` (Servers.com Calibnet, hostname `ff`), Ubuntu, key-only SSH. Learn
   more in [Servers.com Calibnet Box Runbook](https://www.notion.so/filecoin/Servers-com-Calibnet-Box-Runbook-36b7631f2825802b8e3ac9f25eadcc34#3907631f282580e198e2dfbc1e1a47ad)
-- **Bundle `core`** — `sprue` (upload) + `signing-service` + `delegator` + `postgres` +
-  `minio` + `dynamodb-local`. Project `forge-staging-core`.
-- **Bundle `piri`** — one `piri-0` storage node (sqlite + filesystem). Project `forge-staging-piri`.
+- **Bundle `core`** — `sprue` (upload) + `signing-service` + `delegator` + `hilt` (tenant
+  management) + `plc` (did:plc directory, **internal-only** — no public route) + `hilt-vault`
+  + `postgres` + `minio` + `dynamodb-local`. Project `forge-staging-core`.
+- **Bundle `piri`** — one `piri-0` storage node (postgres + filesystem) + `ingot` (S3
+  gateway) + their shared `postgres`. Project `forge-staging-piri`.
+- **Postgres layout** — one shared instance per bundle: a dedicated `admin` superuser plus
+  one role + database per service (core: `sprue`, `hilt`, `plc`; piri: `piri_0`, `ingot`),
+  created by each bundle's `postgres-init` one-shot.
 - The bundles talk over **public `https://*.staging.fil.one` URLs**, fronted by the host's
   existing Caddy (`caddy-guppy.service`). The host Lotus Eth RPC (`0.0.0.0:1234`) is reached
   from containers via `host.docker.internal:host-gateway`.
@@ -94,19 +101,26 @@ Host layout:
   caddy/forge-staging.caddy               # copied from environments/staging/caddy/
 /root/fil-one/forge/secrets/              # provisioned (rendered) files (NOT in git)
   sprue-config.yaml delegator.yaml secrets.env piri-base-config.toml
-  sprue.pem signing-service.pem delegator.pem payer-key.hex
-  piri-0.pem piri-0-wallet.hex
+  ingot-config.yaml piri-secrets.env
+  sprue.pem signing-service.pem delegator.pem hilt.pem payer-key.hex
+  piri-0.pem piri-0-wallet.hex ingot.pem
 /mnt/data/fil-one/forge/                  # persistent data on the ZFS pool
-  postgres/
+  postgres/                               # core bundle's shared Postgres (sprue, hilt, plc)
   minio/
   dynamodb/
   piri-0/
+  piri-postgres/                          # piri bundle's shared Postgres (piri_0, ingot)
+  ingot/                                  # ingot LSM segments, blob spool, token store
 ```
 
 ## Prerequisites
 
 - **DNS:** A records for `sprue` / `signing-service` / `delegator` / `piri-0` under
   `staging.fil.one` → `23.83.66.244`, `proxied = false`. Already set up via https://github.com/fil-one/infrastructure/pull/35.
+  **`hilt` and `ingot` need the same records** (manual step in fil-one/infrastructure,
+  mirroring PR #35). Deliberately **no `plc` record** — the did:plc directory is internal
+  to the core bundle (Known risk #9). No wildcard `*.ingot` record either — the S3
+  endpoint is path-style only (Known risk #10).
 - **Calibnet Forge contract addresses** — already filled in
   [`environments/staging/smart-contracts.env`](../environments/staging/smart-contracts.env),
   the **single source of truth** for the chain id, RPC URL, and every contract address.
@@ -117,18 +131,26 @@ Host layout:
   `ucantool` (`go install github.com/fil-forge/ucantool@latest`), and foundry's `cast`
   (for `staging-fund-payer`; install via <https://getfoundry.sh>).
 
-## 1. One-time: generate keys, wallets, proofs
-
-Run once, ever (re-running mints fresh keys and overwrites the 1Password item):
+## 1. Ensure keys, wallets, proofs exist (idempotent)
 
 ```bash
 make staging-keygen          # = go run ./cmd/smelt staging keygen
 ```
 
-This generates the Ed25519 identities, three random EVM wallets (payer / delegator
-transactor / piri owner), Postgres + MinIO secrets, stores all private material in the
-single 1Password item `op://Fil One/FilOne Forge Staging`, writes the UCAN proofs to
-`environments/staging/proofs/`, and **writes the three public wallet addresses into
+The ceremony has **ensure semantics** and is safe to re-run: every field the 1Password
+item already holds is reused byte-for-byte (funded wallets, registered DIDs, and shipped
+keys survive), and only missing fields are generated and added. Re-run it after pulling a
+version that adds new services (e.g. hilt/ingot) — it mints only the new material and
+reports which fields were reused vs generated. To rotate a specific secret, delete its
+field from the 1Password item (and any proof files signed with it) and re-run.
+
+It covers the Ed25519 identities (incl. `hilt` and `ingot`), three random EVM wallets
+(payer / delegator transactor / piri owner), connection secrets (Postgres admin +
+per-service passwords, MinIO keys, hilt partner key, hilt vault token, ingot root S3
+credentials), stores all private material in the single 1Password item
+`op://Fil One/FilOne Forge Staging`, writes the UCAN proofs to
+`environments/staging/proofs/` (only missing ones, or those invalidated by a freshly
+generated key), and **writes the three public wallet addresses into
 `environments/staging/wallets.env`** (`PAYER_ADDRESS` from there renders into piri's
 config). It prints the three EVM addresses.
 
@@ -178,8 +200,8 @@ Provision the bundle you're about to deploy (we typically deploy one at a time):
 
 ```bash
 op signin
-make staging-provision-core            # sprue-config.yaml, delegator.yaml, secrets.env + key files
-make staging-provision-piri            # piri-0 key files
+make staging-provision-core            # sprue-config.yaml, delegator.yaml, secrets.env + key files (incl. hilt.pem)
+make staging-provision-piri            # piri-base-config.toml, ingot-config.yaml, piri-secrets.env + key files (incl. ingot.pem)
 ```
 
 **Provisioning is destructive — it resets the bundle to a clean slate.**
@@ -204,14 +226,15 @@ want to lose data over.
 ## 5. Deploy
 
 Deploy `core` first, allow-list the piri DID with the delegator, fund the payer's
-FilecoinPay account, deploy `piri`, then register the piri provider with sprue:
+FilecoinPay account, deploy `piri`, then run the two cross-bundle registrations:
 
 ```bash
-make staging-deploy-core               # sprue + signing-service + delegator + deps
+make staging-deploy-core               # sprue + signing-service + delegator + hilt + plc + deps
 make staging-allowlist-piri            # add piri's DID to the delegator allow list
 make staging-fund-payer                # deposit USDFC into FilecoinPay (see 5b below)
-make staging-deploy-piri               # piri-0
+make staging-deploy-piri               # piri-0 + ingot
 make staging-register-piri             # register piri as a storage provider (see 6)
+make staging-register-ingot            # register ingot as hilt's regional provider (see 6b)
 ```
 
 `staging-deploy-*` each sync the box's checkout to `FORGE_REF` (`git fetch` +
@@ -296,6 +319,26 @@ https://piri-0.staging.fil.one /proofs/piri-0-proof.txt` followed by `provider w
 core compose file. Idempotent: an already-registered provider is tolerated and the weight
 is simply re-applied.
 
+### 6b. Register ingot with hilt (cross-bundle step)
+
+In local dev, hilt's `post_start.sh` registers ingot as the regional S3 provider; across
+bundles that can't run either. Without this step hilt rejects tenant creation for the
+region and every `/s3/*` invocation from ingot.
+
+```bash
+make staging-register-ingot
+```
+
+The script (`scripts/staging-register-ingot.sh`) derives ingot's did:key via `ingot
+whoami` in the piri bundle, then runs `hilt client admin provider add <did> us-west-1`
+inside the hilt container (region overridable via `INGOT_REGION` — it must match the
+`region` in `ingot-config.yaml` and the `AWS_REGION` S3 clients sign with). Run it after
+both bundles are healthy and **before creating any tenants**. Idempotent.
+
+This is the **only** cross-bundle registration hilt needs: its authority to call sprue's
+`/customer/add` comes entirely from the committed `hilt-customer-add-proof.txt`, and sprue
+resolves `did:web:hilt.staging.fil.one` over https at invocation time.
+
 ## 7. Verify
 
 ```bash
@@ -304,31 +347,77 @@ ssh root@23.83.66.244 'cd /root/fil-one/forge/environments/staging/core && docke
 ssh root@23.83.66.244 'cd /root/fil-one/forge/environments/staging/piri && docker compose -p forge-staging-piri ps'
 
 # did:web resolution through Caddy
-# Only sprue and delegator serve a did.json. signing-service does NOT — it has no
-# /.well-known/did.json route by design (it resolves its own DID from an in-memory
+# Only sprue, delegator, and hilt serve a did.json. signing-service does NOT — it has
+# no /.well-known/did.json route by design (it resolves its own DID from an in-memory
 # document, and no peer ever resolves did:web:signing-service: piri uses the
 # configured DID only as the signing-invocation audience, and the signed response
 # is an EIP-712 signature verified on-chain, not a did:web-resolved UCAN receipt).
-# So a 404 here is expected, not a failure.
-for h in sprue delegator; do curl -fsS "https://$h.staging.fil.one/.well-known/did.json" >/dev/null && echo "$h ok"; done
+# So a 404 there is expected, not a failure. ingot serves no did.json either — it
+# acts under a did:key.
+for h in sprue delegator hilt; do curl -fsS "https://$h.staging.fil.one/.well-known/did.json" >/dev/null && echo "$h ok"; done
 
-# End-to-end upload/download: see §8.
+# ingot (S3 gateway) health
+curl -fsS https://ingot.staging.fil.one/health && echo "ingot ok"
+
+# plc is internal-only BY DESIGN: https://plc.staging.fil.one must NOT resolve.
+
+# End-to-end S3 flow: see §8.
 ```
 
 ## 8. End-to-end upload/download test
 
-TODO
+The target architecture is live: FilOne calls hilt's Tenant API to register tenants and
+issue S3 access keys; the data plane uses standard S3 primitives against ingot.
 
-The text below describes guppy-based flow that unfortunately does not work as of July 1. It's
-probably not worth exploring this approach further, because we want to move to a different
-architecture:
+### Hilt/Ingot S3 flow
 
-- FilOne calls Hilt tenant management API to register new users and issue new S3
-  Access key
-- The data plan uses the standard S3 primitives (CreateBucket, PutObject, GetObject), Ingot is the
-  S3 endpoint.
+Run after both bundles are healthy and both registrations are done ([§6](#6-register-the-piri-provider-with-the-core-cross-bundle-step),
+[§6b](#6b-register-ingot-with-hilt-cross-bundle-step)). Everything runs from your dev
+machine against the public URLs.
 
-### Guppy-based flow (temporary)
+**1. Create a tenant and an access key** (Tenant API, bearer = the partner key):
+
+```bash
+PARTNER_KEY=$(op read "op://Fil One/FilOne Forge Staging/hilt-partner-key")
+
+# Create a tenant in the region ingot is registered under (us-west-1).
+curl -si -X PUT "https://hilt.staging.fil.one/tenants/smoke-1" \
+  -H "Authorization: Bearer $PARTNER_KEY" -H "Content-Type: application/json" \
+  -d '{"region":"us-west-1"}'
+# → 201; hilt publishes the tenant did:plc (internal plc) and registers it as a
+#   customer with sprue via /customer/add (watch sprue's logs to confirm).
+
+# Mint an S3 access key for the tenant. The secret is returned ONCE — capture it.
+curl -si -X POST "https://hilt.staging.fil.one/tenants/smoke-1/access-keys" \
+  -H "Authorization: Bearer $PARTNER_KEY" -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+(Exact request/response field names may drift with the hilt image — on a 4xx, check
+`docker logs` on the hilt container and hilt's README for the current Tenant API shape.)
+
+**2. S3 against ingot** — PATH-STYLE ONLY (no wildcard `*.ingot` DNS/TLS exists), so
+force path-style addressing and sign with the region from above:
+
+```bash
+export AWS_ACCESS_KEY_ID=<from step 1> AWS_SECRET_ACCESS_KEY=<from step 1> AWS_REGION=us-west-1
+aws configure set default.s3.addressing_style path   # REQUIRED: path-style only
+
+aws --endpoint-url https://ingot.staging.fil.one s3api create-bucket --bucket smoke-bucket
+head -c 10240 </dev/urandom > /tmp/hello.bin
+aws --endpoint-url https://ingot.staging.fil.one s3api put-object \
+  --bucket smoke-bucket --key hello.bin --body /tmp/hello.bin
+aws --endpoint-url https://ingot.staging.fil.one s3api get-object \
+  --bucket smoke-bucket --key hello.bin /tmp/out.bin
+cmp /tmp/hello.bin /tmp/out.bin && echo "roundtrip ok"
+```
+
+Behind the scenes: ingot authorizes each request against hilt (`/s3/request/authorize`,
+authority = the committed `hilt-ingot-s3-proof.txt`), spools the object, and ships CAR
+segments to sprue → piri over public https. Reads resolve from ingot's local
+`blob_locations` registry — no indexer involved (Known risk #11).
+
+### Guppy-based flow (legacy regression check)
 
 guppy is a client — run it **on your dev machine**, pointed at the public staging URLs.
 `scripts/staging-guppy.sh` wraps `docker run ghcr.io/fil-forge/guppy:main` with the right
@@ -456,7 +545,36 @@ These are deliberate first-step assumptions to confirm during the manual deploy:
    alternative account path is needed. See [§8](#8-end-to-end-uploaddownload-test-guppy).
 6. **Image pinning.** `versions.env` ships rolling `:main` placeholders — pin every application
    image to a `@sha256:` digest before a real deploy (`docker buildx imagetools inspect ...`).
+   This now also covers `HILT_IMAGE`, `PLC_IMAGE` (core) and `INGOT_IMAGE` (piri).
 7. **Payment-plan bypass.** sprue runs with `deployment.allow_provision_without_payment_plan: true`
    (in `environments/staging/core/config/sprue/config.yaml.tpl`), so spaces can be provisioned
    without a customer payment plan. Storacha payment plans are a left-over sprue inherited; FilOne
    Forge uses a different billing mechanism and does not need them, so we bypass the check here.
+8. **Ephemeral Vault (deliberate).** `hilt-vault` runs HashiCorp Vault in **dev mode** —
+   auto-unsealed, KV v2 at `secret`, and **entirely in-memory**. Any restart of the vault
+   container (deploy recreate, box reboot — `restart: unless-stopped` brings it back empty)
+   **loses every tenant/access-key private key**: existing S3 credentials stop working and
+   affected tenants must be deleted and re-created via the Tenant API. Hilt's Postgres rows
+   survive, but they reference vault entries that no longer exist. This is an accepted
+   staging trade-off (staging holds no precious data); production needs a persistent,
+   properly-sealed Vault. Hilt supports only `memory` and `hashicorp` vault backends, so
+   there is no simple file-backed alternative.
+9. **PLC is internal-only (deliberate).** The did:plc directory runs inside the core bundle
+   with no published port, no Caddy route, and no DNS record. Its only consumers are hilt
+   (`HILT_PLC_DIRECTORY=http://plc:3000`) and sprue (`deployment.plc_directory`), both
+   in-bundle. Consequence: tenant `did:plc` identities are **not publicly resolvable** from
+   outside the box. Add a Caddy route + DNS record later if external resolution is ever
+   needed.
+10. **S3 is path-style only (deliberate).** There is no wildcard `*.ingot.staging.fil.one`
+    DNS record or certificate, so virtual-hosted bucket addressing
+    (`bucket.ingot.staging.fil.one`) does not work. Every S3 client must force path-style
+    (`aws configure set default.s3.addressing_style path`, `forcePathStyle: true`, etc.).
+11. **No indexer → ingot reads are local.** ingot resolves blob locations from its own
+    `blob_locations` Postgres table (the appliance read tier), not from an indexing-service
+    — so the missing indexer doesn't affect the S3 flow. Consequence: wiping ingot's data
+    dir or database (e.g. `staging-provision-piri`) orphans the read-side location
+    knowledge of previously shipped objects.
+12. **provision-piri now also wipes ingot.** The piri bundle wipe covers `piri-0`,
+    `piri-postgres`, and `ingot` — buckets, objects, and ingot's location registry vanish.
+    Hilt tenants (core bundle) survive, but their buckets' data-plane state is gone;
+    re-create buckets after a piri re-provision.

@@ -36,7 +36,7 @@ CORE_DIR="$FORGE_DIR/environments/staging/core"
 PIRI_DIR="$FORGE_DIR/environments/staging/piri"
 
 CORE_ENV="--env-file versions.env --env-file config.env --env-file ../smart-contracts.env --env-file $FORGE_SECRETS_DIR/secrets.env"
-PIRI_ENV="--env-file versions.env --env-file config.env --env-file ../smart-contracts.env"
+PIRI_ENV="--env-file versions.env --env-file config.env --env-file ../smart-contracts.env --env-file $FORGE_SECRETS_DIR/piri-secrets.env"
 
 CORE_COMPOSE="docker compose -p forge-staging-core $CORE_ENV"
 PIRI_COMPOSE="docker compose -p forge-staging-piri $PIRI_ENV"

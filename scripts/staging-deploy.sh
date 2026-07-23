@@ -29,7 +29,7 @@ case "$BUNDLE" in
     ;;
   piri)
     PROJECT="forge-staging-piri"
-    ENV_FILES="--env-file versions.env --env-file config.env --env-file ../smart-contracts.env"
+    ENV_FILES="--env-file versions.env --env-file config.env --env-file ../smart-contracts.env --env-file $FORGE_SECRETS_DIR/piri-secrets.env"
     ;;
   *) echo "ERROR: unknown bundle '$BUNDLE' (want core|piri)" >&2; exit 1 ;;
 esac

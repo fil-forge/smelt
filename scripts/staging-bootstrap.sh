@@ -28,7 +28,9 @@ CADDY_SERVICE="${CADDY_SERVICE:-caddy-guppy}"
 REPO_URL="${REPO_URL:-https://github.com/fil-forge/smelt.git}"
 FORGE_REF="${FORGE_REF:-main}"
 
-HOSTS="sprue signing-service delegator piri-0"
+# Hosts expected to serve a did:web document. ingot is NOT here — it acts under
+# a did:key and serves no did.json (checked separately via /health below).
+HOSTS="sprue signing-service delegator piri-0 hilt"
 
 echo "Bootstrapping Forge staging on $FORGE_HOST"
 # Pass config as `export` statements prepended to the script bash reads from
@@ -78,7 +80,7 @@ echo "    done: $FORGE_REF at $(git -C "$FORGE_DIR" rev-parse --short HEAD)"
 step 2 "creating secrets + data directories"
 mkdir -p "$FORGE_SECRETS_DIR" && chmod 700 "$FORGE_SECRETS_DIR"
 echo "    secrets: $FORGE_SECRETS_DIR"
-for d in postgres minio dynamodb piri-0; do
+for d in postgres minio dynamodb piri-0 piri-postgres ingot; do
   mkdir -p "$FORGE_DATA_DIR/$d"
   echo "    data:    $FORGE_DATA_DIR/$d"
 done
@@ -126,6 +128,12 @@ for h in $HOSTS; do
     echo "    WARN: https://$h.staging.fil.one/.well-known/did.json not resolving yet"
   fi
 done
+# ingot serves no did.json (did:key identity) — check its health endpoint instead.
+if curl -fsS "https://ingot.staging.fil.one/health" >/dev/null 2>&1; then
+  echo "    ok:   https://ingot.staging.fil.one/health"
+else
+  echo "    WARN: https://ingot.staging.fil.one/health not resolving yet"
+fi
 
 printf '\n==> Bootstrap complete.\n'
 REMOTE

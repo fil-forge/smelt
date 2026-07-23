@@ -1,0 +1,25 @@
+# ingot (S3 gateway) config — REDACTED EXAMPLE, structure only.
+#
+# The real file is rendered from config.yaml.tpl via `op inject` and lives only
+# on the box ($FORGE_SECRETS_DIR/ingot-config.yaml). No real values here.
+
+addr: "0.0.0.0:9000"
+region: us-west-1
+data_dir: /data
+log_level: info
+
+root_access: "<rendered from 1Password>"
+root_secret: "<rendered from 1Password>"
+
+identity:
+  key_file: /keys/ingot.pem
+
+postgres_dsn: "postgres://ingot:<rendered from 1Password>@postgres:5432/ingot?sslmode=disable"
+
+upload_service_url: "https://sprue.staging.fil.one"
+upload_service_did: "did:web:sprue.staging.fil.one"
+upload_receipts_url: "https://sprue.staging.fil.one/receipt"
+
+auth_service_url: "https://hilt.staging.fil.one"
+auth_service_did: "did:web:hilt.staging.fil.one"
+auth_service_proofs: "/proofs/hilt-ingot-s3-proof.txt"

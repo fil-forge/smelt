@@ -1,17 +1,79 @@
 # Forge staging — PIRI bundle.
 #
-# A single piri storage node (sqlite + filesystem). Deployed independently of the
-# core bundle; talks to core over public https://*.staging.fil.one URLs and to
-# the host Lotus node via host-gateway.
+# A single piri storage node (postgres + filesystem) plus ingot (the S3 gateway
+# over Forge) and their shared Postgres. Deployed independently of the core
+# bundle; talks to core over public https://*.staging.fil.one URLs and to the
+# host Lotus node via host-gateway.
 #
-# Run via the deploy script:
+# Postgres is a single shared instance: a dedicated `admin` superuser plus one
+# role + database per service (piri_0, ingot), created by the postgres-init
+# one-shot.
+#
+# Run via the deploy script, which supplies the env files:
 #   docker compose -p forge-staging-piri \
-#     --env-file versions.env --env-file config.env up -d
+#     --env-file versions.env --env-file config.env \
+#     --env-file $FORGE_SECRETS_DIR/piri-secrets.env up -d
 #
-# Published port binds to 127.0.0.1; host Caddy fronts piri-0.staging.fil.one.
+# Published ports bind to 127.0.0.1; host Caddy fronts piri-0.staging.fil.one
+# and ingot.staging.fil.one.
 name: forge-staging-piri
 
 services:
+  # Shared Postgres for this bundle. The data dir is piri-postgres (not
+  # `postgres`) because both bundles share the same FORGE_DATA_DIR root and
+  # core's instance already owns the `postgres` dir.
+  postgres:
+    image: ${POSTGRES_IMAGE}
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=${POSTGRES_ADMIN_PASSWORD}
+    volumes:
+      - ${FORGE_DATA_DIR}/piri-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d admin"]
+      start_interval: 1s
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    networks: [forge-staging-piri]
+
+  # Create the per-service Postgres roles + databases once postgres is up.
+  # Same structure as the core bundle's postgres-init: idempotent guarded
+  # CREATEs via \gexec (CREATE DATABASE cannot run inside a DO block) plus an
+  # unconditional ALTER ROLE so re-provisioned passwords apply. Passwords land
+  # inside SQL string literals — safe only because keygen secrets are hex.
+  postgres-init:
+    image: ${POSTGRES_IMAGE}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -eu
+        export PGPASSWORD="$$POSTGRES_ADMIN_PASSWORD"
+        ensure() {
+          printf '%s\n' \
+            "SELECT 'CREATE ROLE \"$$1\"' WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '$$1')" \
+            '\gexec' \
+            "ALTER ROLE \"$$1\" WITH LOGIN PASSWORD '$$2';" \
+            "SELECT 'CREATE DATABASE \"$$1\" OWNER \"$$1\"' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '$$1')" \
+            '\gexec' \
+          | psql -h postgres -U admin -d admin -v ON_ERROR_STOP=1 --quiet
+        }
+        ensure piri_0 "$$PIRI_0_POSTGRES_PASSWORD" &&
+        ensure ingot "$$INGOT_POSTGRES_PASSWORD" &&
+        echo "postgres roles + databases ready"
+    environment:
+      POSTGRES_ADMIN_PASSWORD: ${POSTGRES_ADMIN_PASSWORD}
+      PIRI_0_POSTGRES_PASSWORD: ${PIRI_0_POSTGRES_PASSWORD}
+      INGOT_POSTGRES_PASSWORD: ${INGOT_POSTGRES_PASSWORD}
+    restart: "no"
+    networks: [forge-staging-piri]
+
   piri-0:
     image: ${PIRI_IMAGE}
     # The piri image runs as USER nobody, but the provisioned key files are
@@ -31,8 +93,14 @@ services:
       - HOST=0.0.0.0
       - REGISTRAR_URL=${REGISTRAR_URL}
       - OPERATOR_EMAIL=${OPERATOR_EMAIL}
-      - PIRI_DB_BACKEND=sqlite
+      - PIRI_DB_BACKEND=postgres
+      - PIRI_DB_POSTGRES_URL=postgres://piri_0:${PIRI_0_POSTGRES_PASSWORD}@postgres:5432/piri_0?sslmode=disable
       - PIRI_BLOB_BACKEND=filesystem
+    depends_on:
+      postgres:
+        condition: service_healthy
+      postgres-init:
+        condition: service_completed_successfully
     volumes:
       - ${FORGE_SECRETS_DIR}/piri-0.pem:/keys/piri.pem:ro
       - ${FORGE_SECRETS_DIR}/piri-0-wallet.hex:/keys/owner-wallet.hex:ro
@@ -47,6 +115,39 @@ services:
       timeout: 5s
       retries: 30
       start_period: 180s
+    restart: unless-stopped
+    networks: [forge-staging-piri]
+
+  # S3 gateway over Forge. Ships object data to sprue (core bundle, public
+  # https) and authorizes S3 requests against hilt (core bundle, public https);
+  # its authority toward hilt is the committed hilt-ingot-s3 proof. Reads
+  # resolve via ingot's local blob_locations registry — no indexer needed.
+  ingot:
+    image: ${INGOT_IMAGE}
+    user: "0:0" # run as root to read the 0440-perm key/config files
+    command: ["serve", "--config", "/etc/ingot/config.yaml"]
+    ports:
+      - "127.0.0.1:15130:9000"
+    volumes:
+      - ${FORGE_SECRETS_DIR}/ingot.pem:/keys/ingot.pem:ro
+      # Rendered from config/ingot/config.yaml.tpl at provision time (op inject).
+      - ${FORGE_SECRETS_DIR}/ingot-config.yaml:/etc/ingot/config.yaml:ro
+      # Committed delegation proofs (non-secret) come from the git tree.
+      - ../proofs:/proofs:ro
+      # LSM segments, blob spool, token store.
+      - ${FORGE_DATA_DIR}/ingot:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      postgres-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:9000/health"]
+      start_interval: 1s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     restart: unless-stopped
     networks: [forge-staging-piri]
 

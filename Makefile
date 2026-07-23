@@ -38,7 +38,7 @@ workspace-build:
 		rm -f $(WORKSPACE_OVERRIDE); \
 	fi
 
-.PHONY: help generate init up down restart clean nuke fresh logs pull build cli status guppy regen debug-upload ensure-state check-docker workspace-build shell-guppy shell-piri shell-upload shell-hilt staging-keygen staging-bootstrap staging-provision-core staging-provision-piri staging-deploy-core staging-allowlist-piri staging-deploy-piri staging-register-piri staging-fund-payer
+.PHONY: help generate init up down restart clean nuke fresh logs pull build cli status guppy regen debug-upload ensure-state check-docker workspace-build shell-guppy shell-piri shell-upload shell-hilt staging-keygen staging-bootstrap staging-provision-core staging-provision-piri staging-deploy-core staging-allowlist-piri staging-deploy-piri staging-register-piri staging-register-ingot staging-fund-payer
 
 # Default target - show help
 help:
@@ -83,14 +83,15 @@ help:
 	@echo "  make debug-upload  Run upload (sprue) under Delve on localhost:2345"
 	@echo ""
 	@echo "Staging deployment (see docs/STAGING_DEPLOY.md):"
-	@echo "  make staging-keygen          One-time: generate keys+wallets+proofs, store in 1Password"
+	@echo "  make staging-keygen          Ensure keys+wallets+proofs exist in 1Password (idempotent)"
 	@echo "  make staging-bootstrap       One-time: prepare the box (repo, dirs, Caddy)"
 	@echo "  make staging-provision-core  Render core secrets from 1Password and ship to the box (dev machine only)"
 	@echo "  make staging-provision-piri  Render piri secrets from 1Password and ship to the box (dev machine only)"
-	@echo "  make staging-deploy-core     Deploy the core bundle (sprue + signing-service + delegator)"
+	@echo "  make staging-deploy-core     Deploy the core bundle (sprue + signing-service + delegator + hilt + plc)"
 	@echo "  make staging-allowlist-piri  Allow-list the piri DID with the delegator (run before deploy-piri)"
-	@echo "  make staging-deploy-piri     Deploy the piri bundle"
+	@echo "  make staging-deploy-piri     Deploy the piri bundle (piri-0 + ingot)"
 	@echo "  make staging-register-piri   Register piri as a storage provider with sprue (run after both deploys)"
+	@echo "  make staging-register-ingot  Register ingot as hilt's regional provider (run after both deploys)"
 	@echo "  make staging-fund-payer      Deposit USDFC into FilecoinPay so piri can create a proof set"
 	@echo ""
 	@echo "Options:"
@@ -274,10 +275,10 @@ regen:
 # --- Staging deployment ---------------------------------------------------
 # Thin wrappers over the staging tooling; full runbook in docs/STAGING_DEPLOY.md.
 
-# One-time: generate staging keys, EVM wallets, and UCAN proofs; store private
-# keys in 1Password; write proofs to environments/staging/proofs/ (commit them);
-# write wallet addresses (incl. PAYER_ADDRESS) into environments/staging/wallets.env
-# (commit it).
+# Ensure staging keys, EVM wallets, and UCAN proofs exist (idempotent: existing
+# 1Password fields are reused, only missing ones are generated); write proofs to
+# environments/staging/proofs/ (commit them); write wallet addresses (incl.
+# PAYER_ADDRESS) into environments/staging/wallets.env (commit it).
 staging-keygen:
 	@go run ./cmd/smelt staging keygen
 
@@ -312,6 +313,12 @@ staging-deploy-piri:
 # (locally sprue's post_start hook does this; across bundles it can't).
 staging-register-piri:
 	@./scripts/staging-register-piri.sh
+
+# Register ingot as hilt's regional provider. Run after BOTH bundles are healthy
+# and BEFORE creating any tenants, else the Tenant API rejects the region
+# (locally hilt's post_start hook does this; across bundles it can't).
+staging-register-ingot:
+	@./scripts/staging-register-ingot.sh
 
 # Deposit USDFC into FilecoinPay for the payer + grant the warm-storage service
 # operator approval, so `piri init`'s proof-set creation clears

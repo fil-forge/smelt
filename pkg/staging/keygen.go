@@ -1,21 +1,29 @@
-// Package staging implements the one-time secret-generation ceremony for the
-// Forge staging deployment. Unlike the local dev stack (pkg/generate), which
+// Package staging implements the secret-generation ceremony for the Forge
+// staging deployment. Unlike the local dev stack (pkg/generate), which
 // regenerates throwaway keys on every `make up` and derives EVM wallets from
-// Anvil's public deterministic accounts, staging keys are generated ONCE, stored
-// in 1Password, and never rotated per-deploy.
+// Anvil's public deterministic accounts, staging secrets are long-lived: they
+// are stored in 1Password and never rotated per-deploy.
+//
+// The ceremony has "ensure" semantics and is safe to re-run: every secret the
+// 1Password item already holds is reused byte-for-byte (funded wallets and
+// registered DIDs survive), and only missing fields are generated and added.
+// To rotate a specific secret, delete its field from the 1Password item (and
+// any proof files signed with it) and re-run.
 //
 // What this produces:
 //   - Ed25519 service identity keys (PEM) for every service identity.
 //   - Real, random secp256k1 EVM wallets for the chain-transacting roles
 //     (signing-service payer, delegator transactor, piri owner). Their addresses
 //     are printed so the operator can fund them from a Calibnet faucet.
-//   - Random connection secrets (Postgres password, S3 access/secret keys).
-//   - UCAN delegation proofs (committed to git) signed with the freshly-generated
-//     identity keys, using the staging did:web identities.
+//   - Random connection secrets (Postgres passwords, S3 access/secret keys,
+//     hilt partner key, vault token, ingot root S3 credentials).
+//   - UCAN delegation proofs (committed to git) signed with the identity keys,
+//     using the staging did:web identities. A proof is re-issued only when
+//     missing or when a key it depends on was freshly generated.
 //
-// Private key material is written only to a temp dir, copied into 1Password, then
-// wiped. Only public EVM addresses are ever printed. Nothing secret is logged or
-// committed.
+// Private key material is written only to a temp dir, copied into 1Password,
+// then wiped. Only public EVM addresses are ever printed. Nothing secret is
+// logged or committed.
 package staging
 
 import (
@@ -26,7 +34,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/fil-forge/libforge/identity"
 	"github.com/fil-forge/smelt/pkg/generate"
+	"github.com/fil-forge/ucantone/multikey"
 )
 
 // Staging did:web identities. The upload service is published as "sprue".
@@ -36,6 +46,8 @@ const (
 	DIDDelegator      = "did:web:delegator.staging.fil.one"
 	DIDIndexer        = "did:web:indexer.staging.fil.one"  // not deployed; identity used only to sign the proof the delegator requires
 	DIDEtracker       = "did:web:etracker.staging.fil.one" // not deployed; identity used only to sign the proof the delegator requires
+	DIDHilt           = "did:web:hilt.staging.fil.one"
+	// ingot has no did:web — it acts under its did:key (derived from ingot.pem).
 )
 
 // serviceIdentityKeys are the Ed25519 identities generated for staging. indexer
@@ -50,6 +62,30 @@ var serviceIdentityKeys = []string{
 	"etracker",
 	"piri-0",
 	"guppy",
+	"hilt",
+	"ingot",
+}
+
+// connSecretFields are the random connection secrets for the dependency
+// containers and service-to-service auth. Each becomes one CONCEALED 1Password
+// field holding a randomHex value (hex-only by construction — several land
+// inside JSON env values and Postgres DSNs, where quoting is not an option).
+var connSecretFields = []string{
+	// core bundle
+	"core-postgres-admin-password",
+	"sprue-postgres-password",
+	"hilt-postgres-password",
+	"plc-postgres-password",
+	"hilt-partner-key",
+	"hilt-vault-token",
+	"minio-access-key",
+	"minio-secret-key",
+	// piri bundle
+	"piri-postgres-admin-password",
+	"piri-0-postgres-password",
+	"ingot-postgres-password",
+	"ingot-root-access-key",
+	"ingot-root-secret-key",
 }
 
 // Options controls the keygen ceremony.
@@ -57,7 +93,7 @@ type Options struct {
 	ProjectDir string // repo root; proofs are written under environments/staging/proofs
 	OPVault    string // 1Password vault (e.g. "Fil One")
 	OPItem     string // 1Password item title (e.g. "FilOne Forge Staging")
-	Store      bool   // store generated secrets into 1Password via the op CLI
+	Store      bool   // reuse/store secrets in 1Password via the op CLI
 	Proofs     bool   // generate UCAN delegation proofs (requires ucantool)
 	Ucantool   string // ucantool binary name/path
 }
@@ -68,15 +104,21 @@ type Result struct {
 	FundAddresses map[string]string
 	ProofsWritten []string
 	OPFields      []string // field names written to 1Password (names only, never values)
+	// ReusedFields / GeneratedFields split the field names by whether the value
+	// was read back from the existing 1Password item or freshly generated this
+	// run. An all-reused run means nothing was rotated.
+	ReusedFields    []string
+	GeneratedFields []string
 	// WalletsEnvPath is the wallets.env file the wallet addresses were written
 	// into (empty if not written).
 	WalletsEnvPath string
 }
 
-// Keygen runs the one-time staging key/secret/proof generation. It is NOT
-// idempotent against 1Password by design — re-running mints fresh keys and would
-// overwrite the stored item, which would orphan already-funded wallets. Callers
-// must treat it as a deliberate one-shot.
+// Keygen ensures the staging keys, secrets, and proofs exist. It is idempotent
+// against 1Password: fields the item already holds are reused unchanged (so
+// funded wallets, registered DIDs, and shipped keys survive a re-run), and only
+// missing fields are generated and added. With Store disabled it always
+// generates fresh values and stores nothing — useful only for dry runs.
 func Keygen(opts Options) (*Result, error) {
 	if opts.Ucantool == "" {
 		opts.Ucantool = "ucantool"
@@ -96,11 +138,45 @@ func Keygen(opts Options) (*Result, error) {
 
 	res := &Result{FundAddresses: map[string]string{}}
 
+	// 0. Read back whatever the 1Password item already holds. This must happen
+	//    before any generation: minting fresh keys while 1Password holds
+	//    different ones would silently rotate the deployed identity set. The
+	//    read fails loudly if the op CLI is missing or unauthenticated.
+	existing := map[string]string{}
+	if opts.Store {
+		existing, err = readOnePasswordFields(opts.OPVault, opts.OPItem)
+		if err != nil {
+			return nil, fmt.Errorf("read existing 1Password item: %w", err)
+		}
+	}
+	fresh := map[string]bool{}
+	// reuse writes an existing field value to its temp file; it returns false
+	// when the field is not in the item yet (caller generates it instead).
+	reuse := func(field, file string, mode os.FileMode) (bool, error) {
+		value, ok := existing[field]
+		if !ok {
+			fresh[field] = true
+			res.GeneratedFields = append(res.GeneratedFields, field)
+			return false, nil
+		}
+		if err := os.WriteFile(filepath.Join(tmp, file), []byte(value), mode); err != nil {
+			return false, fmt.Errorf("write reused %s: %w", field, err)
+		}
+		res.ReusedFields = append(res.ReusedFields, field)
+		return true, nil
+	}
+
 	// 1. Ed25519 service identities (reuses the exact PKCS8 PEM format the
 	//    services expect — see pkg/generate.GenerateEd25519Key).
 	for _, name := range serviceIdentityKeys {
-		if err := generate.GenerateEd25519Key(tmp, name, true); err != nil {
-			return nil, fmt.Errorf("generate %s identity: %w", name, err)
+		reused, err := reuse(name+"-key", name+".pem", 0o600)
+		if err != nil {
+			return nil, err
+		}
+		if !reused {
+			if err := generate.GenerateEd25519Key(tmp, name, true); err != nil {
+				return nil, fmt.Errorf("generate %s identity: %w", name, err)
+			}
 		}
 	}
 
@@ -113,18 +189,32 @@ func Keygen(opts Options) (*Result, error) {
 		file     string // temp file basename
 		addrVar  string // wallets.env variable holding the public address
 		contents func(*EVMWallet) string
+		parse    func(string) (*EVMWallet, error)
 	}{
-		{"signing-service payer", "payer-key", "payer-key.hex", "PAYER_ADDRESS", (*EVMWallet).RawHex},
-		{"delegator transactor", "delegator-transactor-key", "delegator-transactor-key.hex", "DELEGATOR_TRANSACTOR_ADDRESS", (*EVMWallet).Hex0x},
-		{"piri-0 owner", "piri-0-wallet", "piri-0-wallet.hex", "PIRI_0_OWNER_ADDRESS", (*EVMWallet).PiriWalletHex},
+		{"signing-service payer", "payer-key", "payer-key.hex", "PAYER_ADDRESS", (*EVMWallet).RawHex, ParseEVMWalletRawHex},
+		{"delegator transactor", "delegator-transactor-key", "delegator-transactor-key.hex", "DELEGATOR_TRANSACTOR_ADDRESS", (*EVMWallet).Hex0x, ParseEVMWalletHex0x},
+		{"piri-0 owner", "piri-0-wallet", "piri-0-wallet.hex", "PIRI_0_OWNER_ADDRESS", (*EVMWallet).PiriWalletHex, ParseEVMWalletPiriHex},
 	}
 	// Wallet addresses are public; record them in the committed wallets.env so they
 	// are easy to find for periodic balance top-ups. (Private keys go to 1Password.)
 	walletsEnv := filepath.Join(opts.ProjectDir, "environments", "staging", "wallets.env")
 	for _, w := range wallets {
-		wallet, err := GenerateEVMWallet()
-		if err != nil {
-			return nil, fmt.Errorf("generate %s wallet: %w", w.role, err)
+		var wallet *EVMWallet
+		if value, ok := existing[w.opField]; ok {
+			// Reuse the funded wallet; re-derive its public address so a stale
+			// or missing wallets.env entry heals itself.
+			wallet, err = w.parse(value)
+			if err != nil {
+				return nil, fmt.Errorf("parse existing %s wallet from 1Password: %w", w.role, err)
+			}
+			res.ReusedFields = append(res.ReusedFields, w.opField)
+		} else {
+			wallet, err = GenerateEVMWallet()
+			if err != nil {
+				return nil, fmt.Errorf("generate %s wallet: %w", w.role, err)
+			}
+			fresh[w.opField] = true
+			res.GeneratedFields = append(res.GeneratedFields, w.opField)
 		}
 		path := filepath.Join(tmp, w.file)
 		if err := os.WriteFile(path, []byte(w.contents(wallet)), 0o600); err != nil {
@@ -138,29 +228,37 @@ func Keygen(opts Options) (*Result, error) {
 	}
 	res.WalletsEnvPath = walletsEnv
 
-	// 3. Connection secrets for the dependency containers we run (Postgres, MinIO).
-	connSecrets := map[string]string{
-		"sprue-postgres-password": "",
-		"minio-access-key":        "",
-		"minio-secret-key":        "",
-	}
+	// 3. Connection secrets for the dependency containers we run (Postgres,
+	//    MinIO, Vault) and service-to-service auth (hilt partner key, ingot
+	//    root S3 credentials).
 	connFiles := map[string]string{}
-	for field := range connSecrets {
-		secret, err := randomHex(24)
+	for _, field := range connSecretFields {
+		reused, err := reuse(field, field, 0o600)
 		if err != nil {
-			return nil, fmt.Errorf("generate %s: %w", field, err)
+			return nil, err
 		}
-		path := filepath.Join(tmp, field)
-		if err := os.WriteFile(path, []byte(secret), 0o600); err != nil {
-			return nil, fmt.Errorf("write %s: %w", field, err)
+		if !reused {
+			secret, err := randomHex(24)
+			if err != nil {
+				return nil, fmt.Errorf("generate %s: %w", field, err)
+			}
+			if err := os.WriteFile(filepath.Join(tmp, field), []byte(secret), 0o600); err != nil {
+				return nil, fmt.Errorf("write %s: %w", field, err)
+			}
 		}
-		connFiles[field] = path
+		connFiles[field] = filepath.Join(tmp, field)
 	}
 
 	// 4. UCAN delegation proofs (committed to git), signed with the staging
-	//    identities and addressed to the staging did:web audiences.
+	//    identities and addressed to the staging did:web audiences (plus ingot's
+	//    did:key). Proofs are re-issued only when missing or when a key they
+	//    depend on was freshly generated above.
 	if opts.Proofs {
-		written, err := generateProofs(opts.Ucantool, tmp, proofsDir)
+		ingotDID, err := deriveDIDFromPEM(filepath.Join(tmp, "ingot.pem"))
+		if err != nil {
+			return nil, fmt.Errorf("derive ingot did:key: %w", err)
+		}
+		written, err := generateProofs(opts.Ucantool, tmp, proofsDir, ingotDID, fresh)
 		if err != nil {
 			return nil, fmt.Errorf("generate proofs: %w", err)
 		}
@@ -171,6 +269,8 @@ func Keygen(opts Options) (*Result, error) {
 	//    wallets, and connection secrets are read from their temp files and written
 	//    into a JSON template (see storeInOnePassword) so multi-line PEMs and
 	//    special characters survive intact and no value lands on a command line.
+	//    Reused values are re-written byte-for-byte (a no-op edit); fresh values
+	//    are added — the item is never partially refreshed.
 	if opts.Store {
 		fields := map[string]string{}
 		for _, name := range serviceIdentityKeys {
@@ -190,6 +290,20 @@ func Keygen(opts Options) (*Result, error) {
 	}
 
 	return res, nil
+}
+
+// deriveDIDFromPEM computes the did:key identifier for an Ed25519 private key
+// PEM — the same derivation pkg/generate uses for the local <name>.did files.
+func deriveDIDFromPEM(pemPath string) (string, error) {
+	pemBytes, err := os.ReadFile(pemPath)
+	if err != nil {
+		return "", err
+	}
+	signer, err := identity.DecodeSignerFromPEM(pemBytes)
+	if err != nil {
+		return "", fmt.Errorf("decode private key: %w", err)
+	}
+	return multikey.KeyIssuer(signer).DID().String(), nil
 }
 
 // upsertEnvVar sets KEY=value in a dotenv-style file: it replaces an existing

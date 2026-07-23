@@ -1,8 +1,13 @@
 # Forge staging — CORE bundle.
 #
-# upload (sprue) + signing-service + delegator, plus their dependency containers
-# (postgres, minio, dynamodb-local). Deployed independently of the piri bundle;
-# the two talk over public https://*.staging.fil.one URLs (fronted by host Caddy).
+# upload (sprue) + signing-service + delegator + hilt (tenant management) + plc
+# (did:plc directory) + hilt-vault, plus their dependency containers (postgres,
+# minio, dynamodb-local). Deployed independently of the piri bundle; the two talk
+# over public https://*.staging.fil.one URLs (fronted by host Caddy).
+#
+# Postgres is a single shared instance: a dedicated `admin` superuser plus one
+# role + database per service (sprue, hilt, plc), created by the postgres-init
+# one-shot.
 #
 # Run via the deploy script, which supplies the env files:
 #   docker compose -p forge-staging-core \
@@ -33,21 +38,60 @@ services:
 
   postgres:
     image: ${POSTGRES_IMAGE}
-    # sprue runs goose migrations on startup; POSTGRES_DB is enough.
+    # Shared instance with a dedicated admin superuser. The per-service roles +
+    # databases (sprue, hilt, plc) are created by postgres-init below; each
+    # service runs its own migrations in its own database.
     environment:
-      - POSTGRES_USER=sprue
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=sprue
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=${POSTGRES_ADMIN_PASSWORD}
     volumes:
       - ${FORGE_DATA_DIR}/postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sprue -d sprue"]
+      test: ["CMD-SHELL", "pg_isready -U admin -d admin"]
       start_interval: 1s
       interval: 5s
       timeout: 3s
       retries: 10
       start_period: 10s
     restart: unless-stopped
+    networks: [forge-staging]
+
+  # Create the per-service Postgres roles + databases once postgres is up.
+  # Idempotent: guarded CREATEs (via \gexec — CREATE DATABASE cannot run inside
+  # a DO block/transaction) plus an unconditional ALTER ROLE so a re-provisioned
+  # password always applies. Exits 0; consumers wait on completion. Passwords
+  # land inside SQL string literals — safe only because keygen secrets are hex
+  # ([0-9a-f]), never quotes or backslashes.
+  postgres-init:
+    image: ${POSTGRES_IMAGE}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -eu
+        export PGPASSWORD="$$POSTGRES_ADMIN_PASSWORD"
+        ensure() {
+          printf '%s\n' \
+            "SELECT 'CREATE ROLE \"$$1\"' WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '$$1')" \
+            '\gexec' \
+            "ALTER ROLE \"$$1\" WITH LOGIN PASSWORD '$$2';" \
+            "SELECT 'CREATE DATABASE \"$$1\" OWNER \"$$1\"' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '$$1')" \
+            '\gexec' \
+          | psql -h postgres -U admin -d admin -v ON_ERROR_STOP=1 --quiet
+        }
+        ensure sprue "$$SPRUE_POSTGRES_PASSWORD" &&
+        ensure hilt "$$HILT_POSTGRES_PASSWORD" &&
+        ensure plc "$$PLC_POSTGRES_PASSWORD" &&
+        echo "postgres roles + databases ready"
+    environment:
+      POSTGRES_ADMIN_PASSWORD: ${POSTGRES_ADMIN_PASSWORD}
+      SPRUE_POSTGRES_PASSWORD: ${SPRUE_POSTGRES_PASSWORD}
+      HILT_POSTGRES_PASSWORD: ${HILT_POSTGRES_PASSWORD}
+      PLC_POSTGRES_PASSWORD: ${PLC_POSTGRES_PASSWORD}
+    restart: "no"
     networks: [forge-staging]
 
   minio:
@@ -175,10 +219,123 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      postgres-init:
+        condition: service_completed_successfully
       minio:
         condition: service_healthy
       minio-init:
         condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:80/health"]
+      start_interval: 1s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks: [forge-staging]
+
+  # did:plc directory (tenant DIDs). INTERNAL ONLY by design: no published port,
+  # no Caddy route, no DNS record — its only consumers are hilt and sprue inside
+  # this bundle (http://plc:3000), so did:plc documents are NOT publicly
+  # resolvable in staging.
+  plc:
+    image: ${PLC_IMAGE}
+    environment:
+      # The production entrypoint takes DB credentials as JSON, with a separate
+      # (here: identical) credentialed user for startup migrations. The password
+      # lands inside a JSON value — safe only because keygen secrets are hex
+      # ([0-9a-f]), never quotes or backslashes.
+      - DB_CREDS_JSON={"username":"plc","password":"${PLC_POSTGRES_PASSWORD}","host":"postgres","port":"5432","database":"plc"}
+      - DB_MIGRATE_CREDS_JSON={"username":"plc","password":"${PLC_POSTGRES_PASSWORD}","host":"postgres","port":"5432","database":"plc"}
+      - ENABLE_MIGRATIONS=true
+      - LOG_ENABLED=true
+      - LOG_LEVEL=info
+    depends_on:
+      postgres:
+        condition: service_healthy
+      postgres-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/_health"]
+      start_interval: 1s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks: [forge-staging]
+
+  # HashiCorp Vault in DEV MODE for hilt's tenant/access-key private keys.
+  # Deliberately EPHEMERAL: dev mode stores everything in memory, so any restart
+  # of this container (deploy recreate, box reboot) loses every tenant access
+  # key — existing S3 credentials stop working and tenants must be recreated.
+  # Acceptable for staging (see docs/STAGING_DEPLOY.md limitations); production
+  # needs a persistent Vault. No data dir on purpose.
+  hilt-vault:
+    image: ${VAULT_IMAGE}
+    environment:
+      - VAULT_DEV_ROOT_TOKEN_ID=${HILT_VAULT_TOKEN}
+      - VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200
+    cap_add:
+      - IPC_LOCK
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8200/v1/sys/health"]
+      start_interval: 1s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks: [forge-staging]
+
+  # Tenant management: Fil One Tenant API (partner-key REST) + UCAN RPC (for
+  # ingot) + did:web document at /.well-known/did.json. Publishes tenant did:plc
+  # identities to plc and registers tenants as customers with sprue (authority =
+  # the committed hilt-customer-add proof).
+  hilt:
+    image: ${HILT_IMAGE}
+    user: "0:0" # run as root to read the 0440-perm key file
+    ports:
+      - "127.0.0.1:15110:80"
+    environment:
+      - HILT_SERVER_HOST=0.0.0.0
+      - HILT_SERVER_PORT=80
+      - HILT_IDENTITY_KEY_FILE=/keys/hilt.pem
+      - HILT_IDENTITY_SERVICE_ID=${HILT_DID}
+      - HILT_AUTH_PARTNER_KEY=${HILT_PARTNER_KEY}
+      - HILT_STORAGE_TYPE=postgres
+      - HILT_STORAGE_POSTGRES_DSN=postgres://hilt:${HILT_POSTGRES_PASSWORD}@postgres:5432/hilt?sslmode=disable
+      - HILT_VAULT_TYPE=hashicorp
+      - HILT_VAULT_HASHICORP_ADDRESS=http://hilt-vault:8200
+      - HILT_VAULT_HASHICORP_AUTH_METHOD=token
+      - HILT_VAULT_HASHICORP_TOKEN=${HILT_VAULT_TOKEN}
+      - HILT_PLC_DIRECTORY=http://plc:3000
+      - HILT_UPLOAD_SERVICE_ID=${SPRUE_DID}
+      - HILT_UPLOAD_SERVICE_URL=${SPRUE_PUBLIC_URL}
+      - HILT_UPLOAD_PRODUCT_ID=${HILT_DID}
+      - HILT_UPLOAD_PROOFS=/proofs/hilt-customer-add-proof.txt
+      # NOTE: unlike local dev, no HILT_SERVER_INSECURE_DID_RESOLUTION — staging
+      # resolves did:web over real https through host Caddy.
+      - HILT_LOG_LEVEL=info
+    volumes:
+      - ${FORGE_SECRETS_DIR}/hilt.pem:/keys/hilt.pem:ro
+      # Committed delegation proofs (non-secret) come from the git tree.
+      - ../proofs:/proofs:ro
+    # NOTE: unlike local dev, there is NO post_start hook registering ingot as
+    # the regional provider — ingot lives in the piri bundle. Register it
+    # explicitly after both bundles are healthy: `make staging-register-ingot`.
+    depends_on:
+      postgres:
+        condition: service_healthy
+      postgres-init:
+        condition: service_completed_successfully
+      plc:
+        condition: service_healthy
+      hilt-vault:
+        condition: service_healthy
+      sprue:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:80/health"]
       start_interval: 1s

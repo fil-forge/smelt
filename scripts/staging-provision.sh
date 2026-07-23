@@ -2,8 +2,9 @@
 # Wipe-and-reprovision staging onto the box — DEVELOPER-MACHINE ONLY.
 #
 # For each bundle this (1) tears down the running containers and deletes the
-# bundle's persistent data dirs (postgres / dynamodb / minio / piri-0), so the
-# next deploy comes up on a clean slate, then (2) pulls secret values from
+# bundle's persistent data dirs (core: postgres / dynamodb / minio; piri:
+# piri-0 / piri-postgres / ingot), so the next deploy comes up on a clean
+# slate, then (2) pulls secret values from
 # 1Password (op inject for templated config files, op read for standalone
 # key/wallet fields) and streams each result directly into an SSH session that
 # writes it atomically into the host secrets dir. NOTHING secret is ever written
@@ -103,6 +104,7 @@ provision_core() {
   read_field sprue-key           sprue.pem             0440
   read_field signing-service-key signing-service.pem   0440
   read_field delegator-key       delegator.pem         0440
+  read_field hilt-key            hilt.pem              0440
   # Tier-1 fund-bearing key: tightest perms.
   read_field payer-key           payer-key.hex         0400
 }
@@ -141,13 +143,19 @@ provision_piri() {
     echo "ERROR: PAYER_ADDRESS not set in $WALLETS_ENV — run 'make staging-keygen' and commit it first" >&2
     exit 1
   }
-  # Clean slate first: tear down the old node and its data, then ship fresh config+keys.
-  reset_bundle_data forge-staging-piri "$STAGING/piri/config.env" piri-0
-  echo "[piri] rendering base config..."
-  render_plain_tpl "$STAGING/piri/config/piri/piri-base-config.toml.tpl" piri-base-config.toml
+  # Clean slate first: tear down the old bundle and its data (piri node, shared
+  # postgres, ingot's LSM/spool), then ship fresh config+keys. NOTE: this wipes
+  # ingot's buckets/objects and location registry too — hilt tenants (core
+  # bundle) survive, but their buckets' data-plane state is gone.
+  reset_bundle_data forge-staging-piri "$STAGING/piri/config.env" piri-0 piri-postgres ingot
+  echo "[piri] rendering configs..."
+  render_plain_tpl  "$STAGING/piri/config/piri/piri-base-config.toml.tpl" piri-base-config.toml
+  render_secret_tpl "$STAGING/piri/config/ingot/config.yaml.tpl"          ingot-config.yaml
+  render_secret_tpl "$STAGING/piri/secrets.env.tpl"                       piri-secrets.env
   echo "[piri] shipping key files..."
   read_field piri-0-key    piri-0.pem         0440
   read_field piri-0-wallet piri-0-wallet.hex  0440
+  read_field ingot-key     ingot.pem          0440
 }
 
 case "$BUNDLE" in
