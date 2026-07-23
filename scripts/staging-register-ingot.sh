@@ -96,9 +96,10 @@ else
 fi
 
 # Verify hilt's provider row really maps this DID to the requested region.
-# hilt has no `provider list`/`remove` commands, so read the row straight from
-# its database (psql over the container-local socket, which the postgres image
-# trusts — no password involved).
+# hilt has no provider list/remove commands, so read the row straight from its
+# database (psql over the container-local socket, which the postgres image
+# trusts — no password involved). NOTE: this comment lives inside the unquoted
+# ssh heredoc — never use backticks here, the local shell executes them.
 ACTUAL_REGION=\$($CORE_COMPOSE exec -T postgres psql -U admin -d hilt -tAc "SELECT region FROM provider WHERE id = '\$INGOT_DID'" </dev/null | tr -d '[:space:]')
 if [ "\$ACTUAL_REGION" != "$INGOT_REGION" ]; then
   echo "ERROR: hilt's provider row for \$INGOT_DID has region '\$ACTUAL_REGION', want '$INGOT_REGION'." >&2
