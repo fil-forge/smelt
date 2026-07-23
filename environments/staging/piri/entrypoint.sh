@@ -92,4 +92,8 @@ else
 fi
 
 echo "[3/3] Starting piri..."
-exec /usr/bin/piri serve full --config "$CONFIG_FILE" "$@"
+# No extra args: the config file init wrote carries everything (backends, DSN,
+# proof set). NOTE: `$@` must NOT be passed here — the init branch above rebuilt
+# it via `set --`, so on a first boot it still holds the whole `piri init` argv
+# and `serve full` dies on `unknown flag: --base-config`.
+exec /usr/bin/piri serve full --config "$CONFIG_FILE"
