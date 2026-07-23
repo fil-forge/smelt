@@ -4,7 +4,7 @@
 # on the box ($FORGE_SECRETS_DIR/ingot-config.yaml). No real values here.
 
 addr: "0.0.0.0:9000"
-region: us-west-1
+region: dev-ams
 data_dir: /data
 log_level: info
 
