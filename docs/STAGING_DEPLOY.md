@@ -414,11 +414,18 @@ curl -si -X POST "https://hilt.staging.fil.one/tenants/smoke-1/access-keys" \
 
 **2. S3 against ingot.** Two client-side settings matter:
 
-- **Region must be `us-west-1` everywhere.** It is part of the SigV4 signature
-  (hilt validates it against the registered provider region) AND `aws s3 mb` /
-  `create-bucket` send it as the `LocationConstraint`, which ingot checks against
-  its configured region — a mismatched client region fails with
-  `InvalidLocationConstraint`. Set both `AWS_REGION` and `AWS_DEFAULT_REGION`.
+- **Use region `us-west-1`** (set both `AWS_REGION` and `AWS_DEFAULT_REGION`). It is
+  the only region that works unconditionally; other regions fail in two distinct ways:
+  - `aws s3 mb` / `create-bucket` send the client region as the bucket
+    `LocationConstraint`, which ingot checks against its configured region →
+    `InvalidLocationConstraint`. Exception: `us-east-1` (S3's legacy default) is
+    *omitted* from the request, so it slips past this check.
+  - The SigV4 credential-scope region must map to the tenant's registered provider
+    when a request reaches hilt's authorizer (`validateRegion` in hilt
+    `pkg/rpc/service/auth` → `ErrRegionNotServed`). Ingot authorizes locally when its
+    caches already hold the access key's verification key + delegation chains, so a
+    wrong-region request can *appear* to work on a warm cache — and then 403 after an
+    ingot restart or with a fresh access key. Don't rely on it.
 - **Path-style addressing** (no wildcard `*.ingot` DNS/TLS exists). The aws CLI
   has no env var for this — it's a config-file setting; `aws configure set`
   writes it once into `~/.aws/config`.
