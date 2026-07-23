@@ -51,7 +51,6 @@ storage:
     agent_message_bucket: "agent-message"
     delegation_bucket: "delegation"
     upload_shards_bucket: "upload-shards"
-    use_path_style: true
 
 log:
   level: "info"
