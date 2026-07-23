@@ -49,9 +49,18 @@ FilOne in production) and storage nodes (operated by storage providers in produc
 
 Major Gaps:
 
-1. Write an automated script for the Hilt/Ingot end-to-end workflow ([§8](#8-end-to-end-uploaddownload-test)).
-2. Add a smoke test to the staging deploy that runs the end-to-end workflow.
-3. Persistent Vault for hilt (the dev-mode Vault is in-memory — see Known risk #8).
+1. **Upstream ingot fix for the object write path** — PutObject currently fails (Known
+   risk #13); until an ingot release closes it, the §8 smoke test stops at bucket
+   creation.
+2. Write an automated script for the Hilt/Ingot end-to-end workflow ([§8](#8-end-to-end-uploaddownload-test)).
+3. Add a smoke test to the staging deploy that runs the end-to-end workflow.
+4. Persistent Vault for hilt (the dev-mode Vault is in-memory — see Known risk #8).
+5. Fix the malformed did:web documents (libforge): every service's did.json renders the
+   verification-method fragment as `#%23key-0` (a double `#` — libforge
+   `identity/identity.go` passes an already-prefixed `"#key-0"` to `doc.Fragment`) and
+   `controller: null`. Harmless to the current stack's validators, but strict DID
+   tooling would reject it; one-line fix in libforge, all services inherit it on their
+   next image.
 
 Improvements:
 
@@ -256,6 +265,11 @@ is up (`deploy-core`) and **before** `deploy-piri`, so piri's first init is alre
 allow-listed. It is idempotent. Skipping it makes `deploy-piri` fail with piri crash-looping
 on `registration failed with status: 403`.
 
+**`staging-provision-piri` must also have run first**: the allowlist/register scripts load
+`$FORGE_SECRETS_DIR/piri-secrets.env` (shipped by provisioning) into their compose
+invocations, and compose aborts on a missing env file — another reason §4 provisions both
+bundles before this sequence starts.
+
 ### 5b. Fund the payer's FilecoinPay account
 
 `piri init` step `[4/6]` ("Setting up proof set") asks FilecoinPay to lock up a fixed
@@ -366,8 +380,10 @@ curl -fsS https://ingot.staging.fil.one/health && echo "ingot ok"
 
 ## 8. End-to-end upload/download test
 
-The target architecture is live: FilOne calls hilt's Tenant API to register tenants and
-issue S3 access keys; the data plane uses standard S3 primitives against ingot.
+The target architecture is deployed: FilOne calls hilt's Tenant API to register tenants
+and issue S3 access keys; the data plane uses standard S3 primitives against ingot. The
+control plane (tenants, access keys, buckets) is verified end-to-end; the object write
+path is currently blocked by an upstream ingot gap (Known risk #13).
 
 ### Hilt/Ingot S3 flow
 
@@ -387,30 +403,43 @@ curl -si -X PUT "https://hilt.staging.fil.one/tenants/smoke-1" \
 # → 201; hilt publishes the tenant did:plc (internal plc) and registers it as a
 #   customer with sprue via /customer/add (watch sprue's logs to confirm).
 
-# Mint an S3 access key for the tenant. The secret is returned ONCE — capture it.
+# Mint an S3 access key for the tenant. `name` and at least one permission are
+# required; valid permissions are the AWS-style strings in hilt's
+# pkg/s3perm/s3perm.go (s3:GetObject, s3:PutObject, s3:CreateBucket, ...).
+# The secret is returned ONCE — capture it.
 curl -si -X POST "https://hilt.staging.fil.one/tenants/smoke-1/access-keys" \
   -H "Authorization: Bearer $PARTNER_KEY" -H "Content-Type: application/json" \
-  -d '{}'
+  -d '{"name":"smoke","permissions":["s3:CreateBucket","s3:PutObject","s3:GetObject","s3:ListBucket"]}'
 ```
 
-(Exact request/response field names may drift with the hilt image — on a 4xx, check
-`docker logs` on the hilt container and hilt's README for the current Tenant API shape.)
+**2. S3 against ingot.** Two client-side settings matter:
 
-**2. S3 against ingot** — PATH-STYLE ONLY (no wildcard `*.ingot` DNS/TLS exists), so
-force path-style addressing and sign with the region from above:
+- **Region must be `us-west-1` everywhere.** It is part of the SigV4 signature
+  (hilt validates it against the registered provider region) AND `aws s3 mb` /
+  `create-bucket` send it as the `LocationConstraint`, which ingot checks against
+  its configured region — a mismatched client region fails with
+  `InvalidLocationConstraint`. Set both `AWS_REGION` and `AWS_DEFAULT_REGION`.
+- **Path-style addressing** (no wildcard `*.ingot` DNS/TLS exists). The aws CLI
+  has no env var for this — it's a config-file setting; `aws configure set`
+  writes it once into `~/.aws/config`.
 
 ```bash
-export AWS_ACCESS_KEY_ID=<from step 1> AWS_SECRET_ACCESS_KEY=<from step 1> AWS_REGION=us-west-1
+export AWS_ACCESS_KEY_ID=<from step 1> AWS_SECRET_ACCESS_KEY=<from step 1>
+export AWS_REGION=us-west-1 AWS_DEFAULT_REGION=us-west-1
+export AWS_ENDPOINT_URL=https://ingot.staging.fil.one
 aws configure set default.s3.addressing_style path   # REQUIRED: path-style only
 
-aws --endpoint-url https://ingot.staging.fil.one s3api create-bucket --bucket smoke-bucket
+aws s3 mb s3://smoke-bucket
 head -c 10240 </dev/urandom > /tmp/hello.bin
-aws --endpoint-url https://ingot.staging.fil.one s3api put-object \
-  --bucket smoke-bucket --key hello.bin --body /tmp/hello.bin
-aws --endpoint-url https://ingot.staging.fil.one s3api get-object \
-  --bucket smoke-bucket --key hello.bin /tmp/out.bin
+aws s3 cp /tmp/hello.bin s3://smoke-bucket/hello.bin
+aws s3 cp s3://smoke-bucket/hello.bin /tmp/out.bin
 cmp /tmp/hello.bin /tmp/out.bin && echo "roundtrip ok"
 ```
+
+> **Current status (verified 2026-07-23):** everything up to and including
+> `aws s3 mb` works. **`aws s3 cp` (PutObject) currently fails with
+> `InternalError`** — an upstream ingot gap, not a deployment problem; see
+> Known risk #13.
 
 Behind the scenes: ingot authorizes each request against hilt (`/s3/request/authorize`,
 authority = the committed `hilt-ingot-s3-proof.txt`), spools the object, and ships CAR
@@ -578,3 +607,22 @@ These are deliberate first-step assumptions to confirm during the manual deploy:
     `piri-postgres`, and `ingot` — buckets, objects, and ingot's location registry vanish.
     Hilt tenants (core bundle) survive, but their buckets' data-plane state is gone;
     re-create buckets after a piri re-provision.
+13. **UPSTREAM: ingot PutObject fails — write path ships /blob/add with no space proof
+    (verified 2026-07-23, `ingot:main`).** `aws s3 cp` returns `InternalError`; ingot's
+    log shows `executing blob add: executing invocation: <cid> is not issued by subject
+    and has no proofs` — sprue correctly rejects the `/blob/add` invocation because
+    ingot attaches no delegation chain from the bucket's space to its agent. This is a
+    known gap in ingot itself: `module.go`'s `provideTokenStore` comment says the write
+    path's `/blob/add`/`/index/add` chains are unpopulated ("the delegation cache the
+    IAM service fills is the likely future source" — those hilt-issued chains also
+    terminate at the *access key's* DID, not ingot's agent DID). Nothing in the staging
+    deployment can fix this; it needs an ingot release. Re-run the §8 smoke test after
+    the next `INGOT_IMAGE` bump.
+14. **Deploy health gate vs. recovered crash: stale RestartCount.** The gate fails any
+    container with `RestartCount > 0`, even one that recovered and is now healthy (the
+    counter persists for the container's lifetime). If `staging-deploy-*` reports
+    `crash-looping (restarts=N)` but `docker compose ps` shows the service healthy,
+    clear the counter by recreating just that container (`docker compose -p <project>
+    <env-files> up -d --force-recreate <service>`) and re-run the deploy for a clean
+    gate. Investigate the original crash in `docker logs` first — the gate flagged a
+    real crash, just not necessarily a persistent one.
