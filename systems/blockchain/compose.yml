@@ -22,10 +22,23 @@ services:
       # seeds scratch from it on first run and `make clean` / `make nuke`
       # clears scratch to force a true cold boot.
       - ../../generated/snapshot-scratch/anvil-state.json:/app/anvil-state.json:ro
-      - ../../generated/snapshot-scratch/deployed-addresses.json:/deployed-addresses.json:ro
       - ../../generated/snapshot-scratch:/output
+      # NB: deployed-addresses.json is deliberately NOT single-file bind-mounted.
+      # init mode's deploy-local.sh writes /deployed-addresses.json and the
+      # SIGTERM dump reads it back; a single-file mount that gets rewritten is
+      # unreliable on Docker Desktop for macOS (the host file vanishes mid-run,
+      # breaking the dump). Instead the deploy writes it inside the container and
+      # the dump copies it out through the /output dir mount above. Services read
+      # contract addresses from the committed systems/blockchain/state copy, not
+      # from here, so nothing else needs this file mounted.
     environment:
       - ANVIL_BLOCK_TIME=3
+    # The SIGTERM state dump (anvil --dump-state flush + copy to /output) takes
+    # well over Docker's default 10s stop grace, especially under Docker Desktop
+    # on macOS; too short a grace SIGKILLs mid-dump and the snapshot save gets no
+    # anvil-state.json. Give it ample headroom — the container exits as soon as
+    # the dump completes, so this is a ceiling, not a fixed wait.
+    stop_grace_period: 120s
     healthcheck:
       # Container touches /tmp/ready after contracts are deployed/loaded AND
       # mockrpc is accepting requests. Sentinel is strictly more accurate than

@@ -38,7 +38,7 @@ workspace-build:
 		rm -f $(WORKSPACE_OVERRIDE); \
 	fi
 
-.PHONY: help generate init up down restart clean nuke fresh logs pull build cli status guppy regen debug-upload ensure-state check-docker workspace-build staging-keygen staging-bootstrap staging-provision-core staging-provision-piri staging-deploy-core staging-allowlist-piri staging-deploy-piri staging-register-piri staging-fund-payer
+.PHONY: help generate init up down restart clean nuke fresh logs pull build cli status guppy regen debug-upload ensure-state check-docker workspace-build shell-guppy shell-piri shell-upload shell-hilt staging-keygen staging-bootstrap staging-provision-core staging-provision-piri staging-deploy-core staging-allowlist-piri staging-deploy-piri staging-register-piri staging-fund-payer
 
 # Default target - show help
 help:
@@ -171,6 +171,11 @@ up: ensure-state
 		$(MAKE) init; \
 	else \
 		$(MAKE) generate; \
+		if command -v "$${UCANTOOL:-ucantool}" >/dev/null 2>&1; then \
+			./generated/generate-proofs.sh; \
+		else \
+			echo "WARNING: ucantool not found - skipping proof top-up"; \
+		fi \
 	fi
 	$(MAKE) workspace-build
 	$(COMPOSE) up -d --remove-orphans
@@ -354,6 +359,10 @@ shell-piri: generated/compose/piri.yml ensure-state
 # Shell into upload container
 shell-upload: ensure-state
 	$(COMPOSE) exec upload bash
+
+# Shell into hilt container
+shell-hilt: ensure-state
+	$(COMPOSE) exec hilt bash
 
 # Run upload (sprue) under Delve for remote debugging.
 # See compose.debug.yml for the overlay; attach to localhost:2345.

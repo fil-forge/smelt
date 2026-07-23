@@ -50,7 +50,13 @@ jobs:
         # that build tag — smoke_test.go (parallel subtests over the
         # four storage-backend permutations) and snapshot_test.go (boot
         # from committed 3-piri snapshot and upload once).
-        run: go test -tags e2e -v -timeout 15m ./tests/e2e/...
+        #
+        # -parallel bounds how many full stacks boot at once. Each
+        # permutation spins ~20 containers (three postgres, vault, the
+        # JVM-based dynamodb-local, ...); booting all four in parallel
+        # saturates the 4-vCPU runner and slow JVM services miss their
+        # healthcheck windows. SMELT_E2E_MAX_PARALLEL tunes it (default 1).
+        run: go test -tags e2e -v -timeout 15m -parallel "${SMELT_E2E_MAX_PARALLEL:-1}" ./tests/e2e/...
 
       - name: Dump container state on failure
         if: failure()

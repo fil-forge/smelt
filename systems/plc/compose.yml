@@ -1,0 +1,62 @@
+# PLC System - did:plc directory (reference implementation)
+#
+# The real @did-plc/server from https://github.com/did-method-plc/did-method-plc.
+# Pulls the image published by the fil-forge fork of did-method-plc (the ghcr
+# publish fixes are pending an upstream PR); override with PLC_IMAGE. Validates
+# operation signatures, did:plc derivation, and prev-CID chains — hilt publishes
+# tenant DIDs here.
+# Used by: hilt
+
+services:
+  plc:
+    image: ${PLC_IMAGE:-ghcr.io/fil-forge/did-method-plc:main}
+    ports:
+      - "${SMELT_PLC_PORT:-15120:3000}"
+    environment:
+      # The production entrypoint (packages/server/service/index.js) takes DB
+      # credentials as JSON, with a separate (here: identical) credentialed
+      # user for startup migrations. Dev-only creds, like upload's sprue:sprue.
+      - DB_CREDS_JSON={"username":"plc","password":"plc","host":"plc-postgres","port":"5432","database":"plc"}
+      - DB_MIGRATE_CREDS_JSON={"username":"plc","password":"plc","host":"plc-postgres","port":"5432","database":"plc"}
+      - ENABLE_MIGRATIONS=true
+      - LOG_ENABLED=true
+      - LOG_LEVEL=info
+    depends_on:
+      plc-postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/_health"]
+      start_interval: 1s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - forge-network
+
+  # Postgres for the PLC operation log. The server runs kysely migrations on
+  # startup, so the empty `plc` database created by POSTGRES_DB is enough.
+  plc-postgres:
+    image: postgres:16-alpine
+    ports:
+      - "${SMELT_PLC_POSTGRES_PORT:-15121:5432}"
+    environment:
+      - POSTGRES_USER=plc
+      - POSTGRES_PASSWORD=plc
+      - POSTGRES_DB=plc
+    volumes:
+      - plc-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U plc -d plc"]
+      start_interval: 1s
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - forge-network
+
+volumes:
+  plc-postgres-data:

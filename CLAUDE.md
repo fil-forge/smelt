@@ -72,7 +72,11 @@ smelt/
 │   │   └── indexer/       # Content claims cache
 │   ├── piri/              # Storage node template (generator reads config from here)
 │   ├── upload/            # Upload orchestration (mock w3infra)
+│   ├── hilt/              # Tenant management (Fil One Tenant API + UCAN RPC)
+│   ├── plc/               # did:plc directory (reference impl; hilt publishes tenant DIDs here)
+│   ├── ingot/             # S3 facade (built from sibling ../ingot checkout)
 │   ├── guppy/             # CLI client
+│   ├── ingot/             # S3 gateway over Forge (+ its own postgres)
 │   ├── telemetry/         # Observability stack (present but not wired into Makefile)
 │   └── stress-tester/     # Load test runner (present but not wired into Makefile)
 └── docs/
@@ -305,6 +309,13 @@ All host-side ports live in a dedicated `15XXX` range to avoid collision with co
 | ipni admin | 15091 | HTTP | IPNI admin |
 | ipni p2p | 15092 | libp2p | Advertisement sync |
 | piri-{N} | 15100 + N | HTTP/UCAN | Storage node(s); N defined by `smelt.yml` (default 1, max 9) |
+| hilt | 15110 | HTTP/UCAN | Tenant management (Tenant API + UCAN RPC) |
+| hilt-postgres | 15111 | PostgreSQL | Hilt tenant/provider store |
+| hilt-vault | 15112 | HTTP | Hilt key vault (HashiCorp Vault dev mode) |
+| plc | 15120 | HTTP | did:plc directory (reference implementation) |
+| plc-postgres | 15121 | PostgreSQL | did:plc directory store |
+| ingot | 15130 | S3/HTTP | S3 gateway over Forge |
+| ingot-postgres | 15131 | PostgreSQL | Ingot registry/metadata |
 | guppy | (none) | CLI | Client container |
 
 **Piri Shared Storage** (only emitted when at least one node uses that backend):
@@ -425,6 +436,8 @@ The capability string must match exactly. `space/blob/add` is not `blob/add`. Ch
 | `fil-forge/guppy` | CLI client |
 | `fil-forge/indexing-service` | Indexer service |
 | `fil-forge/delegator` | Delegation service |
+| `fil-forge/hilt` | Tenant management service |
+| `fil-forge/ingot` | S3 facade |
 | `fil-forge/go-ucanto` | UCAN implementation in Go |
 | `fil-forge/specs` | Protocol specifications |
 
@@ -440,7 +453,7 @@ PIRI_IMAGE=ghcr.io/fil-forge/piri:v1.2.3 make up
 PIRI_IMAGE=myregistry/piri:test GUPPY_IMAGE=myregistry/guppy:test make up
 ```
 
-Available variables: `PIRI_IMAGE`, `GUPPY_IMAGE`, `DELEGATOR_IMAGE`, `INDEXER_IMAGE`, `IPNI_IMAGE`, `SIGNER_IMAGE`, `UPLOAD_IMAGE`, `BLOCKCHAIN_IMAGE`. Defaults live in `.env`.
+Available variables: `PIRI_IMAGE`, `GUPPY_IMAGE`, `DELEGATOR_IMAGE`, `INDEXER_IMAGE`, `IPNI_IMAGE`, `SIGNER_IMAGE`, `UPLOAD_IMAGE`, `HILT_IMAGE`, `INGOT_IMAGE`, `PLC_IMAGE`, `BLOCKCHAIN_IMAGE`. Defaults live in `.env`.
 
 ## Developing Against Sibling Service Repos
 
@@ -474,13 +487,32 @@ Module → service / container binary map (see `pkg/workspace`):
 | `indexing-service` | indexer | `/usr/bin/indexer` |
 | `delegator` | delegator | `/usr/bin/registrar` |
 | `guppy` | guppy | `/usr/bin/guppy` |
+| `hilt` | hilt | `/usr/bin/hilt` |
+| `ingot` | ingot | `/usr/bin/ingot` |
 
 In Go tests, `stack.WithWorkspaceBinaries()` does the same; `stack.WithServiceBinary(name, path)`
-mounts a specific prebuilt binary without the workspace machinery.
+mounts a specific prebuilt binary without the workspace machinery, and
+`stack.WithServiceConfig(name, path)` mounts a test-provided config file over the service's
+in-container config path.
+
+## Service Repos Own Their E2E Tests (Smelt as SDK)
+
+The inverse direction of the workspace flow: a service repo imports `smelt/pkg/stack` as a
+test dependency, boots the stack from its own e2e tests, and injects its working-tree binary
+via `stack.WithServiceBinary`. Compose files, configs, and embedded snapshots travel with the
+Go import (`go:embed`), so no smelt checkout is needed. Smelt owns each service's *system
+definition* (topology, ports, default config, keys) and asserts it boots healthy; the service
+repo owns its *behavior* tests. Ingot is the reference implementation
+(`ingot/itest`); see docs/DEVELOPING.md "Service repos own their e2e tests".
 
 ## CI/CD
 
-There is no CI wired up in this repository yet. When CI lands, this section will describe the triggers, workflows, and test structure.
+GitHub Actions run on every PR and push to main (`.github/workflows/`):
+
+- **Go Test** / **Go Checks** — unit tests, vet, lint via the shared unified workflows.
+- **E2E** (`e2e.yml`) — `go test -tags e2e ./tests/e2e/...`: Docker-backed full-stack tests
+  (upload/retrieve smoke over the four storage-backend permutations, snapshot boot, ingot
+  system health). Dumps every container's logs on failure.
 
 ## Further Reading
 

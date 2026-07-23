@@ -20,10 +20,18 @@ import "embed"
 //go:embed systems/guppy/compose.yml
 //go:embed systems/guppy/config/*
 
+//go:embed systems/hilt/compose.yml
+//go:embed systems/hilt/post_start.sh
+
+//go:embed systems/ingot/compose.yml
+//go:embed systems/ingot/config/*
+
 //go:embed systems/indexing/compose.yml
 //go:embed systems/indexing/ipni/compose.yml
 //go:embed systems/indexing/ipni/entrypoint.sh
 //go:embed systems/indexing/indexer/compose.yml
+
+//go:embed systems/plc/compose.yml
 
 //go:embed systems/piri/entrypoint.sh
 //go:embed systems/piri/register-did.sh
@@ -35,6 +43,9 @@ import "embed"
 //go:embed systems/upload/compose.yml
 //go:embed systems/upload/config/*
 //go:embed systems/upload/post_start.sh
+
+//go:embed systems/ingot/compose.yml
+//go:embed systems/ingot/config/*
 
 // Curated snapshots shipped with the Go module so external consumers
 // (importers of pkg/stack) can call stack.WithEmbeddedSnapshot without

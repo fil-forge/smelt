@@ -13,6 +13,14 @@ import (
 	"github.com/fil-forge/smelt/pkg/stack"
 )
 
+// Each storage permutation boots a full stack (~20 containers, including
+// three postgres, vault, and the JVM-based dynamodb-local). Booting all
+// four at once saturates a 4-vCPU CI runner and the slow-starting JVM
+// services miss their healthcheck windows, so concurrency is bounded via
+// `go test -parallel N` (see e2e.yml, defaulting to 2). The -parallel
+// token is held until each subtest fully completes — including the stack
+// teardown registered by MustNewStack via t.Cleanup — so it caps live
+// stacks correctly.
 func TestUploadAndRetrieve(t *testing.T) {
 	if runtime.GOOS == "darwin" {
 		t.Skip("skipping on darwin (docker-in-docker flakiness)")
@@ -51,6 +59,13 @@ func TestUploadAndRetrieve(t *testing.T) {
 			}
 
 			s := stack.MustNewStack(t, opts...)
+
+			// Smelt owns ingot's *system definition* (topology, config,
+			// keys); ingot's behavior tests live in the ingot repo
+			// (testing/forge_*_test.go), which imports this stack SDK.
+			// Here we only assert the definition boots to healthy.
+			waitHTTPOK(t, s.IngotEndpoint()+"/health", 2*time.Minute)
+
 			gup, err := guppy.NewContainerClient(s)
 			if err != nil {
 				t.Fatal(err)
