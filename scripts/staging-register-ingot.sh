@@ -17,7 +17,11 @@
 #
 # Run it AFTER both `staging-deploy-core` and `staging-deploy-piri` report
 # healthy, and BEFORE creating any tenants. It is idempotent: an
-# already-registered provider is tolerated.
+# already-registered provider is tolerated — and then VERIFIED, because hilt's
+# `provider add` returns the same "already registered" error whether this exact
+# (DID, region) pair exists or the DID is registered under a DIFFERENT region
+# (e.g. after a region rename). Trusting the error alone once masked exactly
+# that mismatch.
 #
 # Carries NO secrets. Needs only SSH to the box and the deployed bundles.
 #
@@ -75,20 +79,37 @@ fi
 echo "  ingot DID: \$INGOT_DID"
 
 # Same admin call as the local post_start hook. Tolerate "already registered"
-# so re-running is a no-op; any other failure is fatal.
+# so re-running is a no-op; any other failure is fatal. The tolerance is NOT
+# trusted on its own — hilt raises the same error for a conflicting region
+# (ErrProviderExists covers "this DID or region"), so the resulting row is
+# verified below in every case.
 cd "$CORE_DIR"
 echo "  registering provider for region $INGOT_REGION"
 if REG_OUTPUT=\$($CORE_COMPOSE exec -T hilt hilt client admin provider add "\$INGOT_DID" "$INGOT_REGION" </dev/null 2>&1); then
   :
 elif printf '%s\n' "\$REG_OUTPUT" | grep -qi "already registered"; then
-  echo "  (already registered — continuing)"
+  echo "  (already registered — verifying the region matches)"
 else
   echo "ERROR: provider registration failed:" >&2
   echo "\$REG_OUTPUT" >&2
   exit 1
 fi
 
-echo "  provider registered: \$INGOT_DID -> $INGOT_REGION"
+# Verify hilt's provider row really maps this DID to the requested region.
+# hilt has no `provider list`/`remove` commands, so read the row straight from
+# its database (psql over the container-local socket, which the postgres image
+# trusts — no password involved).
+ACTUAL_REGION=\$($CORE_COMPOSE exec -T postgres psql -U admin -d hilt -tAc "SELECT region FROM provider WHERE id = '\$INGOT_DID'" </dev/null | tr -d '[:space:]')
+if [ "\$ACTUAL_REGION" != "$INGOT_REGION" ]; then
+  echo "ERROR: hilt's provider row for \$INGOT_DID has region '\$ACTUAL_REGION', want '$INGOT_REGION'." >&2
+  echo "       hilt has no 'provider remove' command. Either delete the stale row from the" >&2
+  echo "       'provider' table (database 'hilt' on the core postgres) and re-run this" >&2
+  echo "       script, or reset the core bundle (make staging-provision-core + deploy-core" >&2
+  echo "       + the §5/§6 re-registration steps)." >&2
+  exit 1
+fi
+
+echo "  provider registered: \$INGOT_DID -> $INGOT_REGION (verified)"
 REMOTE
 
 echo "Done. Hilt tenants can now be created in region $INGOT_REGION."
