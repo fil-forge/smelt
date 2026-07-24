@@ -211,15 +211,17 @@ op inject -i "$VAULT_TPL" | ship vault-secrets.env 0440
 
 # --- 4. Unseal (if sealed) + ensure the KV v2 engine at secret/ (idempotent) --
 # The unseal key + root token come from the just-shipped vault-secrets.env on the
-# box (0440, root-only) — the same file the sidecar uses. Two image quirks matter:
-#   - `vault operator unseal` does NOT read the key from stdin here (`-` is taken
-#     literally), so the key is passed as an argument. It already lives at rest in
-#     vault-secrets.env on this box, so its brief presence in the container argv is
-#     not a new exposure (and the sidecar unseals the same way).
-#   - `vault login -` DOES read the token from stdin, so the root token stays off
-#     argv.
-# KV v2 is (re)ensured every run so a partial earlier run self-heals; it is
-# enabled only when the secret/ mount is absent.
+# box (0440, root-only) — the same file the sidecar uses. Both are handled without
+# putting the secret on argv, and without `vault login` (whose token-helper is
+# unreliable across environments):
+#   - `vault operator unseal` does NOT read the key from stdin in this image (`-`
+#     is taken literally), so the key is passed as an argument. It already lives at
+#     rest in vault-secrets.env on this box, so its brief presence in the container
+#     argv is not a new exposure (and the sidecar unseals the same way).
+#   - the root token is read from stdin into VAULT_TOKEN inside the container, so
+#     it authenticates the KV step directly (no token helper, no argv).
+# KV v2 is (re)ensured every run so a partial earlier run self-heals; it is enabled
+# only when the secret/ mount is absent.
 echo "==> [4/4] unsealing (if sealed) + ensuring KV v2 engine at secret/"
 forge_ssh bash -s <<REMOTE
 set -euo pipefail
@@ -231,12 +233,16 @@ else
   $COMPOSE exec -T hilt-vault vault operator unseal "\$HILT_VAULT_UNSEAL_KEY" </dev/null >/dev/null
   echo "  unsealed"
 fi
-printf '%s' "\$HILT_VAULT_TOKEN" | $COMPOSE exec -T hilt-vault sh -c '
-  vault login - >/dev/null 2>&1 || { echo "  ERROR: vault login failed" >&2; exit 1; }
+printf '%s\n' "\$HILT_VAULT_TOKEN" | $COMPOSE exec -T hilt-vault sh -c '
+  read -r VAULT_TOKEN || true
+  export VAULT_TOKEN
+  [ -n "\$VAULT_TOKEN" ] || { echo "  ERROR: empty vault token in vault-secrets.env" >&2; exit 1; }
   if vault secrets list 2>/dev/null | grep -q "^secret/"; then
     echo "  KV v2 already enabled at secret/"
   else
-    vault secrets enable -path=secret -version=2 kv >/dev/null && echo "  KV v2 enabled at secret/"
+    vault secrets enable -path=secret -version=2 kv >/dev/null \
+      || { echo "  ERROR: could not enable KV v2 (root token rejected?)" >&2; exit 1; }
+    echo "  KV v2 enabled at secret/"
   fi
 '
 REMOTE
