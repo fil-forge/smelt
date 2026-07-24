@@ -622,6 +622,14 @@ manual setup is needed:
 - **minio-init** creates sprue's buckets,
 - **sprue** runs its own Postgres migrations.
 
+Each bundle's postgres healthcheck probes `127.0.0.1` (`pg_isready -h 127.0.0.1`),
+not the default unix socket. On a freshly-wiped data dir the postgres image runs a
+temporary bootstrap server on the unix socket only (`listen_addresses=''`) while it
+runs `initdb`; a socket-based `pg_isready` would report healthy during that window,
+so `postgres-init` — which connects over TCP — could start too early and fail with
+`psql` exit 2, failing the deploy. The TCP probe stays unready until the real server
+is listening on TCP, closing the race.
+
 ### Payment-plan bypass
 
 sprue runs with `deployment.allow_provision_without_payment_plan: true` (in
