@@ -441,7 +441,38 @@ segments to sprue → piri over public https. Reads resolve from ingot's local
 `blob_locations` registry — no indexer involved (see
 [Running without an indexer](#running-without-an-indexer)).
 
-### 9. Rollback
+## 9. Updating a bundle after a new image is published
+
+Once a bundle is up, picking up a freshly-published service image (e.g. a new
+`hilt`/`plc` in core, or `ingot`/`piri` in piri) is just a **redeploy** of that bundle:
+
+```bash
+make staging-deploy-core               # refreshes core images (hilt, plc, sprue, ...)
+make staging-deploy-piri               # refreshes piri images (piri-0, ingot)
+```
+
+Because `versions.env` still tracks the rolling `:main` tag, `staging-deploy-*` runs
+`docker compose pull` (fetching the new image under the same tag) and then recreates only
+the containers whose image digest changed — unchanged services keep running. Data survives:
+a redeploy is **not** provisioning, so it does not touch secrets or wipe the ZFS-backed
+volumes.
+
+Notes:
+
+- **Do not re-run `make staging-provision-*`** to pick up an image — provisioning is
+  destructive (§4) and would wipe the bundle's data.
+- **No cross-bundle re-registration is needed** for a plain image bump. The allow-list,
+  payer funding, and provider registrations (§§5b, 6, 6b) persist across a redeploy; only
+  re-run them if provisioning wiped state or a DID/key changed.
+- If a service's **config template** changed with the new image (not just the binary),
+  re-provision that bundle so the rendered config is regenerated — for the piri base config
+  see the re-provision-then-deploy caveat under
+  [Running without an indexer](#running-without-an-indexer).
+- Once images are pinned to `@sha256:` digests (see [Improvements](#improvements)), updating
+  instead means bumping the digest in `versions.env`, committing, and redeploying — the pull
+  becomes a no-op and the new digest drives the recreate.
+
+## 10. Rollback
 
 _This will be applicable in the future, after we have pinned versions._
 
@@ -455,7 +486,7 @@ FORGE_REF=<previous-commit> make staging-deploy-piri
 Image versions are pinned per bundle in `versions.env`, so rolling back the application
 versions is deterministic. Data/schema rollback is out of scope.
 
-## 10. Topping up low wallet balances
+## 11. Topping up low wallet balances
 
 The staging stack draws on three funded wallets, and their balances deplete over time —
 gas is spent on every on-chain transaction, and USDFC is consumed as storage payments
@@ -583,7 +614,7 @@ re-create buckets after a piri re-provision.
    `InsufficientLockupFunds`, uploads stall). Add a periodic balance check that alerts
    (Grafana Cloud, where logs already ship) before a wallet crosses a low-balance
    threshold, and a runbook entry for topping up — see
-   [§10](#10-topping-up-low-wallet-balances).
+   [§11](#11-topping-up-low-wallet-balances).
 5. Harden the deploy health gate against recovered-crash false positives. It fails any
    container with `RestartCount > 0` even after the container recovered and is healthy
    (the counter persists for the container's lifetime), so `staging-deploy-*` can report
