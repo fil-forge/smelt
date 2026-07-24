@@ -440,10 +440,17 @@ curl -si -X PUT "https://hilt.staging.fil.one/tenants/smoke-1" \
 # Mint an S3 access key for the tenant. `name` and at least one permission are
 # required; valid permissions are the AWS-style strings in hilt's
 # pkg/s3perm/s3perm.go (s3:GetObject, s3:PutObject, s3:CreateBucket, ...).
-# The secret is returned ONCE — capture it.
-curl -si -X POST "https://hilt.staging.fil.one/tenants/smoke-1/access-keys" \
+# The secret is returned ONCE, so pipe it straight into a .env file that sets
+# all four AWS_ vars step 2 needs; `source .env.staging` before running the S3 test.
+curl -s -X POST "https://hilt.staging.fil.one/tenants/smoke-1/access-keys" \
   -H "Authorization: Bearer $PARTNER_KEY" -H "Content-Type: application/json" \
-  -d '{"name":"smoke","permissions":["s3:CreateBucket","s3:PutObject","s3:GetObject","s3:ListBucket"]}'
+  -d '{"name":"smoke","permissions":["s3:CreateBucket","s3:PutObject","s3:GetObject","s3:ListBucket"]}' \
+  | jq -r '
+      "AWS_ACCESS_KEY_ID=" + .accessKeyId,
+      "AWS_SECRET_ACCESS_KEY=" + .secretAccessKey,
+      "AWS_REGION=eu-central-3",
+      "AWS_ENDPOINT_URL=https://ingot.staging.fil.one"
+    ' > .env.staging
 ```
 
 **2. S3 against ingot.**
@@ -461,10 +468,7 @@ Two client-side settings matter:
 Test script:
 
 ```bash
-export AWS_ACCESS_KEY_ID=#from step 1
-export AWS_SECRET_ACCESS_KEY=#from step 1
-export AWS_REGION=eu-central-3
-export AWS_ENDPOINT_URL=https://ingot.staging.fil.one
+set -a; source .env.staging; set +a   # AWS_ACCESS_KEY_ID/SECRET/REGION/ENDPOINT_URL from step 1
 
 aws s3 mb s3://smoke-bucket
 head -c 10240 </dev/urandom > /tmp/hello.bin
