@@ -446,7 +446,7 @@ curl -si -X PUT "https://hilt.staging.fil.one/tenants/smoke-1" \
 # the error body). Capture first so a failure doesn't clobber .env.staging via >.
 if resp=$(curl -sS --fail-with-body -X POST "https://hilt.staging.fil.one/tenants/smoke-1/access-keys" \
   -H "Authorization: Bearer $PARTNER_KEY" -H "Content-Type: application/json" \
-  -d '{"name":"smoke","permissions":["s3:CreateBucket","s3:ListAllMyBuckets","s3:DeleteBucket","s3:ListBucket","s3:ListBucketVersions","s3:GetObject","s3:PutObject","s3:DeleteObject","s3:GetObjectRetention","s3:PutObjectRetention","s3:GetObjectLegalHold","s3:PutObjectLegalHold","s3:GetObjectVersion"]}'); then
+  -d '{"name":"smoke","permissions":["s3:CreateBucket","s3:ListAllMyBuckets","s3:DeleteBucket","s3:ListBucket","s3:ListBucketVersions","s3:GetObject","s3:PutObject","s3:DeleteObject","s3:GetObjectRetention","s3:PutObjectRetention","s3:GetObjectLegalHold","s3:PutObjectLegalHold","s3:GetObjectVersion","s3:DeleteObjectVersion"]}'); then
   jq -r '
     "AWS_ACCESS_KEY_ID=" + .accessKeyId,
     "AWS_SECRET_ACCESS_KEY=" + .secretAccessKey,
