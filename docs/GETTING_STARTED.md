@@ -109,14 +109,13 @@ Smelt ships with a single-piri default, so you can skip this section on your fir
 version: 1
 piri:
   nodes:
-    - storage: { db: sqlite,   blob: filesystem }  # piri-0 (default)
+    - storage: { db: postgres, blob: s3         }  # piri-0 (default)
     # Uncomment additional nodes to run multi-provider setups:
     # - storage: { db: postgres, blob: filesystem }  # piri-1
-    # - storage: { db: sqlite,   blob: s3 }          # piri-2
-    # - storage: { db: postgres, blob: s3 }          # piri-3
+    # - storage: { db: postgres, blob: s3 }          # piri-2
 ```
 
-Each entry becomes a `piri-{N}` container exposed on host port `15100 + N`. You can mix and match storage backends per node. Up to 9 nodes total (limited by Anvil's pre-funded accounts). Shared `piri-postgres` and `piri-minio` services are included automatically when any node uses those backends.
+Each entry becomes a `piri-{N}` container exposed on host port `15100 + N`. You can mix and match storage backends per node. Up to 9 nodes total (limited by Anvil's pre-funded accounts). Shared `piri-postgres` (host port `15074`) and `piri-minio` services are included automatically when any node uses those backends. Override the postgres host port with `SMELT_PIRI_POSTGRES_PORT` if `15074` is taken.
 
 See [docs/MULTI_PIRI.md](MULTI_PIRI.md) for the full schema, database namespacing, hot-add/remove behavior, and Anvil wallet mapping. If you edit `smelt.yml` while the network is running, `make up` picks up the change (adding new nodes and `--remove-orphans` removing deleted ones).
 

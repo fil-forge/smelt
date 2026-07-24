@@ -322,7 +322,7 @@ All host-side ports live in a dedicated `15XXX` range to avoid collision with co
 
 | Service | Host Port | Protocol | Description |
 |---------|-----------|----------|-------------|
-| piri-postgres | 5432 | PostgreSQL | Shared instance; per-node databases `piri_0`, `piri_1`, ... |
+| piri-postgres | 15074 | PostgreSQL | Shared instance; per-node databases `piri_0`, `piri_1`, ... |
 | piri-minio S3 | 15072 | S3 | Per-node bucket prefix `piri-{N}-` |
 | piri-minio console | 15073 | HTTP | MinIO console |
 
