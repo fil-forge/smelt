@@ -100,28 +100,44 @@ echo "Initializing hilt-vault on $FORGE_HOST (ref $FORGE_REF)"
 # --- 1. Sync the box checkout + boot hilt-vault alone, report its status -----
 # The checkout must carry this version's compose block + config/vault/vault.hcl
 # before we can boot Vault, so sync it here (same guard/logic as staging-deploy).
+#
+# This runs inside a command substitution, so only the status JSON goes to stdout;
+# ALL progress + diagnostics go to the box's stderr, which streams live to the
+# operator's terminal (command substitution captures stdout only).
+echo "==> [1/4] syncing box checkout to $FORGE_REF and booting hilt-vault (may take ~30-60s on first run)…"
 STATUS_JSON="$(forge_ssh bash -s <<REMOTE
 set -euo pipefail
 if ! git -C "$FORGE_DIR" diff --quiet || ! git -C "$FORGE_DIR" diff --cached --quiet; then
   echo "ERROR: $FORGE_DIR has uncommitted changes to tracked files; aborting" >&2
   exit 1
 fi
+echo "  [box] fetching origin…" >&2
 git -C "$FORGE_DIR" fetch --quiet --tags --force origin
 git -C "$FORGE_DIR" reset --quiet --hard "origin/$FORGE_REF" 2>/dev/null \
   || git -C "$FORGE_DIR" reset --quiet --hard "$FORGE_REF"
+echo "  [box] checkout at \$(git -C "$FORGE_DIR" rev-parse --short HEAD)" >&2
 cd "$CORE_DIR"
-$COMPOSE up -d hilt-vault >/dev/null 2>&1
-# vault status: exit 0 = unsealed, 2 = sealed (incl. uninitialized), 1 = not ready.
-# Both 0 and 2 print valid JSON on stdout; poll until one of them.
+echo "  [box] (re)creating hilt-vault container…" >&2
+# stdout -> stderr (1>&2) so compose's own output (image pulls, create/start
+# lines, and any error) is visible without polluting the captured status JSON.
+$COMPOSE up -d hilt-vault 1>&2
+echo "  [box] waiting for Vault to respond…" >&2
 for _ in \$(seq 1 30); do
-  if out=\$($COMPOSE exec -T hilt-vault vault status -format=json </dev/null 2>/dev/null); then
-    printf '%s' "\$out"; exit 0
-  elif [ "\$?" = "2" ]; then
+  # Accept ANY valid status JSON (contains "sealed"), regardless of vault's exit
+  # code — an uninitialized/sealed Vault exits non-zero but still prints usable
+  # status. Only genuine unreachability (empty output) counts as not-ready.
+  out=\$($COMPOSE exec -T hilt-vault vault status -format=json </dev/null 2>/dev/null) || true
+  if printf '%s' "\$out" | grep -q '"sealed"'; then
     printf '%s' "\$out"; exit 0
   fi
+  printf '.' >&2
   sleep 2
 done
-echo "ERROR: hilt-vault did not become reachable within timeout" >&2
+echo >&2
+echo "ERROR: hilt-vault did not become reachable within ~60s. Current state:" >&2
+$COMPOSE ps -a hilt-vault >&2 2>/dev/null || true
+echo "--- hilt-vault logs (last 40) ---" >&2
+$COMPOSE logs --tail=40 hilt-vault >&2 2>/dev/null || true
 exit 1
 REMOTE
 )"

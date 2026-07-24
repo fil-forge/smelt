@@ -275,11 +275,15 @@ services:
   # See docs/STAGING_DEPLOY.md ("Persistent sealed Vault").
   hilt-vault:
     image: ${VAULT_IMAGE}
-    # Use the stock entrypoint: `command: server` lets docker-entrypoint.sh run
-    # `vault server -config=/vault/config` (loading vault.hcl from that dir) and,
-    # since the container starts as root, chown the /vault/file data mount to the
-    # `vault` user before stepping down to it. The injected `-dev-*` flags do NOT
-    # enable dev mode (that needs `-dev`), so this is a real, sealed server.
+    # Start as root and use the STOCK entrypoint (command: server). When
+    # docker-entrypoint.sh sees uid 0 it chowns the /vault/file data mount to the
+    # `vault` user and then su-exec's down to it — so the root-owned host bind dir
+    # becomes writable with no host-side chown. The `user: "0:0"` is REQUIRED: the
+    # image's own default user is `vault`, which SKIPS that chown and then can't
+    # write the bind mount (Raft fails with "permission denied"). The `-dev-*`
+    # flags the entrypoint injects do NOT enable dev mode (needs `-dev`), so this
+    # stays a real, sealed server, run by the unprivileged `vault` user.
+    user: "0:0"
     command: server
     environment:
       - VAULT_ADDR=http://127.0.0.1:8200
