@@ -442,15 +442,20 @@ curl -si -X PUT "https://hilt.staging.fil.one/tenants/smoke-1" \
 # pkg/s3perm/s3perm.go (s3:GetObject, s3:PutObject, s3:CreateBucket, ...).
 # The secret is returned ONCE, so pipe it straight into a .env file that sets
 # all four AWS_ vars step 2 needs; `source .env.staging` before running the S3 test.
-curl -s -X POST "https://hilt.staging.fil.one/tenants/smoke-1/access-keys" \
+# --fail-with-body makes curl exit non-zero on a non-2xx status (still printing
+# the error body). Capture first so a failure doesn't clobber .env.staging via >.
+if resp=$(curl -sS --fail-with-body -X POST "https://hilt.staging.fil.one/tenants/smoke-1/access-keys" \
   -H "Authorization: Bearer $PARTNER_KEY" -H "Content-Type: application/json" \
-  -d '{"name":"smoke","permissions":["s3:CreateBucket","s3:PutObject","s3:GetObject","s3:ListBucket"]}' \
-  | jq -r '
-      "AWS_ACCESS_KEY_ID=" + .accessKeyId,
-      "AWS_SECRET_ACCESS_KEY=" + .secretAccessKey,
-      "AWS_REGION=eu-central-3",
-      "AWS_ENDPOINT_URL=https://ingot.staging.fil.one"
-    ' > .env.staging
+  -d '{"name":"smoke","permissions":["s3:CreateBucket","s3:ListAllMyBuckets","s3:DeleteBucket","s3:ListBucket","s3:ListBucketVersions","s3:GetObject","s3:PutObject","s3:DeleteObject","s3:GetObjectRetention","s3:PutObjectRetention","s3:GetObjectLegalHold","s3:PutObjectLegalHold","s3:GetObjectVersion"]}'); then
+  jq -r '
+    "AWS_ACCESS_KEY_ID=" + .accessKeyId,
+    "AWS_SECRET_ACCESS_KEY=" + .secretAccessKey,
+    "AWS_REGION=eu-central-3",
+    "AWS_ENDPOINT_URL=https://ingot.staging.fil.one"
+  ' <<<"$resp" > .env.staging
+else
+  echo "access-key mint failed:" >&2; echo "$resp" >&2
+fi
 ```
 
 **2. S3 against ingot.**
