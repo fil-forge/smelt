@@ -287,8 +287,11 @@ services:
     command: server
     environment:
       - VAULT_ADDR=http://127.0.0.1:8200
-    cap_add:
-      - IPC_LOCK
+      # vault.hcl disables mlock, so no IPC_LOCK capability is needed — and we
+      # must skip the entrypoint's setcap step: the `setcap` binary isn't present
+      # in this image and would abort startup ("setcap: not found", exit 127)
+      # under the entrypoint's `set -e`.
+      - SKIP_SETCAP=true
     volumes:
       - ./config/vault/vault.hcl:/vault/config/vault.hcl:ro
       - ${FORGE_DATA_DIR}/hilt-vault:/vault/file
