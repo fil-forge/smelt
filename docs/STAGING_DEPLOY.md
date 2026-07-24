@@ -136,7 +136,7 @@ Host layout:
   - `ucantool` (`go install github.com/fil-forge/ucantool@latest`)
   - foundry's `cast` (for `staging-fund-payer`; install via <https://getfoundry.sh>).
 
-## Runbook
+## Initial deployment
 
 ### 1. Ensure keys, wallets, proofs exist (idempotent)
 
@@ -410,13 +410,11 @@ for h in sprue delegator hilt; do curl -fsS "https://$h.staging.fil.one/.well-kn
 
 # ingot (S3 gateway) health
 curl -fsS https://ingot.staging.fil.one/health && echo "ingot ok"
-
-# plc is internal-only BY DESIGN: https://plc.staging.fil.one must NOT resolve.
-
-# End-to-end S3 flow: see §8.
 ```
 
-### 8. End-to-end smoke test (Hilt/Ingot S3 flow)
+## Post-deploy
+
+### End-to-end smoke test (Hilt/Ingot S3 flow)
 
 The target architecture is deployed: FilOne calls hilt's Tenant API to register tenants
 and issue S3 access keys; the data plane uses standard S3 primitives against ingot. The
@@ -481,7 +479,7 @@ segments to sprue → piri over public https. Reads resolve from ingot's local
 `blob_locations` registry — no indexer involved (see
 [Running without an indexer](#running-without-an-indexer)).
 
-## 9. Updating a bundle after a new image is published
+### Updating a bundle after a new image is published
 
 Once a bundle is up, picking up a freshly-published service image (e.g. a new
 `hilt`/`plc` in core, or `ingot`/`piri` in piri) is just a **redeploy** of that bundle:
@@ -512,7 +510,7 @@ Notes:
   instead means bumping the digest in `versions.env`, committing, and redeploying — the pull
   becomes a no-op and the new digest drives the recreate.
 
-## 10. Rollback
+### Rollback
 
 _This will be applicable in the future, after we have pinned versions._
 
@@ -526,7 +524,7 @@ FORGE_REF=<previous-commit> make staging-deploy-piri
 Image versions are pinned per bundle in `versions.env`, so rolling back the application
 versions is deterministic. Data/schema rollback is out of scope.
 
-## One-shot reset
+### One-shot reset
 
 To wipe **all** staging data and redeploy both bundles from scratch — the full §4
 (provision both bundles) + §5 (vault-init, deploy, fund) + §6 (register) sequence in the
@@ -553,9 +551,9 @@ on-chain state (wallet balances, the payer's FilecoinPay deposit). **What rotate
 `staging-vault-init` (which overwrites those two 1Password fields — see
 [Persistent sealed Vault](#persistent-sealed-vault)).
 
-After it finishes, re-create tenants and buckets via the Tenant API / S3 flow ([§8](#8-end-to-end-smoke-test-hiltingot-s3-flow)).
+After it finishes, re-create tenants and buckets via the Tenant API / S3 flow ([End-to-end smoke test](#end-to-end-smoke-test-hiltingot-s3-flow)).
 
-## Topping up low wallet balances
+### Topping up low wallet balances
 
 The staging stack draws on three funded wallets, and their balances deplete over time —
 gas is spent on every on-chain transaction, and USDFC is consumed as storage payments
@@ -692,7 +690,7 @@ re-create buckets after a piri re-provision.
 
 ### Major Gaps
 
-1. Write an automated script for the Hilt/Ingot end-to-end workflow ([§8](#8-end-to-end-smoke-test-hiltingot-s3-flow)).
+1. Write an automated script for the Hilt/Ingot end-to-end workflow ([End-to-end smoke test](#end-to-end-smoke-test-hiltingot-s3-flow)).
 2. Add a smoke test to the staging deploy that runs the end-to-end workflow.
 3. Give hilt a scoped Vault policy + limited token instead of the root token.
    `hilt-vault` is now persistent and sealed (see
