@@ -42,15 +42,10 @@ storage:
   s3:
     endpoint: "http://minio:9000"
     region: "us-west-1"
-    access_key_id: "minioadmin"
-    secret_access_key: "minioadmin"
-    # MinIO requires path-style addressing (endpoint/bucket/key). Without this,
-    # sprue defaults to virtual-hosted style and resolves buckets as
-    # <bucket>.minio:9000, which does not resolve in the compose network.
-    use_path_style: true
     agent_message_bucket: "agent-message"
     delegation_bucket: "delegation"
     upload_shards_bucket: "upload-shards"
+    use_path_style: true
 
 log:
   level: "info"
