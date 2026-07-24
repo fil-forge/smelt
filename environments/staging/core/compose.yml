@@ -47,7 +47,12 @@ services:
     volumes:
       - ${FORGE_DATA_DIR}/postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin -d admin"]
+      # -h 127.0.0.1 forces a TCP check. On a freshly-wiped data dir the image
+      # runs a temporary bootstrap server (listen_addresses='') on the unix
+      # socket only while it runs initdb; a socket-based pg_isready reports
+      # healthy during that window, so postgres-init connects over TCP too early
+      # and psql exits 2. A TCP probe stays unready until the real server listens.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U admin -d admin"]
       start_interval: 1s
       interval: 5s
       timeout: 3s
