@@ -382,7 +382,7 @@ make staging-register-ingot
 ```
 
 The script (`scripts/staging-register-ingot.sh`) derives ingot's did:key via `ingot
-whoami` in the piri bundle, then runs `hilt client admin provider add <did> dev-ams`
+whoami` in the piri bundle, then runs `hilt client admin provider add <did> eu-central-3`
 inside the hilt container (region overridable via `INGOT_REGION` — it must match the
 `region` in `ingot-config.yaml` and the `AWS_REGION` S3 clients sign with). Run it after
 both bundles are healthy and **before creating any tenants**. Idempotent.
@@ -430,10 +430,10 @@ machine against the public URLs.
 ```bash
 PARTNER_KEY=$(op read "op://Fil One/FilOne Forge Staging/hilt-partner-key")
 
-# Create a tenant in the region ingot is registered under (dev-ams).
+# Create a tenant in the region ingot is registered under (eu-central-3).
 curl -si -X PUT "https://hilt.staging.fil.one/tenants/smoke-1" \
   -H "Authorization: Bearer $PARTNER_KEY" -H "Content-Type: application/json" \
-  -d '{"region":"dev-ams"}'
+  -d '{"region":"eu-central-3"}'
 # → 201; hilt publishes the tenant did:plc (internal plc) and registers it as a
 #   customer with sprue via /customer/add (watch sprue's logs to confirm).
 
@@ -450,7 +450,7 @@ curl -si -X POST "https://hilt.staging.fil.one/tenants/smoke-1/access-keys" \
 
 Two client-side settings matter:
 
-- **Use region `dev-ams`** (set in `AWS_REGION`)
+- **Use region `eu-central-3`** (set in `AWS_REGION`)
 - **Path-style addressing** (no wildcard `*.ingot` DNS/TLS exists). The aws CLI
   has no env var for this — it's a config-file setting. Run this once:
 
@@ -463,7 +463,7 @@ Test script:
 ```bash
 export AWS_ACCESS_KEY_ID=#from step 1
 export AWS_SECRET_ACCESS_KEY=#from step 1
-export AWS_REGION=dev-ams
+export AWS_REGION=eu-central-3
 export AWS_ENDPOINT_URL=https://ingot.staging.fil.one
 
 aws s3 mb s3://smoke-bucket

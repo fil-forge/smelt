@@ -10,7 +10,7 @@
 addr: "0.0.0.0:9000"
 # Must match the region hilt registers ingot under (staging-register-ingot.sh)
 # and the AWS_REGION S3 clients sign with.
-region: dev-ams
+region: eu-central-3
 data_dir: /data
 log_level: info
 

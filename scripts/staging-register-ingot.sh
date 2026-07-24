@@ -32,14 +32,14 @@
 #   FORGE_HOST         ssh target            (default: root@23.83.66.244)
 #   FORGE_DIR          on-box repo checkout  (default: /root/fil-one/forge)
 #   FORGE_SECRETS_DIR  host secrets dir      (default: /root/fil-one/forge/secrets)
-#   INGOT_REGION       provider region       (default: dev-ams — must match the
+#   INGOT_REGION       provider region       (default: eu-central-3 — must match the
 #                      `region` in ingot-config.yaml and clients' AWS_REGION)
 set -euo pipefail
 
 FORGE_HOST="${FORGE_HOST:-root@23.83.66.244}"
 FORGE_DIR="${FORGE_DIR:-/root/fil-one/forge}"
 FORGE_SECRETS_DIR="${FORGE_SECRETS_DIR:-/root/fil-one/forge/secrets}"
-INGOT_REGION="${INGOT_REGION:-dev-ams}"
+INGOT_REGION="${INGOT_REGION:-eu-central-3}"
 
 CORE_DIR="$FORGE_DIR/environments/staging/core"
 PIRI_DIR="$FORGE_DIR/environments/staging/piri"
