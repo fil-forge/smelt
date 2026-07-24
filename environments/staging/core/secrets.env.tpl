@@ -27,7 +27,7 @@ MINIO_ROOT_USER={{ op://Fil One/FilOne Forge Staging/minio-access-key }}
 MINIO_ROOT_PASSWORD={{ op://Fil One/FilOne Forge Staging/minio-secret-key }}
 
 # Hilt: pre-shared bearer token for the Tenant API (operators `op read` the same
-# field for curl calls) and the dev-mode Vault root token (shared between the
-# hilt-vault container and hilt's client config).
+# field for curl calls). The hilt Vault credentials live in a separate file
+# (vault-secrets.env), rendered by `make staging-vault-init` — they are minted at
+# runtime by `vault operator init`, not offline like the fields above.
 HILT_PARTNER_KEY={{ op://Fil One/FilOne Forge Staging/hilt-partner-key }}
-HILT_VAULT_TOKEN={{ op://Fil One/FilOne Forge Staging/hilt-vault-token }}

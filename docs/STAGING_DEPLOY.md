@@ -58,7 +58,8 @@ indexer either — its reads resolve from its local `blob_locations` registry; s
   - `delegator`
   - `hilt` (tenant management)
   - `plc` (did:plc directory, **internal-only** — no public route)
-  - `hilt-vault`
+  - `hilt-vault` (persistent, sealed — Raft storage)
+  - `hilt-vault-unseal` (sidecar that unseals `hilt-vault` on every restart)
   - `postgres`
   - `minio`
   - `dynamodb-local`
@@ -100,10 +101,12 @@ Host layout:
   signing-service.pem
   sprue-config.yaml
   sprue.pem
+  vault-secrets.env                       # hilt-vault unseal key + root token (shipped by staging-vault-init)
 /mnt/data/fil-one/forge/                  # persistent data on the ZFS pool
   postgres/                               # core bundle's shared Postgres (sprue, hilt, plc)
   minio/
   dynamodb/
+  hilt-vault/                             # core bundle's Vault Raft store (survives restarts)
   piri-0/
   piri-postgres/                          # piri bundle's shared Postgres (piri_0, ingot)
   ingot/                                  # ingot LSM segments, blob spool, token store
@@ -152,8 +155,12 @@ What's covered:
 
 - the Ed25519 identities (incl. `hilt` and `ingot`)
 - three random EVM wallets (payer / delegator transactor / piri owner)
-- connection secrets (Postgres admin + per-service passwords, MinIO keys, hilt partner key, hilt vault token, ingot root S3
+- connection secrets (Postgres admin + per-service passwords, MinIO keys, hilt partner key, ingot root S3
   credentials)
+
+The hilt Vault unseal key + root token are **not** covered here — Vault mints them at
+runtime, so they are stored by [`make staging-vault-init`](#5a-initialize-the-vault-cross-cutting-step)
+instead (see [Persistent sealed Vault](#persistent-sealed-vault)).
 
 Results:
 
@@ -220,6 +227,10 @@ longer matches the freshly provisioned secret. The next `staging-deploy` rebuild
 scratch (sprue re-runs migrations, the delegator re-creates its DynamoDB tables, `minio-init`
 re-creates buckets, piri re-syncs).
 
+For the **core** bundle the wipe also clears the `hilt-vault` Raft store, so the Vault must be
+re-initialized: run [`make staging-vault-init`](#5a-initialize-the-vault-cross-cutting-step) after
+provisioning core (see [Persistent sealed Vault](#persistent-sealed-vault)).
+
 This is safe because staging holds no precious data.
 
 After wiping it renders configs and ships key files (via `op read`) into
@@ -232,10 +243,11 @@ want to lose data over.
 
 ### 5. Deploy
 
-Deploy `core` first, allow-list the piri DID with the delegator, fund the payer's
-FilecoinPay account, deploy `piri`, then run the two cross-bundle registrations:
+Initialize the Vault, deploy `core` first, allow-list the piri DID with the delegator, fund
+the payer's FilecoinPay account, deploy `piri`, then run the two cross-bundle registrations:
 
 ```bash
+make staging-vault-init                # init + unseal hilt-vault, store keys in 1Password (see 5a)
 make staging-deploy-core               # sprue + signing-service + delegator + hilt + plc + deps
 make staging-allowlist-piri            # add piri's DID to the delegator allow list
 make staging-fund-payer                # deposit USDFC into FilecoinPay (see 5b below)
@@ -267,6 +279,34 @@ on `registration failed with status: 403`.
 `$FORGE_SECRETS_DIR/piri-secrets.env` (shipped by provisioning) into their compose
 invocations, and compose aborts on a missing env file — another reason §4 provisions both
 bundles before this sequence starts.
+
+#### 5a. Initialize the Vault (cross-cutting step)
+
+`hilt-vault` is a real, sealed Vault (see [Persistent sealed Vault](#persistent-sealed-vault)),
+so before deploying core it must be initialized once:
+
+```bash
+make staging-vault-init
+```
+
+The script (`scripts/staging-vault-init.sh`, developer machine only) syncs the box checkout,
+boots **only** the `hilt-vault` container (it needs no secrets), and then:
+
+- if Vault is **uninitialized** (fresh box, or after a re-provision wiped `/vault/file`) it
+  runs `vault operator init -key-shares=1 -key-threshold=1`, stores the resulting unseal key +
+  root token in the 1Password item (`hilt-vault-unseal-key`, `hilt-vault-root-token`), unseals
+  Vault, and enables KV v2 at `secret`;
+- if Vault is **already initialized** it reuses the stored keys.
+
+Either way it renders `vault-secrets.env` from 1Password and ships it to the box. It is
+idempotent, and secret values never touch local disk or a command line.
+
+**Why the order matters.** Unlike keygen's offline secrets, the unseal key and root token are
+minted at *runtime* by Vault, so they cannot exist until Vault runs. `staging-deploy-core`
+consumes `vault-secrets.env` (the `hilt-vault-unseal` sidecar reads the unseal key from it and
+hilt reads the root token), and its compose invocation **aborts on the missing env file** if
+`staging-vault-init` hasn't run. Run it **after** `staging-provision-core` (which wipes
+`/vault/file`) and **before** `staging-deploy-core`.
 
 #### 5b. Fund the payer's FilecoinPay account
 
@@ -563,17 +603,37 @@ without a customer payment plan. Storacha payment plans are a left-over sprue in
 FilOne Forge uses a different billing mechanism and does not need them, so we bypass the
 check here.
 
-### Ephemeral Vault (dev mode)
+### Persistent sealed Vault
 
-`hilt-vault` runs HashiCorp Vault in **dev mode** — auto-unsealed, KV v2 at `secret`, and
-**entirely in-memory**. Any restart of the vault container (deploy recreate, box reboot —
-`restart: unless-stopped` brings it back empty) **loses every tenant/access-key private
-key**: existing S3 credentials stop working and affected tenants must be deleted and
-re-created via the Tenant API. Hilt's Postgres rows survive, but they reference vault
-entries that no longer exist. This is an accepted staging trade-off (staging holds no
-precious data); a persistent, properly-sealed Vault is tracked in
-[Next Steps](#next-steps). Hilt supports only `memory` and `hashicorp` vault backends, so
-there is no simple file-backed alternative.
+`hilt-vault` runs HashiCorp Vault with the **integrated Raft** storage backend, persisted
+on the ZFS pool at `/mnt/data/fil-one/forge/hilt-vault/`. It is a **real, sealed** Vault —
+not dev mode — so tenant/access-key private keys **survive restarts** (deploy recreate, box
+reboot, `docker restart hilt-vault`).
+
+Two pieces make that work:
+
+- **`hilt-vault-unseal` sidecar** — a long-running poller (`restart: unless-stopped`) that
+  unseals `hilt-vault` whenever it is found sealed, i.e. on every (re)start. It reads the
+  single unseal key from `vault-secrets.env`. Vault's `/v1/sys/health` stays unhealthy
+  while sealed, so hilt's `depends_on hilt-vault: service_healthy` waits until the sidecar
+  has unsealed it.
+- **[`make staging-vault-init`](#5a-initialize-the-vault-cross-cutting-step)** — the
+  one-time (idempotent) ceremony that runs `vault operator init` against a fresh Vault,
+  enables KV v2 at `secret`, stores the unseal key + root token in the 1Password item, and
+  ships `vault-secrets.env` to the box. Unlike every other secret, these two values are
+  minted at *runtime* by Vault (not offline by keygen), which is why they have their own
+  step and their own env file.
+
+The Vault root token doubles as hilt's client token (`HILT_VAULT_TOKEN`); a scoped
+policy + limited token is a future hardening step ([Next Steps](#next-steps)). Hilt supports
+only `memory` and `hashicorp` vault backends.
+
+**A re-provision (`make staging-provision-core`) wipes `/vault/file`**, so it discards the
+initialized Vault (and thus every tenant access key). Re-run `make staging-vault-init` after
+any provision — it re-initializes the empty Vault and overwrites the two 1Password fields.
+Hilt's Postgres rows survive a Vault wipe but then reference vault entries that no longer
+exist, so re-create affected tenants via the Tenant API. This is acceptable because staging
+holds no precious data.
 
 ### PLC is internal-only
 
@@ -605,8 +665,12 @@ re-create buckets after a piri re-provision.
 
 1. Write an automated script for the Hilt/Ingot end-to-end workflow ([§8](#8-end-to-end-smoke-test-hiltingot-s3-flow)).
 2. Add a smoke test to the staging deploy that runs the end-to-end workflow.
-3. Persistent Vault for hilt (the dev-mode Vault is in-memory — see
-   [Ephemeral Vault](#ephemeral-vault-dev-mode)).
+3. Give hilt a scoped Vault policy + limited token instead of the root token.
+   `hilt-vault` is now persistent and sealed (see
+   [Persistent sealed Vault](#persistent-sealed-vault)), but hilt currently
+   authenticates with the init-generated **root** token. `staging-vault-init`
+   should instead write a KV-scoped policy and mint a limited token for hilt,
+   keeping the root token 1Password-only for admin use.
 4. Monitoring & alerting for wallet balances. The three wallets' tFIL (gas) and the
    payer's USDFC / FilecoinPay lockup balances are manual top-up chores today (§2,
    [§5b](#5b-fund-the-payers-filecoinpay-account)) with nothing watching them — when

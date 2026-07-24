@@ -77,7 +77,10 @@ var connSecretFields = []string{
 	"hilt-postgres-password",
 	"plc-postgres-password",
 	"hilt-partner-key",
-	"hilt-vault-token",
+	// NOTE: the hilt Vault credentials (unseal key + root token) are NOT minted
+	// here. Vault's Shamir unseal key and root token are produced by `vault
+	// operator init` at runtime and cannot be generated offline, so they are
+	// minted and stored in 1Password by `make staging-vault-init` instead.
 	"minio-access-key",
 	"minio-secret-key",
 	// piri bundle

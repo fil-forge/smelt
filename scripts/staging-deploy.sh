@@ -25,7 +25,9 @@ HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-300}"
 case "$BUNDLE" in
   core)
     PROJECT="forge-staging-core"
-    ENV_FILES="--env-file versions.env --env-file config.env --env-file ../smart-contracts.env --env-file $FORGE_SECRETS_DIR/secrets.env"
+    # vault-secrets.env is shipped by `make staging-vault-init`; a deploy before
+    # that step aborts here on the missing --env-file, which enforces the ordering.
+    ENV_FILES="--env-file versions.env --env-file config.env --env-file ../smart-contracts.env --env-file $FORGE_SECRETS_DIR/secrets.env --env-file $FORGE_SECRETS_DIR/vault-secrets.env"
     ;;
   piri)
     PROJECT="forge-staging-piri"

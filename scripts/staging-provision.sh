@@ -2,8 +2,8 @@
 # Wipe-and-reprovision staging onto the box — DEVELOPER-MACHINE ONLY.
 #
 # For each bundle this (1) tears down the running containers and deletes the
-# bundle's persistent data dirs (core: postgres / dynamodb / minio; piri:
-# piri-0 / piri-postgres / ingot), so the next deploy comes up on a clean
+# bundle's persistent data dirs (core: postgres / dynamodb / minio / hilt-vault;
+# piri: piri-0 / piri-postgres / ingot), so the next deploy comes up on a clean
 # slate, then (2) pulls secret values from
 # 1Password (op inject for templated config files, op read for standalone
 # key/wallet fields) and streams each result directly into an SSH session that
@@ -96,7 +96,7 @@ read_field()        { op read "$OP_ITEM/$1" | ship "$2" "$3"; }
 
 provision_core() {
   # Clean slate first: tear down the old bundle and its data, then ship fresh config+keys.
-  reset_bundle_data forge-staging-core "$STAGING/core/config.env" dynamodb postgres minio
+  reset_bundle_data forge-staging-core "$STAGING/core/config.env" dynamodb postgres minio hilt-vault
   echo "[core] rendering configs..."
   render_secret_tpl "$STAGING/core/config/sprue/config.yaml.tpl"        sprue-config.yaml
   render_secret_tpl "$STAGING/core/config/delegator/delegator.yaml.tpl" delegator.yaml

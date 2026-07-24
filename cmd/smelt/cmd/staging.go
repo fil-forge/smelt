@@ -30,8 +30,12 @@ It covers:
     piri owner — their addresses are printed so you can fund them via a Calibnet
     faucet (private keys are stored in 1Password, never printed)
   - random connection secrets (Postgres admin + per-service passwords, MinIO
-    keys, hilt partner key, hilt vault token, ingot root S3 credentials)
+    keys, hilt partner key, ingot root S3 credentials)
   - the indexing/egress/piri/hilt/ingot UCAN delegation proofs
+
+The hilt Vault unseal key + root token are NOT minted here — they are produced
+by "vault operator init" at runtime and stored in 1Password by
+"make staging-vault-init".
 
 To rotate a specific secret, delete its field from the 1Password item (and any
 proof files signed with it) and re-run.`,

@@ -38,7 +38,7 @@ workspace-build:
 		rm -f $(WORKSPACE_OVERRIDE); \
 	fi
 
-.PHONY: help generate init up down restart clean nuke fresh logs pull build cli status guppy regen debug-upload ensure-state check-docker workspace-build shell-guppy shell-piri shell-upload shell-hilt staging-keygen staging-bootstrap staging-provision-core staging-provision-piri staging-deploy-core staging-allowlist-piri staging-deploy-piri staging-register-piri staging-register-ingot staging-fund-payer
+.PHONY: help generate init up down restart clean nuke fresh logs pull build cli status guppy regen debug-upload ensure-state check-docker workspace-build shell-guppy shell-piri shell-upload shell-hilt staging-keygen staging-bootstrap staging-provision-core staging-provision-piri staging-vault-init staging-deploy-core staging-allowlist-piri staging-deploy-piri staging-register-piri staging-register-ingot staging-fund-payer
 
 # Default target - show help
 help:
@@ -87,6 +87,7 @@ help:
 	@echo "  make staging-bootstrap       One-time: prepare the box (repo, dirs, Caddy)"
 	@echo "  make staging-provision-core  Render core secrets from 1Password and ship to the box (dev machine only)"
 	@echo "  make staging-provision-piri  Render piri secrets from 1Password and ship to the box (dev machine only)"
+	@echo "  make staging-vault-init      Init + unseal hilt-vault; store keys in 1Password (run between provision-core and deploy-core)"
 	@echo "  make staging-deploy-core     Deploy the core bundle (sprue + signing-service + delegator + hilt + plc)"
 	@echo "  make staging-allowlist-piri  Allow-list the piri DID with the delegator (run before deploy-piri)"
 	@echo "  make staging-deploy-piri     Deploy the piri bundle (piri-0 + ingot)"
@@ -295,6 +296,14 @@ staging-provision-core:
 
 staging-provision-piri:
 	@./scripts/staging-provision.sh piri
+
+# Initialize + unseal the persistent (Raft) hilt-vault and store its unseal key +
+# root token in 1Password. Run after provision-core and before deploy-core: the
+# unseal key/root token are minted at runtime by `vault operator init` (not by
+# keygen) and rendered into vault-secrets.env, which deploy-core consumes.
+# Developer machine only (needs your op session + jq). Idempotent.
+staging-vault-init:
+	@./scripts/staging-vault-init.sh
 
 # Deploy a bundle: pull pinned images, recreate, verify health.
 staging-deploy-core:

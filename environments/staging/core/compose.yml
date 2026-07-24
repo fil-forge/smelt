@@ -266,26 +266,67 @@ services:
     restart: unless-stopped
     networks: [forge-staging]
 
-  # HashiCorp Vault in DEV MODE for hilt's tenant/access-key private keys.
-  # Deliberately EPHEMERAL: dev mode stores everything in memory, so any restart
-  # of this container (deploy recreate, box reboot) loses every tenant access
-  # key — existing S3 credentials stop working and tenants must be recreated.
-  # Acceptable for staging (see docs/STAGING_DEPLOY.md limitations); production
-  # needs a persistent Vault. No data dir on purpose.
+  # HashiCorp Vault (PERSISTENT, sealed) for hilt's tenant/access-key private
+  # keys. Integrated Raft storage on the ZFS pool survives restarts; the
+  # hilt-vault-unseal sidecar unseals it on every (re)start with the key held in
+  # 1Password. One-time init (operator init + KV v2 mount + storing the unseal
+  # key/root token in 1Password) is done by `make staging-vault-init`; a
+  # re-provision wipes /vault/file and requires re-running it.
+  # See docs/STAGING_DEPLOY.md ("Persistent sealed Vault").
   hilt-vault:
     image: ${VAULT_IMAGE}
+    # Use the stock entrypoint: `command: server` lets docker-entrypoint.sh run
+    # `vault server -config=/vault/config` (loading vault.hcl from that dir) and,
+    # since the container starts as root, chown the /vault/file data mount to the
+    # `vault` user before stepping down to it. The injected `-dev-*` flags do NOT
+    # enable dev mode (that needs `-dev`), so this is a real, sealed server.
+    command: server
     environment:
-      - VAULT_DEV_ROOT_TOKEN_ID=${HILT_VAULT_TOKEN}
-      - VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200
+      - VAULT_ADDR=http://127.0.0.1:8200
     cap_add:
       - IPC_LOCK
+    volumes:
+      - ./config/vault/vault.hcl:/vault/config/vault.hcl:ro
+      - ${FORGE_DATA_DIR}/hilt-vault:/vault/file
+    # /v1/sys/health returns non-2xx while sealed/uninitialized and 200 only when
+    # unsealed+active, so this stays unhealthy until the unseal sidecar unseals —
+    # exactly what hilt's `hilt-vault: service_healthy` dependency should wait for.
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8200/v1/sys/health"]
       start_interval: 1s
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 30s
+    restart: unless-stopped
+    networks: [forge-staging]
+
+  # Unseal sidecar: a long-running poller that unseals hilt-vault whenever it is
+  # found sealed — on first boot and after any restart (deploy recreate, box
+  # reboot, `docker restart hilt-vault`). The unseal key comes from 1Password via
+  # vault-secrets.env; it is never logged (output is discarded).
+  hilt-vault-unseal:
+    image: ${VAULT_IMAGE}
+    depends_on:
+      hilt-vault:
+        # service_started, NOT service_healthy — Vault is unhealthy while sealed,
+        # and unsealing it is precisely this sidecar's job.
+        condition: service_started
+    environment:
+      - VAULT_ADDR=http://hilt-vault:8200
+      - HILT_VAULT_UNSEAL_KEY=${HILT_VAULT_UNSEAL_KEY}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        # `vault status` exit code: 0=unsealed, 2=sealed, 1=error/unreachable.
+        while true; do
+          vault status >/dev/null 2>&1; s=$$?
+          if [ "$$s" = "2" ]; then
+            vault operator unseal "$$HILT_VAULT_UNSEAL_KEY" >/dev/null 2>&1 || true
+          fi
+          sleep 10
+        done
     restart: unless-stopped
     networks: [forge-staging]
 
