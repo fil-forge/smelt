@@ -209,25 +209,36 @@ fi
 echo "==> rendering + shipping vault-secrets.env"
 op inject -i "$VAULT_TPL" | ship vault-secrets.env 0440
 
-# --- 4. Unseal (if sealed) and, on a fresh init, enable the KV v2 engine ------
-# The unseal key + root token are read from the just-shipped vault-secrets.env on
-# the box (0440, root-only) — the same file the sidecar uses — so neither value
-# is placed on any command line. `-` reads the secret from stdin.
-echo "==> unsealing$( [ "$DID_INIT" = 1 ] && echo ' + enabling KV v2 at secret/' )"
+# --- 4. Unseal (if sealed) + ensure the KV v2 engine at secret/ (idempotent) --
+# The unseal key + root token come from the just-shipped vault-secrets.env on the
+# box (0440, root-only) — the same file the sidecar uses. Two image quirks matter:
+#   - `vault operator unseal` does NOT read the key from stdin here (`-` is taken
+#     literally), so the key is passed as an argument. It already lives at rest in
+#     vault-secrets.env on this box, so its brief presence in the container argv is
+#     not a new exposure (and the sidecar unseals the same way).
+#   - `vault login -` DOES read the token from stdin, so the root token stays off
+#     argv.
+# KV v2 is (re)ensured every run so a partial earlier run self-heals; it is
+# enabled only when the secret/ mount is absent.
+echo "==> [4/4] unsealing (if sealed) + ensuring KV v2 engine at secret/"
 forge_ssh bash -s <<REMOTE
 set -euo pipefail
 cd "$CORE_DIR"
 set -a; . "$FORGE_SECRETS_DIR/vault-secrets.env"; set +a
-if ! $COMPOSE exec -T hilt-vault vault status -format=json </dev/null >/dev/null 2>&1; then
-  printf '%s' "\$HILT_VAULT_UNSEAL_KEY" | $COMPOSE exec -T hilt-vault vault operator unseal - >/dev/null
-  echo "  unsealed"
-else
+if $COMPOSE exec -T hilt-vault vault status -format=json </dev/null >/dev/null 2>&1; then
   echo "  already unsealed"
+else
+  $COMPOSE exec -T hilt-vault vault operator unseal "\$HILT_VAULT_UNSEAL_KEY" </dev/null >/dev/null
+  echo "  unsealed"
 fi
-if [ "$DID_INIT" = "1" ]; then
-  printf '%s' "\$HILT_VAULT_TOKEN" | $COMPOSE exec -T hilt-vault sh -c 'vault login - >/dev/null 2>&1 && vault secrets enable -path=secret -version=2 kv' >/dev/null
-  echo "  KV v2 engine enabled at secret/"
-fi
+printf '%s' "\$HILT_VAULT_TOKEN" | $COMPOSE exec -T hilt-vault sh -c '
+  vault login - >/dev/null 2>&1 || { echo "  ERROR: vault login failed" >&2; exit 1; }
+  if vault secrets list 2>/dev/null | grep -q "^secret/"; then
+    echo "  KV v2 already enabled at secret/"
+  else
+    vault secrets enable -path=secret -version=2 kv >/dev/null && echo "  KV v2 enabled at secret/"
+  fi
+'
 REMOTE
 
 echo "Vault init complete. Next: make staging-deploy-core"
