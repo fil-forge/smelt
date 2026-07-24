@@ -453,6 +453,7 @@ if resp=$(curl -sS --fail-with-body -X POST "https://hilt.staging.fil.one/tenant
     "AWS_REGION=eu-central-3",
     "AWS_ENDPOINT_URL=https://ingot.staging.fil.one"
   ' <<<"$resp" > .env.staging
+  echo "credentials for access key $(jq -r .accessKeyId <<<"$resp") saved to .env.staging"
 else
   echo "access-key mint failed:" >&2; echo "$resp" >&2
 fi
