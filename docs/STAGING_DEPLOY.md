@@ -691,14 +691,7 @@ re-create buckets after a piri re-provision.
 ### Major Gaps
 
 1. Write an automated script for the Hilt/Ingot end-to-end workflow ([End-to-end smoke test](#end-to-end-smoke-test-hiltingot-s3-flow)).
-2. Add a smoke test to the staging deploy that runs the end-to-end workflow.
-3. Give hilt a scoped Vault policy + limited token instead of the root token.
-   `hilt-vault` is now persistent and sealed (see
-   [Persistent sealed Vault](#persistent-sealed-vault)), but hilt currently
-   authenticates with the init-generated **root** token. `staging-vault-init`
-   should instead write a KV-scoped policy and mint a limited token for hilt,
-   keeping the root token 1Password-only for admin use.
-4. Monitoring & alerting for wallet balances. The three wallets' tFIL (gas) and the
+2. Monitoring & alerting for wallet balances. The three wallets' tFIL (gas) and the
    payer's USDFC / FilecoinPay lockup balances are manual top-up chores today (§2,
    [§5b](#5b-fund-the-payers-filecoinpay-account)) with nothing watching them — when
    any runs dry the stack fails silently (piri init / proof-set ops break with
@@ -706,7 +699,7 @@ re-create buckets after a piri re-provision.
    (Grafana Cloud, where logs already ship) before a wallet crosses a low-balance
    threshold, and a runbook entry for topping up — see
    [Topping up low wallet balances](#topping-up-low-wallet-balances).
-5. Harden the deploy health gate against recovered-crash false positives. It fails any
+3. Harden the deploy health gate against recovered-crash false positives. It fails any
    container with `RestartCount > 0` even after the container recovered and is healthy
    (the counter persists for the container's lifetime), so `staging-deploy-*` can report
    `crash-looping (restarts=N)` for a service `docker compose ps` shows healthy. Until it
@@ -714,7 +707,7 @@ re-create buckets after a piri re-provision.
 <project> <env-files> up -d --force-recreate <service>`) and re-run the deploy — after
    checking `docker logs` for the original crash.
 
-### Improvements
+### Continuous Deployment
 
 1. Pin every application image in `versions.env` to a `@sha256:` digest (currently rolling
    `:main` placeholders) before a real deploy — resolve digests with `docker buildx
@@ -735,3 +728,12 @@ not atomic and there is no support for rolling upgrades or blue/green deployment
 
 The staging box is already running [K3s](https://k3s.io/), we could consider moving the core bundle
 to a Kubernetes deployment
+
+### Improvements
+
+1. Give hilt a scoped Vault policy + limited token instead of the root token.
+   `hilt-vault` is now persistent and sealed (see
+   [Persistent sealed Vault](#persistent-sealed-vault)), but hilt currently
+   authenticates with the init-generated **root** token. `staging-vault-init`
+   should instead write a KV-scoped policy and mint a limited token for hilt,
+   keeping the root token 1Password-only for admin use.
