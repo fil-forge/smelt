@@ -302,7 +302,7 @@ Either way it renders `vault-secrets.env` from 1Password and ships it to the box
 idempotent, and secret values never touch local disk or a command line.
 
 **Why the order matters.** Unlike keygen's offline secrets, the unseal key and root token are
-minted at *runtime* by Vault, so they cannot exist until Vault runs. `staging-deploy-core`
+minted at _runtime_ by Vault, so they cannot exist until Vault runs. `staging-deploy-core`
 consumes `vault-secrets.env` (the `hilt-vault-unseal` sidecar reads the unseal key from it and
 hilt reads the root token), and its compose invocation **aborts on the missing env file** if
 `staging-vault-init` hasn't run. Run it **after** `staging-provision-core` (which wipes
@@ -526,7 +526,36 @@ FORGE_REF=<previous-commit> make staging-deploy-piri
 Image versions are pinned per bundle in `versions.env`, so rolling back the application
 versions is deterministic. Data/schema rollback is out of scope.
 
-## 11. Topping up low wallet balances
+## One-shot reset
+
+To wipe **all** staging data and redeploy both bundles from scratch — the full §4
+(provision both bundles) + §5 (vault-init, deploy, fund) + §6 (register) sequence in the
+correct order — run:
+
+```bash
+# Using the current `main` branch
+make staging-reset
+
+# Using a specific branch/commit/tag (e.g. a PR branch)
+FORGE_REF=staging-deployment make staging-reset
+```
+
+`staging-reset` chains the nine `staging-*` targets via recursive `make` and **aborts on
+the first failure** (every step is idempotent, so re-running from the top after a transient
+failure — e.g. a flaky Calibnet RPC in `staging-fund-payer` — is safe). It is **destructive**:
+it discards Hilt tenants + access keys, piri objects, ingot buckets + `blob_locations`,
+Postgres, DynamoDB, MinIO, and the `hilt-vault` Raft store.
+
+**What survives:** all Ed25519 service identities and EVM wallet addresses (only re-shipped
+from 1Password, never regenerated — so no re-funding or `wallets.env` re-commit) and all
+on-chain state (wallet balances, the payer's FilecoinPay deposit). **What rotates:** the
+`hilt-vault` unseal key + root token, since the wiped Vault is re-initialized by
+`staging-vault-init` (which overwrites those two 1Password fields — see
+[Persistent sealed Vault](#persistent-sealed-vault)).
+
+After it finishes, re-create tenants and buckets via the Tenant API / S3 flow ([§8](#8-end-to-end-smoke-test-hiltingot-s3-flow)).
+
+## Topping up low wallet balances
 
 The staging stack draws on three funded wallets, and their balances deplete over time —
 gas is spent on every on-chain transaction, and USDFC is consumed as storage payments
@@ -621,7 +650,7 @@ Two pieces make that work:
   one-time (idempotent) ceremony that runs `vault operator init` against a fresh Vault,
   enables KV v2 at `secret`, stores the unseal key + root token in the 1Password item, and
   ships `vault-secrets.env` to the box. Unlike every other secret, these two values are
-  minted at *runtime* by Vault (not offline by keygen), which is why they have their own
+  minted at _runtime_ by Vault (not offline by keygen), which is why they have their own
   step and their own env file.
 
 The Vault root token doubles as hilt's client token (`HILT_VAULT_TOKEN`); a scoped
@@ -678,7 +707,7 @@ re-create buckets after a piri re-provision.
    `InsufficientLockupFunds`, uploads stall). Add a periodic balance check that alerts
    (Grafana Cloud, where logs already ship) before a wallet crosses a low-balance
    threshold, and a runbook entry for topping up — see
-   [§11](#11-topping-up-low-wallet-balances).
+   [Topping up low wallet balances](#topping-up-low-wallet-balances).
 5. Harden the deploy health gate against recovered-crash false positives. It fails any
    container with `RestartCount > 0` even after the container recovered and is healthy
    (the counter persists for the container's lifetime), so `staging-deploy-*` can report

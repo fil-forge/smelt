@@ -38,7 +38,7 @@ workspace-build:
 		rm -f $(WORKSPACE_OVERRIDE); \
 	fi
 
-.PHONY: help generate init up down restart clean nuke fresh logs pull build cli status guppy regen debug-upload ensure-state check-docker workspace-build shell-guppy shell-piri shell-upload shell-hilt staging-keygen staging-bootstrap staging-provision-core staging-provision-piri staging-vault-init staging-deploy-core staging-allowlist-piri staging-deploy-piri staging-register-piri staging-register-ingot staging-fund-payer
+.PHONY: help generate init up down restart clean nuke fresh logs pull build cli status guppy regen debug-upload ensure-state check-docker workspace-build shell-guppy shell-piri shell-upload shell-hilt staging-keygen staging-bootstrap staging-provision-core staging-provision-piri staging-vault-init staging-deploy-core staging-allowlist-piri staging-deploy-piri staging-register-piri staging-register-ingot staging-fund-payer staging-reset
 
 # Default target - show help
 help:
@@ -94,6 +94,7 @@ help:
 	@echo "  make staging-register-piri   Register piri as a storage provider with sprue (run after both deploys)"
 	@echo "  make staging-register-ingot  Register ingot as hilt's regional provider (run after both deploys)"
 	@echo "  make staging-fund-payer      Deposit USDFC into FilecoinPay so piri can create a proof set"
+	@echo "  make staging-reset           Wipe ALL staging data and redeploy both bundles from scratch (destructive; keeps keys+wallets)"
 	@echo ""
 	@echo "Options:"
 	@echo "  YES=1              Skip confirmation prompts (e.g., make nuke YES=1)"
@@ -335,6 +336,32 @@ staging-register-ingot:
 # Amounts are baked in but env-overridable; see scripts/staging-fund-payer.sh.
 staging-fund-payer:
 	@./scripts/staging-fund-payer.sh
+
+# Full destructive reset of BOTH staging bundles in one shot: wipe all data
+# (Hilt tenants + access keys, piri objects, ingot buckets + blob_locations,
+# Postgres, DynamoDB, MinIO, the hilt-vault Raft store) and redeploy from
+# scratch. Runs the whole provision -> vault-init -> deploy -> register sequence
+# in the correct order, aborting on the first failure.
+#
+# What SURVIVES: all Ed25519 service identities and EVM wallet addresses (only
+# re-shipped from 1Password, never regenerated) and all on-chain state (wallet
+# balances, the payer's FilecoinPay deposit). What ROTATES: the hilt-vault unseal
+# key + root token, since the Vault store is wiped and `vault operator init`
+# mints them at runtime (staging-vault-init overwrites the two 1Password fields).
+#
+# Set FORGE_REF to deploy a branch other than main:
+#   FORGE_REF=staging-deployment make staging-reset
+# Developer machine only (needs your op session + SSH); never run from CI.
+staging-reset:
+	@$(MAKE) --no-print-directory staging-provision-core
+	@$(MAKE) --no-print-directory staging-provision-piri
+	@$(MAKE) --no-print-directory staging-vault-init
+	@$(MAKE) --no-print-directory staging-deploy-core
+	@$(MAKE) --no-print-directory staging-allowlist-piri
+	@$(MAKE) --no-print-directory staging-deploy-piri
+	@$(MAKE) --no-print-directory staging-register-piri
+	@$(MAKE) --no-print-directory staging-register-ingot
+	@echo "staging-reset complete."
 
 # Pull latest pre-built images (ignores failures for local-only images)
 pull: generated/compose/piri.yml ensure-state
