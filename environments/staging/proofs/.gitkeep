@@ -1,2 +1,3 @@
 # UCAN delegation proofs are written here by `smelt staging keygen` and committed:
-#   indexing-service-proof.txt  egress-tracking-proof.txt  piri-0-proof.txt
+#   piri-0-proof.txt  indexing-service-proof.txt  egress-tracking-proof.txt
+#   hilt-customer-add-proof.txt  hilt-ingot-s3-proof.txt

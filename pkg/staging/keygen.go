@@ -308,7 +308,8 @@ func deriveDIDFromPEM(pemPath string) (string, error) {
 
 // upsertEnvVar sets KEY=value in a dotenv-style file: it replaces an existing
 // `KEY=...` line in place (preserving everything else) or appends one. Creates
-// the file if it does not exist.
+// the file if it does not exist. The output always ends with a single trailing
+// newline, regardless of whether the input had one.
 func upsertEnvVar(path, key, value string) error {
 	prefix := key + "="
 	line := prefix + value
@@ -321,7 +322,12 @@ func upsertEnvVar(path, key, value string) error {
 		return err
 	}
 
-	lines := strings.Split(string(data), "\n")
+	// Drop the trailing newline before splitting so a final "\n" doesn't yield an
+	// empty trailing element; we re-add exactly one newline when writing back.
+	var lines []string
+	if content := strings.TrimSuffix(string(data), "\n"); content != "" {
+		lines = strings.Split(content, "\n")
+	}
 	found := false
 	for i, l := range lines {
 		if strings.HasPrefix(l, prefix) {
@@ -333,7 +339,7 @@ func upsertEnvVar(path, key, value string) error {
 	if !found {
 		lines = append(lines, line)
 	}
-	return os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0o644)
+	return os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644)
 }
 
 // randomHex returns n random bytes hex-encoded (2n chars).

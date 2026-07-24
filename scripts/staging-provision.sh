@@ -69,7 +69,8 @@ trap cleanup_ssh EXIT
 forge_ssh "mkdir -p '$FORGE_SECRETS_DIR' && chmod 700 '$FORGE_SECRETS_DIR'"
 
 # ship <dest-basename> <mode> — content arrives on stdin, written atomically
-# (temp file, fsync via mv) so a partial transfer never replaces a good file.
+# (temp file, then an atomic mv/rename) so a partial transfer never replaces a
+# good file.
 ship() {
   local name="$1" mode="$2" dest="$FORGE_SECRETS_DIR/$1"
   # Pipe the script to `bash -s` (like staging-bootstrap.sh) so the remote logic is
