@@ -167,6 +167,11 @@ REMOTE
   # Read-modify-write the item (mirrors pkg/staging/onepassword.go): read every
   # existing field, upsert the two vault fields, pipe the complete CONCEALED-field
   # template back via stdin. Keeps values off argv and preserves other secrets.
+  #
+  # Mirror readOnePasswordFields' normalization exactly, else op item edit rejects
+  # the payload with "sections[0].fields[N] has non-unique name": drop fields with
+  # an empty label or empty value (e.g. the SECURE_NOTE notes field), and dedup by
+  # label (last wins) so no two fields collide within the default section.
   existing="$(op item get "$OP_ITEM_TITLE" --vault "$OP_VAULT" --format json --reveal 2>/dev/null || echo '{"fields":[]}')"
   jq -n \
     --arg title "$OP_ITEM_TITLE" \
@@ -177,12 +182,15 @@ REMOTE
       title: $title,
       category: "SECURE_NOTE",
       fields: (
-        [ $existing.fields[]?
-          | select((.label // .id) != "hilt-vault-unseal-key"
-                and (.label // .id) != "hilt-vault-root-token")
-          | { id: (.id // .label), type: (.type // "CONCEALED"),
-              label: (.label // .id), value: (.value // "") }
-        ]
+        ( [ $existing.fields[]?
+            | { label: (.label // .id // ""), value: (.value // "") }
+            | select(.label != "" and .value != "")
+            | select(.label != "hilt-vault-unseal-key"
+                 and .label != "hilt-vault-root-token")
+            | { id: .label, type: "CONCEALED", label: .label, value: .value }
+          ]
+          | group_by(.label) | map(.[-1])
+        )
         + [ { id: "hilt-vault-unseal-key", type: "CONCEALED",
               label: "hilt-vault-unseal-key", value: $unseal },
             { id: "hilt-vault-root-token", type: "CONCEALED",
