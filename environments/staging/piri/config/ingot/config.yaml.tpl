@@ -14,6 +14,13 @@ region: eu-central-3
 data_dir: /data
 log_level: info
 
+# Browser origins the S3 listener answers CORS for (exact origins or subdomain
+# wildcards; the '*' replaces the leftmost host label).
+cors_allowed_origins:
+  - "https://app.fil.one"
+  - "https://staging.fil.one"
+  - "https://*.dev.fil.one"
+
 # Root S3 account (break-glass; tenant credentials are minted by hilt).
 root_access: "{{ op://Fil One/FilOne Forge Staging/ingot-root-access-key }}"
 root_secret: "{{ op://Fil One/FilOne Forge Staging/ingot-root-secret-key }}"
