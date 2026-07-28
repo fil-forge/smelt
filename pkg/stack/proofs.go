@@ -29,6 +29,8 @@ import (
 var piriCommands = []ucan.Command{
 	blobcmds.Allocate.Command,
 	blobcmds.Accept.Command,
+	blobcmds.Release.Command,
+	blobcmds.Reject.Command,
 	replicacmds.Allocate.Command,
 	pdpcmds.Info.Command,
 }

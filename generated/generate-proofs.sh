@@ -129,13 +129,15 @@ for PIRI_KEY in "$KEYS_DIR"/piri-*.pem; do
     echo "Generating ${NODE_NAME} proof..."
     echo "  Issuer: ${NODE_NAME}.pem"
     echo "  Audience: $UPLOAD_WEB_DID"
-    echo "  Commands: /blob/allocate, /blob/accept, /blob/replica/allocate, /pdp/info"
+    echo "  Commands: /blob/allocate, /blob/accept, /blob/remove, /blob/reject, /blob/replica/allocate, /pdp/info"
 
     "$UCANTOOL" delegate \
         --issuer-private-key-file "$PIRI_KEY" \
         --audience "$UPLOAD_WEB_DID" \
         --command "/blob/allocate" \
         --command "/blob/accept" \
+        --command "/blob/remove" \
+        --command "/blob/reject" \
         --command "/blob/replica/allocate" \
         --command "/pdp/info" \
         --container "base64+gzip" \
