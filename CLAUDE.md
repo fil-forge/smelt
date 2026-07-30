@@ -301,6 +301,7 @@ All host-side ports live in a dedicated `15XXX` range to avoid collision with co
 | delegator | 15040 | HTTP/UCAN | Delegation issuance |
 | indexer | 15050 | HTTP/UCAN | Claims cache |
 | upload | 15060 | HTTP/UCAN | Upload coordination |
+| upload-postgres | 15061 | PostgreSQL | Upload service metadata stores |
 | minio S3 | 15070 | S3 | Shared object storage |
 | minio console | 15071 | HTTP | MinIO web console |
 | smtp | 15080 | SMTP | smtp4dev inbound |
