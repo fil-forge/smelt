@@ -7,7 +7,7 @@ require (
 	github.com/fil-forge/libforge v0.0.0-20260713100115-a3aa293b990c
 	github.com/fil-forge/ucantone v0.0.0-20260706102443-79141c5cc52e
 	github.com/google/uuid v1.6.0
-	github.com/lib/pq v0.0.0-20150723085316-0dad96c0b94f
+	github.com/lib/pq v1.12.3
 	github.com/spf13/cobra v1.10.2
 	github.com/testcontainers/testcontainers-go v0.42.0
 	github.com/testcontainers/testcontainers-go/modules/compose v0.42.0
