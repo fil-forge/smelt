@@ -48,12 +48,13 @@ jobs:
         # TestMain (which sweeps stray containers from prior CI runs on
         # the same shared runner) along with every test file gated by
         # that build tag — smoke_test.go (parallel subtests over the
-        # four storage-backend permutations) and snapshot_test.go (boot
-        # from committed 3-piri snapshot and upload once).
+        # storage-backend permutations; piri's db is always postgres, so
+        # only the blob backend varies) and snapshot_test.go (boot from
+        # committed 3-piri snapshot and upload once).
         #
         # -parallel bounds how many full stacks boot at once. Each
-        # permutation spins ~20 containers (three postgres, vault, the
-        # JVM-based dynamodb-local, ...); booting all four in parallel
+        # permutation spins ~20 containers (several postgres, vault, the
+        # JVM-based dynamodb-local, ...); booting them all in parallel
         # saturates the 4-vCPU runner and slow JVM services miss their
         # healthcheck windows. SMELT_E2E_MAX_PARALLEL tunes it (default 1).
         run: go test -tags e2e -v -timeout 15m -parallel "${SMELT_E2E_MAX_PARALLEL:-1}" ./tests/e2e/...

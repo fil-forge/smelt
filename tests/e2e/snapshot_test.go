@@ -14,7 +14,7 @@ import (
 )
 
 // TestStackFromSnapshot exercises stack.WithSnapshot: the committed
-// 3-piri-filesystem-sqlite snapshot should restore in a fraction of
+// 3-piri-postgres-s3 snapshot should restore in a fraction of
 // the cold-boot time (smoke_test.go is the baseline; its typical run
 // is ~60-120s, this one should land in the low tens of seconds).
 func TestStackFromSnapshot(t *testing.T) {
@@ -25,7 +25,7 @@ func TestStackFromSnapshot(t *testing.T) {
 	ctx := t.Context()
 
 	start := time.Now()
-	s := stack.MustNewStack(t, stack.WithEmbeddedSnapshot("3-piri-filesystem-sqlite"))
+	s := stack.MustNewStack(t, stack.WithEmbeddedSnapshot("3-piri-postgres-s3"))
 	elapsed := time.Since(start)
 	t.Logf("stack up from snapshot in %s", elapsed)
 
@@ -50,7 +50,7 @@ func TestStackFromSnapshot(t *testing.T) {
 
 	// End-to-end smoke: upload a small file and retrieve it. Exercises
 	// the delegator allow-list + upload provider registry, which are
-	// restored from dynamodb-data.tar in the snapshot.
+	// restored from dynamodb-data.tar.gz in the snapshot.
 	gup, err := guppy.NewContainerClient(s)
 	if err != nil {
 		t.Fatalf("guppy client: %v", err)

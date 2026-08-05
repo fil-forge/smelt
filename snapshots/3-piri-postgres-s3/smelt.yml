@@ -1,0 +1,12 @@
+version: 1
+piri:
+  nodes:
+    - storage:
+        db: postgres
+        blob: s3
+    - storage:
+        db: postgres
+        blob: s3
+    - storage:
+        db: postgres
+        blob: s3

@@ -312,7 +312,7 @@ func WithPiriNodes(nodes ...PiriNodeConfig) Option {
 //
 //	var opts []stack.Option
 //	if os.Getenv("SMELT_TEST_NO_SNAPSHOT") == "" {
-//	    opts = append(opts, stack.WithSnapshot("../../snapshots/3-piri-filesystem-sqlite"))
+//	    opts = append(opts, stack.WithSnapshot("../../snapshots/3-piri-postgres-s3"))
 //	}
 //	s := stack.MustNewStack(t, opts...)
 func WithSnapshot(path string) Option {
@@ -327,7 +327,7 @@ func WithSnapshot(path string) Option {
 // paths to reason about:
 //
 //	s := stack.MustNewStack(t,
-//	    stack.WithEmbeddedSnapshot("3-piri-filesystem-sqlite"),
+//	    stack.WithEmbeddedSnapshot("3-piri-postgres-s3"),
 //	)
 //
 // Discover available names at runtime via stack.ListEmbeddedSnapshots().

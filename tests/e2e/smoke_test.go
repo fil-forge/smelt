@@ -14,27 +14,28 @@ import (
 )
 
 // Each storage permutation boots a full stack (~20 containers, including
-// three postgres, vault, and the JVM-based dynamodb-local). Booting all
-// four at once saturates a 4-vCPU CI runner and the slow-starting JVM
-// services miss their healthcheck windows, so concurrency is bounded via
-// `go test -parallel N` (see e2e.yml, defaulting to 2). The -parallel
+// several postgres, vault, and the JVM-based dynamodb-local). Booting
+// them all at once saturates a 4-vCPU CI runner and the slow-starting
+// JVM services miss their healthcheck windows, so concurrency is bounded
+// via `go test -parallel N` (see e2e.yml, defaulting to 1). The -parallel
 // token is held until each subtest fully completes — including the stack
 // teardown registered by MustNewStack via t.Cleanup — so it caps live
 // stacks correctly.
+//
+// piri's db backend is always postgres: piri:main's curio PDP pipeline
+// refuses to start with sqlite ("curio PDP pipeline requires Postgres"),
+// so only the blob backend (filesystem vs s3) still varies.
 func TestUploadAndRetrieve(t *testing.T) {
 	if runtime.GOOS == "darwin" {
 		t.Skip("skipping on darwin (docker-in-docker flakiness)")
 	}
 
 	tests := []struct {
-		name        string
-		useS3       bool
-		usePostgres bool
+		name  string
+		useS3 bool
 	}{
-		{name: "default"},
+		{name: "filesystem"},
 		{name: "s3", useS3: true},
-		{name: "postgres", usePostgres: true},
-		{name: "s3_and_postgres", useS3: true, usePostgres: true},
 	}
 
 	for _, tt := range tests {
@@ -45,7 +46,7 @@ func TestUploadAndRetrieve(t *testing.T) {
 			opts := []stack.Option{
 				stack.WithPiriNodes(stack.PiriNodeConfig{
 					S3:       tt.useS3,
-					Postgres: tt.usePostgres,
+					Postgres: true,
 				}),
 			}
 			if img := os.Getenv("PIRI_IMAGE"); img != "" {
