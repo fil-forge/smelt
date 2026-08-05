@@ -2,14 +2,8 @@ version: 1
 piri:
   nodes:
     - storage:
-        db: sqlite # or 'postgres'
-        blob: filesystem # or 's3'
-    - storage:
-        db: sqlite # or 'postgres'
-        blob: filesystem # or 's3'
-    - storage:
-        db: sqlite # or 'postgres'
-        blob: filesystem # or 's3'
+        db: postgres # or 'sqlite'
+        blob: s3 # or 'filesystem'
     # supports a total of 9 piri nodes, 9 due to anvil wallet limit
     #- storage:
     #    db: sqlite

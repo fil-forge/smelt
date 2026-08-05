@@ -66,11 +66,27 @@ All host ports live in a dedicated `15XXX` range to avoid collision with common 
 | delegator       | 15040              | UCAN delegation service                                                          |
 | indexer         | 15050              | Content claims cache                                                             |
 | upload          | 15060              | Upload orchestration service                                                     |
+| upload-postgres | 15061              | Postgres for the upload service's metadata stores                                |
 | minio           | 15070, 15071       | S3-compatible storage (S3 API, web console)                                      |
 | smtp4dev        | 15080, 15081       | SMTP server, Email UI and API                                                    |
 | ipni            | 15090, 15091, 15092| Content discovery (finder, admin, p2p)                                           |
 | piri-{N}        | 15100+N            | Storage node(s) with PDP proofs; N declared in `smelt.yml` (default 1, max 9)    |
+| hilt            | 15110              | Tenant management (Tenant API + UCAN RPC)                                        |
+| hilt-postgres   | 15111              | Postgres for hilt's tenant/provider store                                        |
+| hilt-vault      | 15112              | Hilt key vault (HashiCorp Vault in dev mode)                                     |
+| plc             | 15120              | did:plc directory (reference implementation)                                     |
+| plc-postgres    | 15121              | Postgres for the did:plc directory                                               |
+| ingot           | 15130              | S3 gateway over Forge                                                            |
+| ingot-postgres  | 15131              | Postgres for ingot's registry/metadata                                           |
 | guppy           | —                  | CLI client for uploads (no exposed port)                                         |
+
+Piri's shared storage backends are generated from `smelt.yml` and only run when
+at least one node selects that backend:
+
+| Service        | Host Port    | What It Does                                                          |
+|----------------|--------------|-----------------------------------------------------------------------|
+| piri-postgres  | 15074        | Shared Postgres; per-node databases `piri_0`, `piri_1`, ...           |
+| piri-minio     | 15072, 15073 | Shared S3 (S3 API, web console); per-node bucket prefix `piri-{N}-`   |
 
 ## Architecture
 

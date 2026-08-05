@@ -12,10 +12,10 @@ One or more `piri-{N}` services, each configured according to the corresponding 
 
 | Host Port | Service | Description |
 |-----------|---------|-------------|
-| 4000 + N  | piri-{N} | Piri API, one container per node (container port 3000) |
-| 5432      | piri-postgres | Shared postgres instance (only when any node uses `db: postgres`) |
-| 9002      | piri-minio | Shared MinIO S3 API (only when any node uses `blob: s3`) |
-| 9003      | piri-minio | MinIO console |
+| 15100 + N | piri-{N} | Piri API, one container per node (container port 3000) |
+| 15074     | piri-postgres | Shared postgres instance (only when any node uses `db: postgres`) |
+| 15072     | piri-minio | Shared MinIO S3 API (only when any node uses `blob: s3`) |
+| 15073     | piri-minio | MinIO console |
 
 ## Files in this directory
 

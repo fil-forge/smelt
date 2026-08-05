@@ -140,7 +140,7 @@ func buildPiriService(node manifest.ResolvedPiriNode) ComposeService {
 func buildPostgresService() ComposeService {
 	return ComposeService{
 		Image: "postgres:16-alpine",
-		Ports: []string{"${SMELT_PIRI_POSTGRES_PORT:-5432:5432}"},
+		Ports: []string{"${SMELT_PIRI_POSTGRES_PORT:-15074:5432}"},
 		Environment: []string{
 			"POSTGRES_USER=piri",
 			"POSTGRES_PASSWORD=piri",
