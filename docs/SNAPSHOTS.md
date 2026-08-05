@@ -114,15 +114,20 @@ generated/snapshots/<name>/
 │   └── deployed-addresses.json  # PDP contract addresses
 ├── keys/                        # every *.pem, *.pub, *.hex in generated/keys/
 ├── proofs/                      # every *.txt in generated/proofs/
-└── volumes/                     # .tar per named docker volume
-    ├── piri-0-data.tar
-    ├── dynamodb-data.tar        # delegator allow list, upload registry
-    ├── minio-data.tar           # upload's S3 backend
-    ├── ipni-data.tar            # content discovery index
-    ├── guppy-data.tar           # client login + spaces
-    ├── piri-postgres-data.tar   # only when topology uses postgres
-    └── piri-minio-data.tar      # only when topology uses S3
+└── volumes/                       # .tar.gz per named docker volume
+    ├── piri-0-data.tar.gz
+    ├── dynamodb-data.tar.gz       # delegator allow list, upload registry
+    ├── minio-data.tar.gz          # upload's S3 backend
+    ├── ipni-data.tar.gz           # content discovery index
+    ├── guppy-data.tar.gz          # client login + spaces
+    ├── piri-postgres-data.tar.gz  # only when topology uses postgres
+    └── piri-minio-data.tar.gz     # only when topology uses S3
 ```
+
+Volume archives are gzipped (older snapshots with plain `.tar` archives
+still load). This keeps committed snapshots small — a postgres data dir
+is ~85M raw but ~12M compressed, and `snapshots/` is both checked into
+git and embedded into the Go module.
 
 Tracked files at the project root (`smelt.yml`,
 `systems/blockchain/state/*.json`) are never modified by a load. Your
@@ -171,7 +176,7 @@ import "github.com/fil-forge/smelt/pkg/stack"
 
 func TestFromExternalRepo(t *testing.T) {
     s := stack.MustNewStack(t,
-        stack.WithEmbeddedSnapshot("3-piri-filesystem-sqlite"),
+        stack.WithEmbeddedSnapshot("3-piri-postgres-s3"),
     )
     // Stack up in ~10s from the bundled snapshot.
 }
@@ -181,7 +186,7 @@ Discover what's available at runtime:
 
 ```go
 names, _ := stack.ListEmbeddedSnapshots()
-// → ["3-piri-filesystem-sqlite", ...]
+// → ["3-piri-postgres-s3", ...]
 ```
 
 This is the recommended path for anything outside the smelt repo —
@@ -196,7 +201,7 @@ save`), pass a filesystem path:
 
 ```go
 s := stack.MustNewStack(t,
-    stack.WithSnapshot("../../snapshots/3-piri-filesystem-sqlite"),
+    stack.WithSnapshot("../../snapshots/3-piri-postgres-s3"),
 )
 ```
 
@@ -226,7 +231,7 @@ deploy or piri registration. Gate either snapshot option on an env var:
 ```go
 var opts []stack.Option
 if os.Getenv("SMELT_TEST_NO_SNAPSHOT") == "" {
-    opts = append(opts, stack.WithEmbeddedSnapshot("3-piri-filesystem-sqlite"))
+    opts = append(opts, stack.WithEmbeddedSnapshot("3-piri-postgres-s3"))
 }
 s := stack.MustNewStack(t, opts...)
 ```

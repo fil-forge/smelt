@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/fil-forge/smelt/pkg/manifest"
 )
@@ -59,8 +60,11 @@ func resolveVolumes(m *manifest.Manifest) ([]string, error) {
 }
 
 // archiveVolume tars the contents of a docker-named volume into outputDir
-// as `<volname>.tar`. The tar is rooted at the volume contents (`.`) so
-// restore can extract directly into a fresh volume mount.
+// as `<volname>.tar.gz`. The tar is rooted at the volume contents (`.`) so
+// restore can extract directly into a fresh volume mount. Gzip matters for
+// committed snapshots: a postgres data dir is ~85M raw (mostly WAL and
+// preallocated pages) but ~12M gzipped, and snapshots/ is both checked into
+// git and bundled into the Go module via go:embed.
 //
 // Runs busybox as root so postgres/minio data (root-owned inside the volume)
 // is readable.
@@ -80,7 +84,7 @@ func archiveVolume(ctx context.Context, projectName, volName, outputDir string) 
 		"-v", fmt.Sprintf("%s:/src:ro", fullVol),
 		"-v", fmt.Sprintf("%s:/dst", outputDirAbs),
 		busyboxImage,
-		"tar", "-C", "/src", "-cf", fmt.Sprintf("/dst/%s.tar", volName), ".",
+		"tar", "-C", "/src", "-czf", fmt.Sprintf("/dst/%s.tar.gz", volName), ".",
 	)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -115,12 +119,19 @@ func RestoreVolume(ctx context.Context, projectName, volName, inputDir string) e
 	if err != nil {
 		return fmt.Errorf("resolve input dir: %w", err)
 	}
-	tarName := fmt.Sprintf("%s.tar", volName)
+	// Prefer the gzipped form; fall back to the legacy uncompressed name so
+	// snapshots saved before compression still load.
+	tarName := fmt.Sprintf("%s.tar.gz", volName)
 	tarPath := filepath.Join(inputDirAbs, tarName)
+	if _, err := os.Stat(tarPath); os.IsNotExist(err) {
+		tarName = fmt.Sprintf("%s.tar", volName)
+		tarPath = filepath.Join(inputDirAbs, tarName)
+	}
 	if _, err := os.Stat(tarPath); err != nil {
-		// The snapshot didn't include this volume (e.g. saved with sqlite-only
-		// topology, loading into a postgres topology). Skip rather than fail;
-		// the first `make up` will populate an empty volume fresh.
+		// The snapshot didn't include this volume (e.g. saved with a
+		// filesystem-only topology, loading into a postgres topology). Skip
+		// rather than fail; the first `make up` will populate an empty
+		// volume fresh.
 		if os.IsNotExist(err) {
 			fmt.Fprintf(os.Stderr, "  skip: no archive for %q in snapshot\n", volName)
 			return nil
@@ -148,12 +159,16 @@ func RestoreVolume(ctx context.Context, projectName, volName, inputDir string) e
 
 	// Freshly-created volume is empty — just extract. No more `find -delete`
 	// dance needed.
+	extractFlags := "-xf"
+	if strings.HasSuffix(tarName, ".gz") {
+		extractFlags = "-xzf"
+	}
 	cmd := exec.CommandContext(ctx, "docker", "run", "--rm",
 		"-u", "0:0",
 		"-v", fmt.Sprintf("%s:/dst", fullVol),
 		"-v", fmt.Sprintf("%s:/src:ro", inputDirAbs),
 		busyboxImage,
-		"tar", "-C", "/dst", "-xf", fmt.Sprintf("/src/%s", tarName),
+		"tar", "-C", "/dst", extractFlags, fmt.Sprintf("/src/%s", tarName),
 	)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
