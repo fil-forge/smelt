@@ -67,6 +67,10 @@ func TestUploadAndRetrieve(t *testing.T) {
 			// Here we only assert the definition boots to healthy.
 			waitHTTPOK(t, s.IngotEndpoint()+"/health", 2*time.Minute)
 
+			// Same for swarf (no /health route; GET / is the server-info
+			// endpoint).
+			waitHTTPOK(t, s.SwarfEndpoint()+"/", 2*time.Minute)
+
 			gup, err := guppy.NewContainerClient(s)
 			if err != nil {
 				t.Fatal(err)

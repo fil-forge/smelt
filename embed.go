@@ -40,12 +40,11 @@ import "embed"
 //go:embed systems/signing-service/compose.yml
 //go:embed systems/signing-service/config/*
 
+//go:embed systems/swarf/compose.yml
+
 //go:embed systems/upload/compose.yml
 //go:embed systems/upload/config/*
 //go:embed systems/upload/post_start.sh
-
-//go:embed systems/ingot/compose.yml
-//go:embed systems/ingot/config/*
 
 // Curated snapshots shipped with the Go module so external consumers
 // (importers of pkg/stack) can call stack.WithEmbeddedSnapshot without

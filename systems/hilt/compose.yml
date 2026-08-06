@@ -51,6 +51,9 @@ services:
         condition: service_healthy
       plc:
         condition: service_healthy
+      # Startup ordering only — hilt is not configured to call swarf yet
+      swarf:
+        condition: service_healthy
       hilt-postgres:
         condition: service_healthy
       hilt-vault:

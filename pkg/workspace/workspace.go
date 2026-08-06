@@ -50,6 +50,7 @@ var Services = map[string]serviceBuild{
 	"guppy":           {moduleDir: "guppy", buildTarget: ".", binPath: "/usr/bin/guppy"},
 	"hilt":            {moduleDir: "hilt", buildTarget: "./cmd/main.go", binPath: "/usr/bin/hilt"},
 	"ingot":           {moduleDir: "ingot", buildTarget: "./cmd/ingot", binPath: "/usr/bin/ingot", configPath: "/etc/ingot/config.yaml"},
+	"swarf":           {moduleDir: "swarf", buildTarget: "./cmd/swarf", binPath: "/usr/bin/swarf", configPath: "/etc/swarf/config.yaml"},
 }
 
 // libforgeDir is the workspace dir of the shared library. Its presence in the

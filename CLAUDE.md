@@ -74,7 +74,7 @@ smelt/
 │   ├── upload/            # Upload orchestration (mock w3infra)
 │   ├── hilt/              # Tenant management (Fil One Tenant API + UCAN RPC)
 │   ├── plc/               # did:plc directory (reference impl; hilt publishes tenant DIDs here)
-│   ├── ingot/             # S3 facade (built from sibling ../ingot checkout)
+│   ├── swarf/             # UCAN revocation service (+ its own postgres)
 │   ├── guppy/             # CLI client
 │   ├── ingot/             # S3 gateway over Forge (+ its own postgres)
 │   ├── telemetry/         # Observability stack (present but not wired into Makefile)
@@ -317,6 +317,8 @@ All host-side ports live in a dedicated `15XXX` range to avoid collision with co
 | plc-postgres | 15121 | PostgreSQL | did:plc directory store |
 | ingot | 15130 | S3/HTTP | S3 gateway over Forge |
 | ingot-postgres | 15131 | PostgreSQL | Ingot registry/metadata |
+| swarf | 15140 | HTTP/UCAN | UCAN revocation service |
+| swarf-postgres | 15141 | PostgreSQL | Swarf revocation store |
 | guppy | (none) | CLI | Client container |
 
 **Piri Shared Storage** (only emitted when at least one node uses that backend):

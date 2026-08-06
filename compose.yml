@@ -25,6 +25,7 @@ include:
   - path: systems/upload/compose.yml
   - path: systems/guppy/compose.yml
   - path: systems/plc/compose.yml
+  - path: systems/swarf/compose.yml
   - path: systems/hilt/compose.yml
   - path: systems/ingot/compose.yml
 
