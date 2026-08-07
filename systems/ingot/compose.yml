@@ -33,7 +33,6 @@ services:
         condition: service_healthy
       indexer:
         condition: service_healthy
-      # Startup ordering only — ingot is not configured to call swarf yet
       swarf:
         condition: service_healthy
       ingot-postgres:

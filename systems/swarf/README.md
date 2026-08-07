@@ -65,5 +65,7 @@ curl -si http://localhost:15140/revocation/bafyreib3mqe6t2z3xwqcwoohw6f5o5t5nprf
 
 ## Used By
 
-- Hilt and Ingot — startup ordering is wired (`depends_on`), but neither
-  is configured to call swarf yet.
+- Hilt — publishes UCAN revocations here when a delegation it issued is
+  withdrawn (e.g. access-key deletion).
+- Ingot — subscribes to the revocation firehose to clear its per-key
+  authorization caches.

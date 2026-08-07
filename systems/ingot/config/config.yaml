@@ -36,6 +36,12 @@ auth_service_did: "did:web:hilt"
 # hilt → ingot delegations for /s3/request/authorize and /s3/bucket/*
 auth_service_proofs: "/proofs/hilt-ingot-s3-proof.txt"
 
+# UCAN revocation service (swarf) — ingot subscribes to its revocation
+# firehose so hilt's access-key deletions clear the per-key authorization
+# caches. Set both or neither.
+revocation_service_url: "http://swarf:80"
+revocation_service_did: "did:web:swarf"
+
 # Per-plane shipping is configurable; defaults ship both planes. To keep
 # the MST catalog local-only (provider-regional, never shipped), the
 # daemon honours per-plane ship flags — see ingot's Config.
