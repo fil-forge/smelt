@@ -252,8 +252,7 @@ func NewStack(ctx context.Context, t *testing.T, opts ...Option) (*Stack, error)
 		WaitForService("delegator", wait.ForHTTP("/healthcheck").WithPort("80/tcp").WithStartupTimeout(2*time.Minute)).
 		WaitForService("email", wait.ForHTTP("/api/server").WithPort("80/tcp").WithStartupTimeout(2*time.Minute)).
 		WaitForService("plc", wait.ForHTTP("/_health").WithPort("3000/tcp").WithStartupTimeout(2*time.Minute)).
-		// Swarf has no /health route; GET / is the server-info endpoint.
-		WaitForService("swarf", wait.ForHTTP("/").WithPort("80/tcp").WithStartupTimeout(2*time.Minute)).
+		WaitForService("swarf", wait.ForHTTP("/health").WithPort("80/tcp").WithStartupTimeout(2*time.Minute)).
 		WaitForService("hilt", wait.ForHTTP("/health").WithPort("80/tcp").WithStartupTimeout(2*time.Minute)).
 		WaitForService("ingot", wait.ForHTTP("/health").WithPort("9000/tcp").WithStartupTimeout(2*time.Minute))
 

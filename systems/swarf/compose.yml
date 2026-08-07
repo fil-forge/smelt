@@ -29,8 +29,7 @@ services:
       swarf-postgres:
         condition: service_healthy
     healthcheck:
-      # Swarf has no /health route; GET / is the server-info endpoint
-      test: ["CMD", "curl", "-sf", "http://localhost:80/"]
+      test: ["CMD", "curl", "-sf", "http://localhost:80/health"]
       start_interval: 1s
       interval: 10s
       timeout: 5s

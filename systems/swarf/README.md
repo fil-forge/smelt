@@ -10,8 +10,8 @@ invocation) in Postgres, and serves them back over HTTP:
 - `GET /revocations/:since` — SSE firehose of revocation records
   (`0` or an RFC3339 timestamp)
 - `GET /.well-known/did.json` — did:web document
-- `GET /` — server info (also the healthcheck target; swarf has no
-  `/health` route)
+- `GET /health` — health status
+- `GET /` — server info
 
 ## Services
 
@@ -53,6 +53,7 @@ All configuration is via `SWARF_*` environment variables in `compose.yml`:
 ## Smoke Test
 
 ```bash
+curl -sf http://localhost:15140/health                          # {"status":"healthy"}
 curl -sf http://localhost:15140/                                # server info banner
 curl -s http://localhost:15140/.well-known/did.json | jq .id    # "did:web:swarf"
 curl -si http://localhost:15140/revocation/bafyreib3mqe6t2z3xwqcwoohw6f5o5t5nprfltmbjbmzynyqcnpxrcut4q  # 404
