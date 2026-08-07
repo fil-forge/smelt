@@ -37,6 +37,9 @@ All configuration is via `SWARF_*` environment variables in `compose.yml`:
   volume).
 - `SWARF_SERVER_INSECURE_DID_RESOLUTION=true` so did:web documents
   resolve over plain HTTP inside the compose network.
+- did:plc directory: the local reference server at `http://plc:3000`
+  (`SWARF_PLC_DIRECTORY`), used to resolve did:plc issuers such as hilt
+  tenant identities.
 
 ## Keys
 
@@ -48,6 +51,7 @@ All configuration is via `SWARF_*` environment variables in `compose.yml`:
 
 ## Dependencies
 
+- plc (service_healthy)
 - swarf-postgres (service_healthy)
 
 ## Smoke Test

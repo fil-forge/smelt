@@ -22,10 +22,15 @@ services:
       - SWARF_STORAGE_POSTGRES_DSN=postgres://swarf:swarf@swarf-postgres:5432/swarf?sslmode=disable
       # Resolve did:web documents over plain HTTP inside the compose network
       - SWARF_SERVER_INSECURE_DID_RESOLUTION=true
+      # Resolve did:plc DIDs (e.g. hilt tenant identities) against the local
+      # PLC directory instead of the default https://plc.directory
+      - SWARF_PLC_DIRECTORY=http://plc:3000
       - SWARF_LOG_LEVEL=info
     volumes:
       - ../../generated/keys/swarf.pem:/keys/swarf.pem:ro
     depends_on:
+      plc:
+        condition: service_healthy
       swarf-postgres:
         condition: service_healthy
     healthcheck:
