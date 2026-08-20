@@ -492,6 +492,7 @@ Module → service / container binary map (see `pkg/workspace`):
 | `guppy` | guppy | `/usr/bin/guppy` |
 | `hilt` | hilt | `/usr/bin/hilt` |
 | `ingot` | ingot | `/usr/bin/ingot` |
+| `swarf` | swarf | `/usr/bin/swarf` |
 
 In Go tests, `stack.WithWorkspaceBinaries()` does the same; `stack.WithServiceBinary(name, path)`
 mounts a specific prebuilt binary without the workspace machinery, and
