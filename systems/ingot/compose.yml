@@ -33,6 +33,8 @@ services:
         condition: service_healthy
       indexer:
         condition: service_healthy
+      swarf:
+        condition: service_healthy
       ingot-postgres:
         condition: service_healthy
     healthcheck:

@@ -78,6 +78,8 @@ All host ports live in a dedicated `15XXX` range to avoid collision with common 
 | plc-postgres    | 15121              | Postgres for the did:plc directory                                               |
 | ingot           | 15130              | S3 gateway over Forge                                                            |
 | ingot-postgres  | 15131              | Postgres for ingot's registry/metadata                                           |
+| swarf           | 15140              | UCAN revocation service                                                          |
+| swarf-postgres  | 15141              | Postgres for swarf's revocation store                                            |
 | guppy           | —                  | CLI client for uploads (no exposed port)                                         |
 
 Piri's shared storage backends are generated from `smelt.yml` and only run when

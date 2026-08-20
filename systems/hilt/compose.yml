@@ -29,6 +29,10 @@ services:
       - HILT_PLC_DIRECTORY=http://plc:3000
       - HILT_UPLOAD_SERVICE_ID=did:web:upload
       - HILT_UPLOAD_SERVICE_URL=http://upload:80
+      # Swarf revocation service — hilt publishes UCAN revocations here when
+      # a delegation it issued is withdrawn (e.g. access-key deletion)
+      - HILT_REVOCATION_SERVICE_ID=did:web:swarf
+      - HILT_REVOCATION_SERVICE_URL=http://swarf:80
       - HILT_UPLOAD_PRODUCT_ID=did:web:hilt
       - HILT_UPLOAD_PROOFS=/proofs/hilt-customer-add-proof.txt
       # Resolve did:web documents over plain HTTP inside the compose network
@@ -50,6 +54,8 @@ services:
       upload:
         condition: service_healthy
       plc:
+        condition: service_healthy
+      swarf:
         condition: service_healthy
       hilt-postgres:
         condition: service_healthy

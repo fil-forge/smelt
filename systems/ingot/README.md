@@ -30,6 +30,9 @@ guppy-style edge client.
 - Root S3 credentials: `ingot-root` / `ingot-root-secret` (dev-only values).
 - Region: `us-west-1` — must match hilt's registered provider region and the
   sigv4 region S3 clients use.
+- Revocation service: `did:web:swarf` at `http://swarf:80` — ingot subscribes
+  to [swarf](../swarf/)'s revocation firehose so hilt's access-key deletions
+  clear the per-key authorization caches.
 
 ## Keys and Proofs
 
@@ -51,6 +54,9 @@ registered provider.
 
 - hilt (service_healthy)
 - upload (service_healthy)
+- piri-0 (service_healthy)
+- indexer (service_healthy)
+- swarf (service_healthy)
 - ingot-postgres (service_healthy)
 
 ## Build Requirement

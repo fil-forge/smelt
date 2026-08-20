@@ -252,6 +252,7 @@ func NewStack(ctx context.Context, t *testing.T, opts ...Option) (*Stack, error)
 		WaitForService("delegator", wait.ForHTTP("/healthcheck").WithPort("80/tcp").WithStartupTimeout(2*time.Minute)).
 		WaitForService("email", wait.ForHTTP("/api/server").WithPort("80/tcp").WithStartupTimeout(2*time.Minute)).
 		WaitForService("plc", wait.ForHTTP("/_health").WithPort("3000/tcp").WithStartupTimeout(2*time.Minute)).
+		WaitForService("swarf", wait.ForHTTP("/health").WithPort("80/tcp").WithStartupTimeout(2*time.Minute)).
 		WaitForService("hilt", wait.ForHTTP("/health").WithPort("80/tcp").WithStartupTimeout(2*time.Minute)).
 		WaitForService("ingot", wait.ForHTTP("/health").WithPort("9000/tcp").WithStartupTimeout(2*time.Minute))
 
@@ -438,6 +439,23 @@ func (s *Stack) IngotEndpoint() string {
 	port, err := container.MappedPort(context.Background(), "9000/tcp")
 	if err != nil {
 		s.t.Fatalf("getting ingot port: %v", err)
+	}
+	return fmt.Sprintf("http://%s:%s", host, port.Port())
+}
+
+// SwarfEndpoint returns the HTTP endpoint for the swarf revocation service.
+func (s *Stack) SwarfEndpoint() string {
+	container, err := s.compose.ServiceContainer(context.Background(), "swarf")
+	if err != nil {
+		s.t.Fatalf("getting swarf container: %v", err)
+	}
+	host, err := container.Host(context.Background())
+	if err != nil {
+		s.t.Fatalf("getting swarf host: %v", err)
+	}
+	port, err := container.MappedPort(context.Background(), "80/tcp")
+	if err != nil {
+		s.t.Fatalf("getting swarf port: %v", err)
 	}
 	return fmt.Sprintf("http://%s:%s", host, port.Port())
 }

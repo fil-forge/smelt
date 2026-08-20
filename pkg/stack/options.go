@@ -26,6 +26,7 @@ type config struct {
 	blockchainImage string
 	ipniImage       string
 	ingotImage      string
+	swarfImage      string
 
 	// Binary injection: bind-mount host-built binaries over the published
 	// images instead of rebuilding the image. serviceBinaries holds explicit
@@ -93,6 +94,9 @@ func (c *config) buildEnv() map[string]string {
 	}
 	if c.ingotImage != "" {
 		env["INGOT_IMAGE"] = c.ingotImage
+	}
+	if c.swarfImage != "" {
+		env["SWARF_IMAGE"] = c.swarfImage
 	}
 
 	return env
@@ -251,6 +255,13 @@ func WithIPNIImage(image string) Option {
 func WithIngotImage(image string) Option {
 	return func(c *config) {
 		c.ingotImage = image
+	}
+}
+
+// WithSwarfImage sets the swarf (UCAN revocation) container image.
+func WithSwarfImage(image string) Option {
+	return func(c *config) {
+		c.swarfImage = image
 	}
 }
 

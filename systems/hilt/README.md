@@ -49,6 +49,9 @@ All configuration is via `HILT_*` environment variables in `compose.yml`:
 - Upload service: `did:web:upload` at `http://upload:80`, presenting the
   `upload → hilt` `/customer/add` delegation from
   `../../generated/proofs/hilt-customer-add-proof.txt`.
+- Revocation service: `did:web:swarf` at `http://swarf:80` — hilt publishes
+  UCAN revocations to [swarf](../swarf/) when a delegation it issued is
+  withdrawn (e.g. when an access key is deleted).
 
 ## Provider Registration
 
@@ -74,6 +77,7 @@ registration fails for any other reason (mirroring
 
 - plc (service_healthy)
 - upload (service_healthy)
+- swarf (service_healthy)
 - hilt-postgres (service_healthy)
 - hilt-vault (service_healthy)
 
