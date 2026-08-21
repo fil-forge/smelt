@@ -460,6 +460,25 @@ func (s *Stack) SwarfEndpoint() string {
 	return fmt.Sprintf("http://%s:%s", host, port.Port())
 }
 
+// HiltEndpoint returns the HTTP endpoint for the hilt tenant-management
+// service — both its partner REST API and its UCAN RPC listener share
+// container port 80.
+func (s *Stack) HiltEndpoint() string {
+	container, err := s.compose.ServiceContainer(context.Background(), "hilt")
+	if err != nil {
+		s.t.Fatalf("getting hilt container: %v", err)
+	}
+	host, err := container.Host(context.Background())
+	if err != nil {
+		s.t.Fatalf("getting hilt host: %v", err)
+	}
+	port, err := container.MappedPort(context.Background(), "80/tcp")
+	if err != nil {
+		s.t.Fatalf("getting hilt port: %v", err)
+	}
+	return fmt.Sprintf("http://%s:%s", host, port.Port())
+}
+
 // maybeBinaryOverride builds workspace-selected service binaries (when enabled)
 // and writes a compose override mounting them — plus any explicitly-provided
 // binaries (WithServiceBinary / WithPiriBinary) — over the published images.
