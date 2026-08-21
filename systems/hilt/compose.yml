@@ -42,14 +42,6 @@ services:
     volumes:
       - ../../generated/keys/hilt.pem:/keys/hilt.pem:ro
       - ../../generated/proofs:/proofs:ro
-      # Mount the generated keys directory so post_start.sh can read
-      # piri-0.did and register it as the us-west-1 provider. Read-only.
-      - ../../generated/keys:/piri-keys:ro
-      - ./post_start.sh:/post_start.sh:ro
-    post_start:
-      - command: sh ./post_start.sh
-        environment:
-          - INGOT_REGION=${INGOT_REGION:-us-west-1}
     depends_on:
       upload:
         condition: service_healthy
@@ -69,6 +61,33 @@ services:
       retries: 5
       start_period: 10s
     restart: unless-stopped
+    networks:
+      - forge-network
+
+  # One-shot registrar: registers ingot as hilt's regional provider once
+  # hilt is healthy. Runs the hilt admin CLI from the same image; the
+  # HILT_SERVER_* env points the CLI at the hilt container, and the identity
+  # env lets it sign as the service. Previously a post_start hook on `hilt`
+  # (see upload-init for why hooks were retired).
+  hilt-init:
+    image: ${HILT_IMAGE:-ghcr.io/fil-forge/hilt:main}
+    user: "0:0"  # key files are 600
+    entrypoint: ["sh", "/register-provider.sh"]
+    environment:
+      - HILT_SERVER_HOST=hilt
+      - HILT_SERVER_PORT=80
+      - HILT_IDENTITY_KEY_FILE=/keys/hilt.pem
+      - HILT_IDENTITY_SERVICE_ID=did:web:hilt
+      - INGOT_REGION=${INGOT_REGION:-us-west-1}
+    volumes:
+      - ../../generated/keys/hilt.pem:/keys/hilt.pem:ro
+      # Keys directory so the script can read ingot.did. Read-only.
+      - ../../generated/keys:/piri-keys:ro
+      - ./register-provider.sh:/register-provider.sh:ro
+    depends_on:
+      hilt:
+        condition: service_healthy
+    restart: "no"
     networks:
       - forge-network
 

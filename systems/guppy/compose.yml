@@ -12,6 +12,10 @@ services:
     depends_on:
       upload:
         condition: service_healthy
+      # Uploads fail until the piri providers are registered with sprue, so
+      # gate the client container on the registrar having completed.
+      upload-init:
+        condition: service_completed_successfully
     stdin_open: true
     tty: true
     # Keep container alive for interactive use (exec into it with: make shell-guppy)

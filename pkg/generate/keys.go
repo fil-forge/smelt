@@ -70,7 +70,7 @@ func GenerateKeys(keysDir string, nodes []manifest.ResolvedPiriNode, force bool)
 
 // generateEd25519Key generates an Ed25519 key pair in PEM format, plus a
 // <name>.did file holding the key's did:key identifier (consumed by shell
-// scripts that have no DID tooling, e.g. systems/hilt/post_start.sh).
+// scripts that have no DID tooling, e.g. systems/hilt/register-provider.sh).
 func generateEd25519Key(keysDir, name string, force bool) error {
 	privPath := filepath.Join(keysDir, name+".pem")
 	if !force && fileExists(privPath) {

@@ -21,7 +21,7 @@ import "embed"
 //go:embed systems/guppy/config/*
 
 //go:embed systems/hilt/compose.yml
-//go:embed systems/hilt/post_start.sh
+//go:embed systems/hilt/register-provider.sh
 
 //go:embed systems/ingot/compose.yml
 //go:embed systems/ingot/config/*
@@ -44,7 +44,7 @@ import "embed"
 
 //go:embed systems/upload/compose.yml
 //go:embed systems/upload/config/*
-//go:embed systems/upload/post_start.sh
+//go:embed systems/upload/register-providers.sh
 
 // Curated snapshots shipped with the Go module so external consumers
 // (importers of pkg/stack) can call stack.WithEmbeddedSnapshot without

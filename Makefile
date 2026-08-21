@@ -310,7 +310,7 @@ debug-upload: generated/compose/piri.yml ensure-state
 	@if [ ! -d "generated/keys" ] || [ -z "$$(ls -A generated/keys 2>/dev/null)" ]; then \
 		$(MAKE) init; \
 	fi
-	$(DOCKER) compose -f compose.yml -f compose.debug.yml up -d --force-recreate upload
+	$(DOCKER) compose -f compose.yml -f compose.debug.yml up -d --force-recreate upload upload-init
 	@echo ""
 	@echo "upload is running under Delve. Attach to localhost:2345:"
 	@echo "  dlv connect localhost:2345"

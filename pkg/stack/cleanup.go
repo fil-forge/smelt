@@ -38,6 +38,21 @@ func dumpProjectLogs(t *testing.T, projectName string) {
 		t.Logf("smeltery: no containers found for project %s", projectName)
 		return
 	}
+	// One state line per container first, so the summary reads as a table
+	// before the log walls. ExitCode/OOMKilled/RestartCount is the evidence
+	// that distinguishes "crashed", "OOM-killed", and "never became healthy"
+	// — docker logs alone can't (a SIGKILLed process logs nothing).
+	for _, name := range names {
+		state, err := exec.Command("docker", "inspect", "--format",
+			"status={{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}}"+
+				" restarts={{.RestartCount}} started={{.State.StartedAt}} finished={{.State.FinishedAt}}",
+			name).CombinedOutput()
+		if err != nil {
+			t.Logf("=== container state: %s === inspect failed: %v", name, err)
+			continue
+		}
+		t.Logf("=== container state: %s === %s", name, strings.TrimSpace(string(state)))
+	}
 	for _, name := range names {
 		logs, _ := exec.Command("docker", "logs", "--tail", "200", name).CombinedOutput()
 		t.Logf("=== container logs: %s ===\n%s", name, logs)

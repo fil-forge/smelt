@@ -5,8 +5,8 @@ name: E2E
 # tests/e2e/, and — on failure — dumps every smelt-ish container's logs
 # (both to the job output and as an uploaded artifact). This exists
 # because the unified go-test workflow only surfaces compose up's
-# top-level error ("upload hook exited with status 1") and eats the
-# actual stderr from the failing post_start hook.
+# top-level error and eats the stderr of whichever container actually
+# failed (e.g. a registrar like upload-init exiting non-zero).
 
 on:
   pull_request:

@@ -20,15 +20,7 @@ services:
       - SPRUE_SERVER_PUBLIC_URL
     volumes:
       - ../../generated/keys/upload.pem:/keys/upload.pem:ro
-      # Mount the full generated keys and proofs directories so post_start.sh
-      # can loop over every piri-N node declared in smelt.yml and register it
-      # as a storage provider. Read-only on both.
-      - ../../generated/keys:/piri-keys:ro
-      - ../../generated/proofs:/proofs:ro
-      - ./post_start.sh:/post_start.sh:ro
       - ./config:/etc/sprue:ro
-    post_start:
-      - command: sh ./post_start.sh
     depends_on:
       indexer:
         condition: service_healthy
@@ -44,6 +36,33 @@ services:
       retries: 5
       start_period: 10s
     restart: unless-stopped
+    networks:
+      - forge-network
+
+  # One-shot registrar: registers every piri-N node from smelt.yml as a
+  # storage provider once upload is healthy. Runs the sprue admin CLI from
+  # the same image; SPRUE_SERVER_HOST points the CLI at the upload container.
+  # Previously a post_start hook on `upload` — a hook execs into the service
+  # container the instant it starts, and that exec racing an early sprue exit
+  # aborted the whole `compose up` with a daemon FailedPrecondition. As its
+  # own service the registration also gets ordinary, visible container logs.
+  upload-init:
+    image: ${UPLOAD_IMAGE:-ghcr.io/fil-forge/sprue:main}
+    entrypoint: ["sh", "/register-providers.sh"]
+    environment:
+      - SPRUE_SERVER_HOST=upload
+    volumes:
+      - ../../generated/keys/upload.pem:/keys/upload.pem:ro
+      # Full keys and proofs directories so the script can loop over every
+      # piri-N node declared in smelt.yml. Read-only on both.
+      - ../../generated/keys:/piri-keys:ro
+      - ../../generated/proofs:/proofs:ro
+      - ./register-providers.sh:/register-providers.sh:ro
+      - ./config:/etc/sprue:ro
+    depends_on:
+      upload:
+        condition: service_healthy
+    restart: "no"
     networks:
       - forge-network
 
