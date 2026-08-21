@@ -1,6 +1,6 @@
 {
   "name": "3-piri-postgres-s3",
-  "created_at": "2026-08-20T17:06:29.964908Z",
+  "created_at": "2026-08-21T06:57:03.818015Z",
   "volumes": [
     "minio-data",
     "ipni-data",
@@ -87,7 +87,7 @@
     },
     "guppy": {
       "tag": "ghcr.io/fil-forge/guppy:main-dev",
-      "digest": "ghcr.io/fil-forge/guppy@sha256:f0a12af03ba9c697d39a66271ef00ffd321497663a8c8df1c2fb44bea1a79276"
+      "digest": "ghcr.io/fil-forge/guppy@sha256:4d8950d8171584f562df00c90a3dcd4f954c00ede10d1bb92eb6e93375b9d93d"
     },
     "hilt": {
       "tag": "ghcr.io/fil-forge/hilt:main",
@@ -171,7 +171,7 @@
     },
     "swarf": {
       "tag": "ghcr.io/fil-forge/swarf:main",
-      "digest": "ghcr.io/fil-forge/swarf@sha256:d7b292c1cf0ca15d760ca1dc10b46d7cbdad3bd438cea29ee8f369c7846cbdf1"
+      "digest": "ghcr.io/fil-forge/swarf@sha256:d254f79a158ce4aeb5997ef76b50249c76189a6d4bef6558e3038caa1ef3999e"
     },
     "swarf-postgres": {
       "tag": "postgres:16-alpine",
