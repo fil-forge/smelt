@@ -31,10 +31,15 @@ func resolveVolumes(m *manifest.Manifest) ([]string, error) {
 	// stack delta" framing — a user who logged in and created spaces before
 	// saving will find them after load.
 	vols := []string{
-		"minio-data",    // systems/common — upload's S3 backend
-		"ipni-data",     // systems/indexing/ipni — content discovery
-		"dynamodb-data", // systems/common — delegator allow list, upload registry
-		"guppy-data",    // systems/guppy — client's login/space state
+		"minio-data",          // systems/common — upload's S3 backend
+		"ipni-data",           // systems/indexing/ipni — content discovery
+		"dynamodb-data",       // systems/common — delegator allow list, upload registry
+		"guppy-data",          // systems/guppy — client's login/space state
+		"swarf-postgres-data", // systems/swarf — revocation records
+		"hilt-postgres-data",  // systems/hilt — tenant state
+		"plc-postgres-data",   // systems/plc — DID PLC registry
+		"ingot-data",          // systems/ingot — node state
+		"ingot-postgres-data", // systems/ingot — registry
 	}
 
 	// Per-piri data volumes.

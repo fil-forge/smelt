@@ -137,6 +137,21 @@ This produces `generated/keys/my-service.pem` (private) and `generated/keys/my-s
 
 Key generation is idempotent — existing keys are preserved across runs. Use `make regen` or `go run ./cmd/smelt generate --force` to overwrite.
 
+### Capturing Volumes in Snapshots
+
+Snapshot save archives an explicit list of volumes, not everything compose declares. If your service declares a named volume, add it to the slice in `resolveVolumes` (`pkg/snapshot/volumes.go`):
+
+```go
+// pkg/snapshot/volumes.go
+vols := []string{
+    "minio-data",
+    // ...
+    "my-service-data",
+}
+```
+
+Skipping this doesn't break anything — a restored stack just creates the volume empty — but any state your service wrote before the save is silently absent after a restore. Loading older snapshots that predate your volume also works; missing archives are skipped.
+
 ## Customizing Configuration
 
 ### Environment Variables
