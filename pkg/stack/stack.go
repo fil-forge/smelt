@@ -224,17 +224,6 @@ func NewStack(ctx context.Context, t *testing.T, opts ...Option) (*Stack, error)
 		}
 	})
 
-	// 7b. If restoring from snapshot, pre-populate docker volumes so they
-	// exist with the expected labels and content before compose.Up.
-	if snapDesc != nil {
-		volsSrc := filepath.Join(snapDir, "volumes")
-		for _, v := range snapDesc.Volumes {
-			if err := snapshot.RestoreVolume(ctx, projectName, v, volsSrc); err != nil {
-				return nil, fmt.Errorf("restore volume %s: %w", v, err)
-			}
-		}
-	}
-
 	// 8. Start with wait strategies
 	startCtx := ctx
 	if cfg.timeout > 0 {
@@ -262,15 +251,42 @@ func NewStack(ctx context.Context, t *testing.T, opts ...Option) (*Stack, error)
 			wait.ForHTTP("/readyz").WithPort("3000/tcp").WithStartupTimeout(3*time.Minute))
 	}
 
-	// Up failures propagate up; the t.Cleanup registered above handles
-	// teardown so no matter where Up fails (container healthcheck, wait
-	// timeout, docker daemon hiccup), the half-started stack gets cleaned
-	// up at test end.
-	if err := waitStack.Up(startCtx, compose.Wait(true)); err != nil {
-		return nil, fmt.Errorf("start stack: %w", err)
-	}
+	// Boot, retrying once on failure. Loaded CI runners lose a small
+	// fraction of boots to transient daemon races (a healthcheck exec
+	// hitting a container mid-restart, runc setns/procReady failures, an
+	// init container racing postgres startup); a failed attempt is torn
+	// down — volumes included, so the snapshot restore reruns — and booted
+	// again. A genuine failure still propagates, one boot later, and the
+	// t.Cleanup registered above tears down whatever the last attempt
+	// left behind.
+	const bootAttempts = 2
+	for attempt := 1; ; attempt++ {
+		// 7b. If restoring from snapshot, pre-populate docker volumes so
+		// they exist with the expected labels and content before compose.Up.
+		if snapDesc != nil {
+			volsSrc := filepath.Join(snapDir, "volumes")
+			for _, v := range snapDesc.Volumes {
+				if err := snapshot.RestoreVolume(ctx, projectName, v, volsSrc); err != nil {
+					return nil, fmt.Errorf("restore volume %s: %w", v, err)
+				}
+			}
+		}
 
-	return stack, nil
+		err := waitStack.Up(startCtx, compose.Wait(true))
+		if err == nil {
+			return stack, nil
+		}
+		if attempt == bootAttempts || startCtx.Err() != nil {
+			return nil, fmt.Errorf("start stack: %w", err)
+		}
+		t.Logf("smeltery: stack boot attempt %d/%d failed, tearing down and retrying: %v", attempt, bootAttempts, err)
+		downCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		derr := composeStack.Down(downCtx, compose.RemoveOrphans(true), compose.RemoveVolumes(true))
+		cancel()
+		if derr != nil {
+			return nil, fmt.Errorf("start stack: %w (teardown before retry also failed: %v)", err, derr)
+		}
+	}
 }
 
 // MustNewStack creates and starts a network, calling t.Fatal on error.
