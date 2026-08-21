@@ -120,6 +120,11 @@ generated/snapshots/<name>/
     ├── minio-data.tar.gz          # upload's S3 backend
     ├── ipni-data.tar.gz           # content discovery index
     ├── guppy-data.tar.gz          # client login + spaces
+    ├── swarf-postgres-data.tar.gz # revocation records
+    ├── hilt-postgres-data.tar.gz  # tenant state
+    ├── plc-postgres-data.tar.gz   # DID PLC registry
+    ├── ingot-data.tar.gz          # ingot node state
+    ├── ingot-postgres-data.tar.gz # ingot registry
     ├── piri-postgres-data.tar.gz  # only when topology uses postgres
     └── piri-minio-data.tar.gz     # only when topology uses S3
 ```
