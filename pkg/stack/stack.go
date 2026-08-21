@@ -460,6 +460,40 @@ func (s *Stack) SwarfEndpoint() string {
 	return fmt.Sprintf("http://%s:%s", host, port.Port())
 }
 
+// HiltEndpoint returns the HTTP endpoint for the hilt tenant-management
+// service — both its partner REST API and its UCAN RPC listener share
+// container port 80.
+func (s *Stack) HiltEndpoint() string {
+	container, err := s.compose.ServiceContainer(context.Background(), "hilt")
+	if err != nil {
+		s.t.Fatalf("getting hilt container: %v", err)
+	}
+	host, err := container.Host(context.Background())
+	if err != nil {
+		s.t.Fatalf("getting hilt host: %v", err)
+	}
+	port, err := container.MappedPort(context.Background(), "80/tcp")
+	if err != nil {
+		s.t.Fatalf("getting hilt port: %v", err)
+	}
+	return fmt.Sprintf("http://%s:%s", host, port.Port())
+}
+
+// defaultHiltPartnerKey mirrors the compose default in
+// systems/hilt/compose.yml: HILT_AUTH_PARTNER_KEY=${HILT_PARTNER_KEY:-dev-partner-key}.
+const defaultHiltPartnerKey = "dev-partner-key"
+
+// HiltPartnerKey returns the pre-shared bearer key hilt's Tenant API
+// expects on partner requests. It resolves the same way the compose file
+// does: the HILT_PARTNER_KEY env var when set, otherwise the local-dev
+// default. This is a local-dev fixture value, not a production secret.
+func (s *Stack) HiltPartnerKey() string {
+	if key := os.Getenv("HILT_PARTNER_KEY"); key != "" {
+		return key
+	}
+	return defaultHiltPartnerKey
+}
+
 // maybeBinaryOverride builds workspace-selected service binaries (when enabled)
 // and writes a compose override mounting them — plus any explicitly-provided
 // binaries (WithServiceBinary / WithPiriBinary) — over the published images.
