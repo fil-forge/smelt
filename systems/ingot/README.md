@@ -41,9 +41,9 @@ guppy-style edge client.
   for `/s3/request/authorize` and `/s3/bucket/{create,delete,info,list}`
   (issuer `did:web:hilt`, audience ingot's did:key, subject `did:web:hilt`)
 
-Ingot's did:key is also what hilt's post_start registers as the **us-west-1
-provider** — hilt only accepts S3 RPC invocations issued by the tenant's
-registered provider.
+Ingot's did:key is also what the `hilt-init` registrar registers as the
+**us-west-1 provider** — hilt only accepts S3 RPC invocations issued by the
+tenant's registered provider.
 
 ## Volumes
 

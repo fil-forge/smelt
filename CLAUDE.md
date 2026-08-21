@@ -154,7 +154,7 @@ Some services publish `:main-dev` image variants with debug symbols (`-gcflags="
 make debug-upload    # runs sprue under dlv, listening on localhost:2345
 ```
 
-The service comes up normally (dlv uses `--continue`, so healthchecks and `post_start` hooks behave as usual). Attach a Delve client whenever:
+The service comes up normally (dlv uses `--continue`, so healthchecks and the init/registrar services behave as usual). Attach a Delve client whenever:
 
 ```bash
 dlv connect localhost:2345

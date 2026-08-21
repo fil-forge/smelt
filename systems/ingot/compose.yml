@@ -27,6 +27,10 @@ services:
     depends_on:
       hilt:
         condition: service_healthy
+      # Hilt only accepts /s3/* invocations from its registered regional
+      # provider (ingot), so wait for the registrar to have completed.
+      hilt-init:
+        condition: service_completed_successfully
       upload:
         condition: service_healthy
       piri-0:

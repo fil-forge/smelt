@@ -55,15 +55,15 @@ All configuration is via `HILT_*` environment variables in `compose.yml`:
 
 ## Provider Registration
 
-`post_start.sh` runs on every container start and registers **ingot** as the
-regional provider for **us-west-1** via `hilt client admin provider add`,
-reading the DID from `/piri-keys/ingot.did` (emitted by `smelt generate`).
-Ingot must be the registered provider because hilt only accepts `/s3/*`
-invocations issued by the tenant's provider.
+The one-shot `hilt-init` service runs `register-provider.sh` once hilt is
+healthy, registering **ingot** as the regional provider for **us-west-1** via
+`hilt client admin provider add`, reading the DID from `/piri-keys/ingot.did`
+(emitted by `smelt generate`). Ingot must be the registered provider because
+hilt only accepts `/s3/*` invocations issued by the tenant's provider.
 Registration is idempotent — when the record already exists in postgres the
-"already registered" response is tolerated. The script fails the container if
-registration fails for any other reason (mirroring
-`systems/upload/post_start.sh`).
+"already registered" response is tolerated. Any other failure fails the
+`hilt-init` container, which blocks ingot's start (mirroring
+`systems/upload/register-providers.sh`).
 
 ## Keys
 

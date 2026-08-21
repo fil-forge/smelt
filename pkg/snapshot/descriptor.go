@@ -26,7 +26,7 @@ type Descriptor struct {
 	Keys []string `json:"keys"`
 	// Proofs lists filenames copied from generated/proofs/ (e.g.
 	// "piri-0-proof.txt"). These are UCAN delegations that upload's
-	// post_start.sh uses to register piri as a storage provider.
+	// register-providers.sh (upload-init) uses to register piri as a storage provider.
 	Proofs []string `json:"proofs"`
 	// Images records the per-service image identity at save time: both the
 	// human-readable reference (tag) and the immutable digest. Load
