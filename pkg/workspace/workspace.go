@@ -31,10 +31,11 @@ import (
 
 // serviceBuild describes how to build one smelt service from its sibling module.
 type serviceBuild struct {
-	moduleDir   string // go.work use-dir basename, e.g. "piri"
-	buildTarget string // `go build` package arg, e.g. "./cmd"
-	binPath     string // absolute path of the binary inside the container image
-	configPath  string // absolute path of the service's config file inside the container; empty when the service has no single-file config to override
+	moduleDir   string   // go.work use-dir basename, e.g. "piri"
+	buildTarget string   // `go build` package arg, e.g. "./cmd"
+	binPath     string   // absolute path of the binary inside the container image
+	configPath  string   // absolute path of the service's config file inside the container; empty when the service has no single-file config to override
+	alsoBinIn   []string // additional compose services that run the same image and must receive the binary mount (e.g. one-shot registrars invoking the service's CLI)
 }
 
 // Services maps smelt service name -> build descriptor. The map key doubles as
@@ -43,12 +44,12 @@ type serviceBuild struct {
 // delegator installs its binary as /usr/bin/registrar (binary name != module).
 var Services = map[string]serviceBuild{
 	"piri":            {moduleDir: "piri", buildTarget: "./cmd", binPath: "/usr/bin/piri"},
-	"upload":          {moduleDir: "sprue", buildTarget: "./cmd/main.go", binPath: "/usr/bin/sprue"},
+	"upload":          {moduleDir: "sprue", buildTarget: "./cmd/main.go", binPath: "/usr/bin/sprue", alsoBinIn: []string{"upload-init"}},
 	"signing-service": {moduleDir: "piri-signing-service", buildTarget: ".", binPath: "/usr/bin/signer"},
 	"indexer":         {moduleDir: "indexing-service", buildTarget: "./cmd", binPath: "/usr/bin/indexer"},
 	"delegator":       {moduleDir: "delegator", buildTarget: ".", binPath: "/usr/bin/registrar"},
 	"guppy":           {moduleDir: "guppy", buildTarget: ".", binPath: "/usr/bin/guppy"},
-	"hilt":            {moduleDir: "hilt", buildTarget: "./cmd/main.go", binPath: "/usr/bin/hilt"},
+	"hilt":            {moduleDir: "hilt", buildTarget: "./cmd/main.go", binPath: "/usr/bin/hilt", alsoBinIn: []string{"hilt-init"}},
 	"ingot":           {moduleDir: "ingot", buildTarget: "./cmd/ingot", binPath: "/usr/bin/ingot", configPath: "/etc/ingot/config.yaml"},
 	"swarf":           {moduleDir: "swarf", buildTarget: "./cmd/swarf", binPath: "/usr/bin/swarf", configPath: "/etc/swarf/config.yaml"},
 }
@@ -169,6 +170,12 @@ func RenderOverride(binaries, configs map[string]string, piriNodes []string) ([]
 			return nil, fmt.Errorf("unknown service %q", service)
 		}
 		addMount(service, hostPath, spec.binPath)
+		// Registrar-style services run the same image's CLI, so a workspace
+		// build must override their binary too — otherwise a local server
+		// change would be exercised against the published CLI (or vice versa).
+		for _, also := range spec.alsoBinIn {
+			addMount(also, hostPath, spec.binPath)
+		}
 	}
 	for service, hostPath := range configs {
 		spec, ok := Services[service]

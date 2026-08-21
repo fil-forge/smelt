@@ -29,6 +29,34 @@ func TestRenderOverrideBinariesAndConfigs(t *testing.T) {
 	}
 }
 
+func TestRenderOverrideRegistrarFanOut(t *testing.T) {
+	// upload and hilt binaries must also be mounted into their one-shot
+	// registrar services, which run the same image's CLI — otherwise a
+	// workspace build would test a local server against the published CLI.
+	data, err := RenderOverride(
+		map[string]string{"upload": "/host/bin/sprue", "hilt": "/host/bin/hilt"},
+		nil, nil,
+	)
+	if err != nil {
+		t.Fatalf("RenderOverride: %v", err)
+	}
+	out := string(data)
+
+	for _, want := range []string{
+		"upload-init:",
+		"hilt-init:",
+		"/host/bin/sprue:/usr/bin/sprue:ro",
+		"/host/bin/hilt:/usr/bin/hilt:ro",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("override missing %q:\n%s", want, out)
+		}
+	}
+	if got := strings.Count(out, "/host/bin/sprue:/usr/bin/sprue:ro"); got != 2 {
+		t.Errorf("sprue binary mounted %d time(s), want 2 (upload + upload-init):\n%s", got, out)
+	}
+}
+
 func TestRenderOverrideUnknownService(t *testing.T) {
 	if _, err := RenderOverride(map[string]string{"nope": "/x"}, nil, nil); err == nil {
 		t.Fatal("expected error for unknown binary service")

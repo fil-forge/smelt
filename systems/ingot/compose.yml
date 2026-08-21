@@ -31,6 +31,10 @@ services:
       # provider (ingot), so wait for the registrar to have completed.
       hilt-init:
         condition: service_completed_successfully
+      # Ingot's S3 flow allocates blobs through upload, which fails until
+      # the piri providers are registered — wait for that registrar too.
+      upload-init:
+        condition: service_completed_successfully
       upload:
         condition: service_healthy
       piri-0:
