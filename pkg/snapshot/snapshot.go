@@ -74,6 +74,13 @@ func Save(ctx context.Context, opts SaveOpts) error {
 	if err != nil {
 		return err
 	}
+	// Read the manifest bytes now: during a snapshot session manifestPath
+	// lives inside the scratch dir, which is cleared below before the stack
+	// stops, so the file must be captured (and later restored) up front.
+	manifestBytes, err := os.ReadFile(manifestPath)
+	if err != nil {
+		return fmt.Errorf("read manifest: %w", err)
+	}
 	vols, err := resolveVolumes(m)
 	if err != nil {
 		return err
@@ -136,6 +143,14 @@ func Save(ctx context.Context, opts SaveOpts) error {
 	// (.tmp + mv) so a crash mid-write can't confuse us either way.
 	if err := clearDir(scratchDir); err != nil {
 		return fmt.Errorf("clear scratch dir: %w", err)
+	}
+	// Put the session manifest back if clearing scratch removed it, so the
+	// session survives the save and `make up` resumes on the same topology.
+	sessionManifest := filepath.Join(projectDir, manifest.SessionManifestPath)
+	if manifestPath == sessionManifest {
+		if err := os.WriteFile(sessionManifest, manifestBytes, 0644); err != nil {
+			return fmt.Errorf("restore session manifest: %w", err)
+		}
 	}
 
 	fmt.Printf("Stopping stack (triggers blockchain state dump)...\n")
@@ -200,11 +215,8 @@ func Save(ctx context.Context, opts SaveOpts) error {
 	}
 
 	fmt.Printf("Copying %s (provenance)...\n", filepath.Base(manifestPath))
-	if err := copyFile(
-		manifestPath,
-		filepath.Join(stagingDir, manifestCopy),
-	); err != nil {
-		return err
+	if err := os.WriteFile(filepath.Join(stagingDir, manifestCopy), manifestBytes, 0644); err != nil {
+		return fmt.Errorf("copy manifest: %w", err)
 	}
 
 	if err := writeDescriptor(stagingDir, &Descriptor{
