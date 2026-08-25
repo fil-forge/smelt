@@ -73,7 +73,7 @@ All host ports live in a dedicated `15XXX` range to avoid collision with common 
 | piri-{N}        | 15100+N            | Storage node(s) with PDP proofs; N declared in `smelt.yml` (default 1, max 9)    |
 | hilt            | 15110              | Tenant management (Tenant API + UCAN RPC)                                        |
 | hilt-postgres   | 15111              | Postgres for hilt's tenant/provider store                                        |
-| hilt-vault      | 15112              | Hilt key vault (HashiCorp Vault in dev mode)                                     |
+| hilt-vault      | 15112              | Hilt key vault (OpenBao in dev mode)                                             |
 | plc             | 15120              | did:plc directory (reference implementation)                                     |
 | plc-postgres    | 15121              | Postgres for the did:plc directory                                               |
 | ingot           | 15130              | S3 gateway over Forge                                                            |
