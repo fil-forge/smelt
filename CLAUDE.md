@@ -317,6 +317,7 @@ All host-side ports live in a dedicated `15XXX` range to avoid collision with co
 | plc-postgres | 15121 | PostgreSQL | did:plc directory store |
 | ingot | 15130 | S3/HTTP | S3 gateway over Forge |
 | ingot-postgres | 15131 | PostgreSQL | Ingot registry/metadata |
+| ingot-openbao | 15132 | HTTP | Region KEK vault for ingot (OpenBao, raft storage) |
 | swarf | 15140 | HTTP/UCAN | UCAN revocation service |
 | swarf-postgres | 15141 | PostgreSQL | Swarf revocation store |
 | guppy | (none) | CLI | Client container |

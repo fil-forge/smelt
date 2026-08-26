@@ -40,6 +40,8 @@ func resolveVolumes(m *manifest.Manifest) ([]string, error) {
 		"plc-postgres-data",   // systems/plc — DID PLC registry
 		"ingot-data",          // systems/ingot — node state
 		"ingot-postgres-data", // systems/ingot — registry
+		"ingot-openbao-data",  // systems/ingot — region KEK (raft storage)
+		"ingot-openbao-init",  // systems/ingot — unseal share for the above; restored together
 	}
 
 	// Per-piri data volumes.

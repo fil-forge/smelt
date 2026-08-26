@@ -1,6 +1,6 @@
 {
   "name": "3-piri-postgres-s3",
-  "created_at": "2026-08-25T19:15:16.515254Z",
+  "created_at": "2026-08-26T06:48:09.354132Z",
   "volumes": [
     "minio-data",
     "ipni-data",
@@ -11,6 +11,8 @@
     "plc-postgres-data",
     "ingot-data",
     "ingot-postgres-data",
+    "ingot-openbao-data",
+    "ingot-openbao-init",
     "piri-0-data",
     "piri-1-data",
     "piri-2-data",
@@ -112,6 +114,14 @@
     "ingot": {
       "tag": "ghcr.io/fil-forge/ingot:main",
       "digest": "ghcr.io/fil-forge/ingot@sha256:ad42ce055288ff8e3cd12e6ac7e67d31a44a3fc0d4dfa2bbc5b2ac572cb4f3dc"
+    },
+    "ingot-openbao": {
+      "tag": "openbao/openbao:2.6",
+      "digest": "openbao/openbao@sha256:11fd73a2102cda9c55d5d881a8c3210303146a7ec1e8ac76f526e175c6d24641"
+    },
+    "ingot-openbao-init": {
+      "tag": "openbao/openbao:2.6",
+      "digest": "openbao/openbao@sha256:11fd73a2102cda9c55d5d881a8c3210303146a7ec1e8ac76f526e175c6d24641"
     },
     "ingot-postgres": {
       "tag": "postgres:16-alpine",
