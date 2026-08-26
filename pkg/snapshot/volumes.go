@@ -31,17 +31,19 @@ func resolveVolumes(m *manifest.Manifest) ([]string, error) {
 	// stack delta" framing — a user who logged in and created spaces before
 	// saving will find them after load.
 	vols := []string{
-		"minio-data",          // systems/common — upload's S3 backend
-		"ipni-data",           // systems/indexing/ipni — content discovery
-		"dynamodb-data",       // systems/common — delegator allow list, upload registry
-		"guppy-data",          // systems/guppy — client's login/space state
-		"swarf-postgres-data", // systems/swarf — revocation records
-		"hilt-postgres-data",  // systems/hilt — tenant state
-		"plc-postgres-data",   // systems/plc — DID PLC registry
-		"ingot-data",          // systems/ingot — node state
-		"ingot-postgres-data", // systems/ingot — registry
-		"ingot-openbao-data",  // systems/ingot — region KEK (raft storage)
-		"ingot-openbao-init",  // systems/ingot — unseal share for the above; restored together
+		"minio-data",           // systems/common — upload's S3 backend
+		"ipni-data",            // systems/indexing/ipni — content discovery
+		"dynamodb-data",        // systems/common — delegator allow list, upload registry
+		"guppy-data",           // systems/guppy — client's login/space state
+		"swarf-postgres-data",  // systems/swarf — revocation records
+		"hilt-postgres-data",   // systems/hilt — tenant state
+		"plc-postgres-data",    // systems/plc — DID PLC registry
+		"ingot-data",           // systems/ingot — node state
+		"ingot-postgres-data",  // systems/ingot — registry
+		"ingot-openbao-data",   // systems/ingot — region KEK (raft storage), sealed by central-openbao
+		"ingot-openbao-init",   // systems/ingot — recovery share + root token for the above
+		"central-openbao-data", // systems/central-openbao — appliance seal keys (raft storage)
+		"central-openbao-init", // systems/central-openbao — unseal share for the above; restored together
 	}
 
 	// Per-piri data volumes.

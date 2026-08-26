@@ -1,6 +1,6 @@
 {
   "name": "3-piri-postgres-s3",
-  "created_at": "2026-08-26T06:48:09.354132Z",
+  "created_at": "2026-08-26T14:51:11.130639Z",
   "volumes": [
     "minio-data",
     "ipni-data",
@@ -13,6 +13,8 @@
     "ingot-postgres-data",
     "ingot-openbao-data",
     "ingot-openbao-init",
+    "central-openbao-data",
+    "central-openbao-init",
     "piri-0-data",
     "piri-1-data",
     "piri-2-data",
@@ -74,6 +76,14 @@
     "blockchain": {
       "tag": "ghcr.io/fil-forge/filecoin-localdev:main",
       "digest": "ghcr.io/fil-forge/filecoin-localdev@sha256:96e72624eb71efb1c15de1d0729b780955e5ece700e840dd56291f5c522b4bee"
+    },
+    "central-openbao": {
+      "tag": "openbao/openbao:2.6",
+      "digest": "openbao/openbao@sha256:11fd73a2102cda9c55d5d881a8c3210303146a7ec1e8ac76f526e175c6d24641"
+    },
+    "central-openbao-init": {
+      "tag": "openbao/openbao:2.6",
+      "digest": "openbao/openbao@sha256:11fd73a2102cda9c55d5d881a8c3210303146a7ec1e8ac76f526e175c6d24641"
     },
     "delegator": {
       "tag": "ghcr.io/fil-forge/delegator:main",

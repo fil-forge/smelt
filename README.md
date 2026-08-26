@@ -79,6 +79,7 @@ All host ports live in a dedicated `15XXX` range to avoid collision with common 
 | ingot           | 15130              | S3 gateway over Forge                                                            |
 | ingot-postgres  | 15131              | Postgres for ingot's registry/metadata                                           |
 | ingot-openbao   | 15132              | Region KEK vault for ingot (OpenBao, raft storage)                               |
+| central-openbao | 15210              | Seal root for appliance OpenBaos (transit auto-unseal)                           |
 | swarf           | 15140              | UCAN revocation service                                                          |
 | swarf-postgres  | 15141              | Postgres for swarf's revocation store                                            |
 | guppy           | —                  | CLI client for uploads (no exposed port)                                         |
