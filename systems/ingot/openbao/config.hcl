@@ -6,9 +6,11 @@
 # `make down` / `make up` and snapshot restores. ingot-openbao-init
 # initializes, unseals, and provisions it on every boot.
 #
-# Production differs in two places the RFC spells out: the listener is a
-# unix socket, and the seal is `seal "transit"` against a central OpenBao
-# instead of a stored unseal key. Both are config changes to this file.
+# The seal is the RFC's shape: `seal "transit"` against central-openbao.
+# At boot this server presents its seal token (BAO_TOKEN in compose.yml),
+# central unwraps the barrier key, and the server unseals; with central
+# unreachable or the token revoked it does not start. Production differs
+# only in the listener (a unix socket) and TLS towards central.
 
 ui = false
 
@@ -23,4 +25,12 @@ listener "tcp" {
 storage "raft" {
   path    = "/openbao/file"
   node_id = "ingot-openbao"
+}
+
+seal "transit" {
+  address    = "http://central-openbao:8200"
+  key_name   = "ingot-openbao"
+  mount_path = "seal/"
+  # token: BAO_TOKEN from the environment (compose.yml); the OpenBao docs
+  # recommend the environment over this file for it.
 }

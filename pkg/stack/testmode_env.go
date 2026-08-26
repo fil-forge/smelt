@@ -56,6 +56,7 @@ func testModeEnv(nodes []manifest.ResolvedPiriNode) map[string]string {
 		"SMELT_INGOT_PORT":           "9000",
 		"SMELT_INGOT_POSTGRES_PORT":  "5432",
 		"SMELT_INGOT_OPENBAO_PORT":   "8200",
+		"SMELT_CENTRAL_OPENBAO_PORT": "8200",
 		"SMELT_SWARF_PORT":           "80",
 		"SMELT_SWARF_POSTGRES_PORT":  "5432",
 

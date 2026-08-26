@@ -12,9 +12,10 @@ guppy-style edge client.
 - **ingot-postgres** — Postgres for ingot's registry/segment metadata
   (own `ingot` schema; ingot runs its own goose migrations on startup).
 - **ingot-openbao** — the regional OpenBao that holds ingot's region KEK
-  (`openbao/openbao:2.6`, server mode, raft storage on `ingot-openbao-data`).
-- **ingot-openbao-init** — one-shot: initializes and unseals `ingot-openbao`,
-  then provisions the transit engine, the region KEK, and ingot's token
+  (`openbao/openbao:2.6`, server mode, raft storage on `ingot-openbao-data`),
+  sealed by [central-openbao](../central-openbao/).
+- **ingot-openbao-init** — one-shot: initializes `ingot-openbao`, then
+  provisions the transit engine, the region KEK, and ingot's token
   (`openbao/init.sh`).
 
 ## Ports
@@ -54,14 +55,24 @@ each blob's CEK is wrapped by a transit `aes256-gcm96` key created with
 `derived=true` (the wrap is bound to the blob's space and digest) and
 `exportable=false`, held in an OpenBao local to the region. `ingot-openbao`
 is that server. It runs as a real `bao server` (`openbao/config.hcl`:
-TCP listener, raft storage) rather than dev mode, so the KEK persists.
+TCP listener, raft storage) rather than dev mode, so the KEK persists, and
+it is sealed by [central-openbao](../central-openbao/) through
+`seal "transit"`: at start it presents its seal token (`BAO_TOKEN`, from
+`INGOT_OPENBAO_SEAL_TOKEN`, default `dev-ingot-openbao-seal-token`), central
+unwraps its barrier key, and it unseals. With central unreachable or the
+token revoked there, the server does not start. That is the RFC's
+startup-kill lever; see the central-openbao README for the revoke and
+reinstate commands.
 
 `ingot-openbao-init` runs on every `make up`:
 
-1. First boot: `bao operator init` with one unseal share. The share and the
-   root token are written to the `ingot-openbao-init` volume (`/init`).
+1. First boot: `bao operator init` with one recovery share. The share and
+   the root token are written to the `ingot-openbao-init` volume (`/init`).
    Dev-only custody; nothing here is a production secret.
-2. Every boot: unseal if sealed; enable `transit` if missing; create
+2. Once, for a volume created before the transit seal (Shamir-sealed, its
+   unseal share on `/init`): `bao operator unseal -migrate` moves it to the
+   transit seal and the share becomes the recovery share.
+3. Every boot: enable `transit` if missing; create
    `transit/keys/region-kek` (`aes256-gcm96`, `derived=true`,
    `exportable=false`) if missing; write the `ingot-region-kek` policy
    (encrypt, decrypt, rewrap on that key and nothing else); recreate ingot's
@@ -69,13 +80,9 @@ TCP listener, raft storage) rather than dev mode, so the KEK persists.
    (768h) and nothing renews it, so a stack left up for more than 32 days
    needs `make down && make up` to mint a fresh one.
 
-An `ingot-openbao` container restart comes back sealed until the init
-service re-runs; `make up` does that. `make clean` removes both volumes
-together, which keeps the unseal share and the storage it opens in step.
-
-Follow-on (not yet wired): replace the stored unseal share with
-`seal "transit"` against a central OpenBao, so the appliance authenticates
-to central at boot, unwraps its barrier key, and unseals.
+An `ingot-openbao` container restart auto-unseals through central. `make
+clean` removes the OpenBao volumes together (ingot's and central's), which
+keeps recovery material and the storage it belongs to in step.
 
 ## Keys and Proofs
 
@@ -104,7 +111,8 @@ tenant's registered provider.
 - swarf (service_healthy)
 - ingot-postgres (service_healthy)
 - ingot-openbao-init (service_completed_successfully; itself waits on
-  ingot-openbao service_healthy)
+  ingot-openbao service_healthy, which waits on central-openbao-init
+  service_completed_successfully)
 
 ## Build Requirement
 
@@ -129,8 +137,8 @@ aws --endpoint-url http://localhost:15130 s3api list-buckets
 ### Region KEK smoke test
 
 ```bash
-# Server state
-docker compose exec ingot-openbao bao status          # Initialized true, Sealed false
+# Server state (Seal Type transit, Sealed false)
+docker compose exec ingot-openbao bao status
 
 # Wrap and unwrap with ingot's scoped token, context-bound
 CTX=$(printf 'did:key:zExample\0digest' | base64)

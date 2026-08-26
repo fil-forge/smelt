@@ -10,6 +10,10 @@ import "embed"
 
 //go:embed systems/common/compose.yml
 
+//go:embed systems/central-openbao/compose.yml
+//go:embed systems/central-openbao/config.hcl
+//go:embed systems/central-openbao/init.sh
+
 //go:embed systems/blockchain/compose.yml
 //go:embed systems/blockchain/state/deployed-addresses.json
 //go:embed systems/blockchain/state/anvil-state.json

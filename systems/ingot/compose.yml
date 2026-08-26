@@ -67,9 +67,11 @@ services:
   # Regional OpenBao holding ingot's region KEK (regional security RFC). A
   # non-dev server with raft storage on ingot-openbao-data, so the KEK and
   # the wrapped CEKs in ingot-postgres survive down/up and snapshot restores.
-  # The healthcheck only means "listening": a fresh server is uninitialized
-  # and a restarted one is sealed until ingot-openbao-init runs again (which
-  # `make up` does, since one-shot services re-run on every up).
+  # Sealed by central-openbao (`seal "transit"` in openbao/config.hcl): it
+  # auto-unseals at start by presenting its seal token, and does not start at
+  # all if central is unreachable or the token was revoked there. The
+  # healthcheck only means "listening": a fresh server is uninitialized
+  # until ingot-openbao-init runs.
   ingot-openbao:
     image: openbao/openbao:2.6
     command: ["server"]
@@ -78,9 +80,18 @@ services:
     environment:
       # For `docker compose exec ingot-openbao bao ...` (the CLI defaults to https)
       - BAO_ADDR=http://127.0.0.1:8200
+      # The seal token this server presents to central-openbao; the server
+      # uses it for nothing else. Provisioned by central-openbao-init; the
+      # same variable feeds both sides. (`exec bao` in this container runs
+      # as this scoped token unless BAO_TOKEN is overridden.)
+      - BAO_TOKEN=${INGOT_OPENBAO_SEAL_TOKEN:-dev-ingot-openbao-seal-token}
     volumes:
       - ./openbao/config.hcl:/openbao/config/config.hcl:ro
       - ingot-openbao-data:/openbao/file
+    depends_on:
+      # The seal key and this server's seal token must exist before it starts.
+      central-openbao-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8200/v1/sys/health?sealedcode=200&uninitcode=200"]
       start_interval: 1s
@@ -93,11 +104,12 @@ services:
       - forge-network
 
   # One-shot initializer for ingot-openbao: `operator init` on first boot
-  # (one unseal share + root token kept on the ingot-openbao-init volume,
-  # dev-only custody), unseal on every boot, then make sure the transit
-  # engine, the region KEK (aes256-gcm96, derived=true, exportable=false),
-  # the ingot policy (encrypt/decrypt/rewrap on that key only), and ingot's
-  # scoped token exist. See openbao/init.sh.
+  # (one recovery share + root token kept on the ingot-openbao-init volume,
+  # dev-only custody), migrate a pre-transit-seal volume once, then make sure
+  # the transit engine, the region KEK (aes256-gcm96, derived=true,
+  # exportable=false), the ingot policy (encrypt/decrypt/rewrap on that key
+  # only), and ingot's scoped token exist. Unsealing itself is central's job.
+  # See openbao/init.sh.
   ingot-openbao-init:
     image: openbao/openbao:2.6
     user: "0:0"  # the image runs as `openbao`; the init volume is root-owned
@@ -144,4 +156,4 @@ volumes:
   ingot-data:
   ingot-postgres-data:
   ingot-openbao-data:  # raft storage: region KEK + transit state
-  ingot-openbao-init:  # unseal share + root token (dev-only custody)
+  ingot-openbao-init:  # recovery share + root token (dev-only custody)
