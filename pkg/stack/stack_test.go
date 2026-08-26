@@ -92,6 +92,13 @@ func TestEmbeddedFilesExist(t *testing.T) {
 		"systems/blockchain/state/deployed-addresses.json",
 		"systems/piri/config/piri-base-config.toml",
 		"systems/piri/config/piri-overrides.toml",
+		// Bind-mount sources for one-shot/init containers: a missing embed
+		// makes docker create an empty directory in their place and the
+		// service fails to start only inside SDK stacks (CI), not `make up`.
+		"systems/hilt/register-provider.sh",
+		"systems/upload/register-providers.sh",
+		"systems/ingot/openbao/config.hcl",
+		"systems/ingot/openbao/init.sh",
 	}
 
 	for _, f := range files {

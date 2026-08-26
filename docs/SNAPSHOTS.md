@@ -125,6 +125,8 @@ generated/snapshots/<name>/
     ├── plc-postgres-data.tar.gz   # DID PLC registry
     ├── ingot-data.tar.gz          # ingot node state
     ├── ingot-postgres-data.tar.gz # ingot registry
+    ├── ingot-openbao-data.tar.gz  # ingot's region KEK (OpenBao raft storage)
+    ├── ingot-openbao-init.tar.gz  # its unseal share (dev-only custody)
     ├── piri-postgres-data.tar.gz  # only when topology uses postgres
     └── piri-minio-data.tar.gz     # only when topology uses S3
 ```

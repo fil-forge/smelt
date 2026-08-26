@@ -45,3 +45,14 @@ revocation_service_did: "did:web:swarf"
 # Per-plane shipping is configurable; defaults ship both planes. To keep
 # the MST catalog local-only (provider-regional, never shipped), the
 # daemon honours per-plane ship flags — see ingot's Config.
+
+# Region CEK wrap (regional security RFC): the wrap runs inside
+# ingot-openbao's transit engine, so the region KEK never enters ingot. The
+# token comes from INGOT_REGIONKEY_OPENBAO_TOKEN in compose.yml. Ingot builds
+# that predate the openbao provider (fil-forge/ingot#105) ignore this block.
+regionkey:
+  provider: openbao
+  openbao:
+    address: "http://ingot-openbao:8200"
+    mount: transit
+    key: region-kek

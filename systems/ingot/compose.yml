@@ -6,7 +6,8 @@
 # as a guppy-style edge client (/blob/add -> /ucan/conclude ->
 # /blob/accept -> /index/add). Per-plane shipping is configurable.
 #
-# Requires: hilt, upload (sprue), piri, indexer.
+# Requires: hilt, upload (sprue), piri, indexer, and its own OpenBao
+# (ingot-openbao) for the region KEK.
 
 services:
   ingot:
@@ -24,7 +25,14 @@ services:
     environment:
       - INGOT_REGION=${INGOT_REGION:-us-west-1}
       - INGOT_LOG_LEVEL=${INGOT_LOG_LEVEL:-info}
+      # Token for the region-KEK transit calls (config/config.yaml sets the
+      # rest of the regionkey block). Provisioned by ingot-openbao-init on
+      # every boot; local-dev value, like the partner key in systems/hilt.
+      - INGOT_REGIONKEY_OPENBAO_TOKEN=${INGOT_OPENBAO_TOKEN:-dev-ingot-region-token}
     depends_on:
+      # The region KEK and ingot's token exist once the init service has run.
+      ingot-openbao-init:
+        condition: service_completed_successfully
       hilt:
         condition: service_healthy
       # Hilt only accepts /s3/* invocations from its registered regional
@@ -56,6 +64,58 @@ services:
     networks:
       - forge-network
 
+  # Regional OpenBao holding ingot's region KEK (regional security RFC). A
+  # non-dev server with raft storage on ingot-openbao-data, so the KEK and
+  # the wrapped CEKs in ingot-postgres survive down/up and snapshot restores.
+  # The healthcheck only means "listening": a fresh server is uninitialized
+  # and a restarted one is sealed until ingot-openbao-init runs again (which
+  # `make up` does, since one-shot services re-run on every up).
+  ingot-openbao:
+    image: openbao/openbao:2.6
+    command: ["server"]
+    ports:
+      - "${SMELT_INGOT_OPENBAO_PORT:-15132:8200}"
+    environment:
+      # For `docker compose exec ingot-openbao bao ...` (the CLI defaults to https)
+      - BAO_ADDR=http://127.0.0.1:8200
+    volumes:
+      - ./openbao/config.hcl:/openbao/config/config.hcl:ro
+      - ingot-openbao-data:/openbao/file
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8200/v1/sys/health?sealedcode=200&uninitcode=200"]
+      start_interval: 1s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - forge-network
+
+  # One-shot initializer for ingot-openbao: `operator init` on first boot
+  # (one unseal share + root token kept on the ingot-openbao-init volume,
+  # dev-only custody), unseal on every boot, then make sure the transit
+  # engine, the region KEK (aes256-gcm96, derived=true, exportable=false),
+  # the ingot policy (encrypt/decrypt/rewrap on that key only), and ingot's
+  # scoped token exist. See openbao/init.sh.
+  ingot-openbao-init:
+    image: openbao/openbao:2.6
+    user: "0:0"  # the image runs as `openbao`; the init volume is root-owned
+    entrypoint: ["sh", "/init.sh"]
+    environment:
+      - BAO_ADDR=http://ingot-openbao:8200
+      - INGOT_OPENBAO_TOKEN=${INGOT_OPENBAO_TOKEN:-dev-ingot-region-token}
+      - INGOT_REGION_KEK=region-kek
+    volumes:
+      - ./openbao/init.sh:/init.sh:ro
+      - ingot-openbao-init:/init
+    depends_on:
+      ingot-openbao:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - forge-network
+
   # Postgres for ingot's registry/meta. ingot runs its own goose
   # migrations under the `ingot` schema on startup; the `ingot` database
   # created by POSTGRES_DB is enough.
@@ -83,3 +143,5 @@ services:
 volumes:
   ingot-data:
   ingot-postgres-data:
+  ingot-openbao-data:  # raft storage: region KEK + transit state
+  ingot-openbao-init:  # unseal share + root token (dev-only custody)

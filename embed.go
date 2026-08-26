@@ -25,6 +25,7 @@ import "embed"
 
 //go:embed systems/ingot/compose.yml
 //go:embed systems/ingot/config/*
+//go:embed systems/ingot/openbao/*
 
 //go:embed systems/indexing/compose.yml
 //go:embed systems/indexing/ipni/compose.yml
