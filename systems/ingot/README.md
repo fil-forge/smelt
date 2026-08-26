@@ -64,8 +64,10 @@ TCP listener, raft storage) rather than dev mode, so the KEK persists.
 2. Every boot: unseal if sealed; enable `transit` if missing; create
    `transit/keys/region-kek` (`aes256-gcm96`, `derived=true`,
    `exportable=false`) if missing; write the `ingot-region-kek` policy
-   (`openbao/ingot-policy.hcl`: encrypt, decrypt, rewrap on that key and
-   nothing else); recreate ingot's token with the fixed id above.
+   (encrypt, decrypt, rewrap on that key and nothing else); recreate ingot's
+   token with the fixed id above. The token carries OpenBao's default TTL
+   (768h) and nothing renews it, so a stack left up for more than 32 days
+   needs `make down && make up` to mint a fresh one.
 
 An `ingot-openbao` container restart comes back sealed until the init
 service re-runs; `make up` does that. `make clean` removes both volumes

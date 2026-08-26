@@ -96,7 +96,8 @@ services:
   # (one unseal share + root token kept on the ingot-openbao-init volume,
   # dev-only custody), unseal on every boot, then make sure the transit
   # engine, the region KEK (aes256-gcm96, derived=true, exportable=false),
-  # the ingot policy, and ingot's scoped token exist. See openbao/init.sh.
+  # the ingot policy (encrypt/decrypt/rewrap on that key only), and ingot's
+  # scoped token exist. See openbao/init.sh.
   ingot-openbao-init:
     image: openbao/openbao:2.6
     user: "0:0"  # the image runs as `openbao`; the init volume is root-owned
@@ -107,7 +108,6 @@ services:
       - INGOT_REGION_KEK=region-kek
     volumes:
       - ./openbao/init.sh:/init.sh:ro
-      - ./openbao/ingot-policy.hcl:/ingot-policy.hcl:ro
       - ingot-openbao-init:/init
     depends_on:
       ingot-openbao:
