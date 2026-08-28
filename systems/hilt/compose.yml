@@ -80,8 +80,6 @@ services:
       - HILT_IDENTITY_KEY_FILE=/keys/hilt.pem
       - HILT_IDENTITY_SERVICE_ID=did:web:hilt
       - INGOT_REGION=${INGOT_REGION:-us-west-1}
-      # Ingot's did:web service identity (systems/ingot/config/config.yaml).
-      - INGOT_DID=did:web:ingot
     volumes:
       - ../../generated/keys/hilt.pem:/keys/hilt.pem:ro
       - ./register-provider.sh:/register-provider.sh:ro

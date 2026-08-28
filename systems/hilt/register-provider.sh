@@ -9,11 +9,13 @@
 # idempotent: the provider record persists in hilt-postgres, so re-runs hit
 # the tolerated "already registered" path below.
 #
-# The provider DID is ingot's did:web service identity (INGOT_DID, default
-# did:web:ingot — the same value systems/ingot/config/config.yaml sets as
-# identity.service_id); hilt resolves it to ingot's key via
-# http://ingot/.well-known/did.json when validating ingot's invocations. The
-# admin CLI signs with the service identity from this container's HILT_* env
+# The provider DID is ingot's did:web service identity, did:web:ingot. It is
+# fixed by the stack's did:web:<service> convention: the DID must resolve to
+# the `ingot` container (http://ingot/.well-known/did.json), and the same
+# literal is set as identity.service_id in systems/ingot/config/config.yaml
+# and as the audience of the hilt → ingot proof (pkg/stack/proofs.go,
+# generated/generate-proofs.sh). Change all of them together or not at all.
+# The admin CLI signs with the service identity from this container's HILT_* env
 # and derives the server URL from HILT_SERVER_* — the compose file sets
 # HILT_SERVER_HOST=hilt so the CLI reaches the hilt container across the
 # network instead of this one.
@@ -35,7 +37,7 @@ until curl -sf http://hilt:80/health >/dev/null 2>&1; do
 done
 echo "hilt-init: hilt is serving (took ${waited}s)"
 
-ingot_did="${INGOT_DID:-did:web:ingot}"
+ingot_did="did:web:ingot"
 
 region="${INGOT_REGION:-us-west-1}"
 echo "hilt-init: registering ingot (${ingot_did}) as provider for ${region}"

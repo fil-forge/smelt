@@ -58,9 +58,9 @@ All configuration is via `HILT_*` environment variables in `compose.yml`:
 
 The one-shot `hilt-init` service runs `register-provider.sh` once hilt is
 healthy, registering **ingot** as the regional provider for **us-west-1** via
-`hilt client admin provider add` with ingot's did:web service identity
-(`INGOT_DID`, default `did:web:ingot`; hilt resolves it via
-`http://ingot/.well-known/did.json`). Ingot must be the registered provider because
+`hilt client admin provider add` with ingot's did:web service identity,
+`did:web:ingot` (fixed by the stack's `did:web:<service>` convention; hilt
+resolves it via `http://ingot/.well-known/did.json`). Ingot must be the registered provider because
 hilt only accepts `/s3/*` invocations issued by the tenant's provider.
 Registration is idempotent — when the record already exists in postgres the
 "already registered" response is tolerated. Any other failure fails the
