@@ -63,3 +63,11 @@ regionkey:
     address: "http://ingot-openbao:8200"
     mount: transit
     key: region-kek
+
+# Tenant wrap key (FEE tenant recipient): ingot resolves the tenant's did:plc
+# document from the PLC directory and encrypts every stored object to the
+# X25519 key hilt publishes at the tenant's #wrap verification method. Writes
+# fail without it. Ingot builds that predate the tenant recipient ignore
+# this block.
+tenantkey:
+  plc_directory_url: "http://plc:3000"

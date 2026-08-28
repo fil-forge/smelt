@@ -36,6 +36,10 @@ services:
         condition: service_completed_successfully
       hilt:
         condition: service_healthy
+      # Ingot resolves tenant DID documents (the #wrap key it encrypts to)
+      # from the PLC directory on every write.
+      plc:
+        condition: service_healthy
       # Hilt only accepts /s3/* invocations from its registered regional
       # provider (ingot), so wait for the registrar to have completed.
       hilt-init:
