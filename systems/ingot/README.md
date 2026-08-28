@@ -50,6 +50,16 @@ guppy-style edge client.
   Ingot images that predate the openbao provider
   ([fil-forge/ingot#105](https://github.com/fil-forge/ingot/pull/105)) ignore
   the block and serve plaintext only.
+- Tenant wrap key: `tenantkey.plc_directory_url: http://plc:3000`. On the
+  write path ingot resolves the tenant's `did:plc` document from
+  [plc](../plc/) and encrypts the object to the X25519 key hilt publishes at
+  the tenant's `#wrap` verification method. Writes fail if the directory is
+  unreachable or the document has no usable `#wrap` key. Resolved documents
+  are cached for `tenantkey.cache_ttl` (default 10m), which is also how long
+  a wrap-key rotation can go unseen. Ingot images that predate the tenant
+  recipient
+  ([fil-forge/ingot#112](https://github.com/fil-forge/ingot/pull/112)) ignore
+  the block.
 
 ## Region KEK (OpenBao)
 
@@ -113,6 +123,7 @@ audience is replaced).
 - piri-0 (service_healthy)
 - indexer (service_healthy)
 - swarf (service_healthy)
+- plc (service_healthy)
 - ingot-postgres (service_healthy)
 - ingot-openbao-init (service_completed_successfully; itself waits on
   ingot-openbao service_healthy)

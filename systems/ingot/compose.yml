@@ -37,7 +37,7 @@ services:
       hilt:
         condition: service_healthy
       # Ingot resolves tenant DID documents (the #wrap key it encrypts to)
-      # from the PLC directory on every write.
+      # from the PLC directory on the write path.
       plc:
         condition: service_healthy
       # Hilt only accepts /s3/* invocations from its registered regional
