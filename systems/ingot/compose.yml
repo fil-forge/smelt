@@ -15,7 +15,8 @@ services:
     user: "0:0"  # Run as root for volume permissions (key files are 600)
     command: ["serve", "--config", "/etc/ingot/config.yaml"]
     ports:
-      - "${SMELT_INGOT_PORT:-15130:9000}"
+      # Internal port 80 for did:web resolution
+      - "${SMELT_INGOT_PORT:-15130:80}"
     volumes:
       - ingot-data:/data
       - ../../generated/keys/ingot.pem:/keys/ingot.pem:ro
@@ -54,7 +55,7 @@ services:
       ingot-postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:9000/health"]
+      test: ["CMD", "curl", "-sf", "http://localhost:80/health"]
       start_interval: 1s
       interval: 10s
       timeout: 5s

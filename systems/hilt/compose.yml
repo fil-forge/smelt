@@ -82,8 +82,6 @@ services:
       - INGOT_REGION=${INGOT_REGION:-us-west-1}
     volumes:
       - ../../generated/keys/hilt.pem:/keys/hilt.pem:ro
-      # Keys directory so the script can read ingot.did. Read-only.
-      - ../../generated/keys:/piri-keys:ro
       - ./register-provider.sh:/register-provider.sh:ro
     depends_on:
       hilt:
