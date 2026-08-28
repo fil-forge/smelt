@@ -254,7 +254,7 @@ func NewStack(ctx context.Context, t *testing.T, opts ...Option) (*Stack, error)
 		WaitForService("plc", wait.ForHTTP("/_health").WithPort("3000/tcp").WithStartupTimeout(2*time.Minute)).
 		WaitForService("swarf", wait.ForHTTP("/health").WithPort("80/tcp").WithStartupTimeout(2*time.Minute)).
 		WaitForService("hilt", wait.ForHTTP("/health").WithPort("80/tcp").WithStartupTimeout(2*time.Minute)).
-		WaitForService("ingot", wait.ForHTTP("/health").WithPort("9000/tcp").WithStartupTimeout(2*time.Minute))
+		WaitForService("ingot", wait.ForHTTP("/health").WithPort("80/tcp").WithStartupTimeout(2*time.Minute))
 
 	// Wait for all piri nodes
 	for _, node := range resolvedNodes {
@@ -419,7 +419,8 @@ func (s *Stack) EmailEndpoint() string {
 }
 
 // IngotEndpoint returns the host S3 endpoint for the ingot gateway
-// (container port 9000). The host is normalized to 127.0.0.1 rather than
+// (container port 80, the did:web convention). The host is normalized to
+// 127.0.0.1 rather than
 // "localhost": the AWS SDK uses virtual-host-style addressing
 // (bucket.host) for a hostname endpoint but path-style for an IP, and
 // ingot's versitygw front end is path-style — a hostname endpoint yields
@@ -436,7 +437,7 @@ func (s *Stack) IngotEndpoint() string {
 	if host == "localhost" {
 		host = "127.0.0.1"
 	}
-	port, err := container.MappedPort(context.Background(), "9000/tcp")
+	port, err := container.MappedPort(context.Background(), "80/tcp")
 	if err != nil {
 		s.t.Fatalf("getting ingot port: %v", err)
 	}

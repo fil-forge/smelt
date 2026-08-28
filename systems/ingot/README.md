@@ -21,7 +21,7 @@ guppy-style edge client.
 
 | Host Port | Container Port | Service | Description |
 |-----------|----------------|---------|-------------|
-| 15130 | 9000 | ingot | S3 API (path-style only) + `/health` |
+| 15130 | 80 | ingot | S3 API (path-style only) + `/health` + `/.well-known/did.json` |
 | 15131 | 5432 | ingot-postgres | PostgreSQL |
 | 15132 | 8200 | ingot-openbao | OpenBao HTTP API |
 
@@ -31,8 +31,12 @@ guppy-style edge client.
   search path). Config must live in the file: ingot's viper env binding does
   not populate un-defaulted keys, so `INGOT_*` env vars only override keys
   already present in the file.
-- Identity: `/keys/ingot.pem` (did:key — ingot serves no did:web document;
-  hilt and sprue DIDs are configured verbatim, no resolution performed).
+- Identity: `did:web:ingot` (`identity.service_id`) wrapping the key in
+  `/keys/ingot.pem`. Ingot serves the DID document at
+  `http://ingot:80/.well-known/did.json`; hilt, sprue and piri resolve it
+  there (over plain HTTP, their `insecure_did_resolution` dev setting) to
+  verify ingot's invocations. Ingot itself resolves no DIDs: the hilt, sprue
+  and swarf DIDs are configured verbatim.
 - Root S3 credentials: `ingot-root` / `ingot-root-secret` (dev-only values).
 - Region: `us-west-1` — must match hilt's registered provider region and the
   sigv4 region S3 clients use.
@@ -79,14 +83,21 @@ to central at boot, unwraps its barrier key, and unseals.
 
 ## Keys and Proofs
 
-- `../../generated/keys/ingot.pem` - Ingot agent identity (Ed25519, did:key)
+- `../../generated/keys/ingot.pem` - Ingot agent key (Ed25519), the key
+  behind `did:web:ingot`
 - `../../generated/proofs/hilt-ingot-s3-proof.txt` - hilt → ingot delegations
   for `/s3/request/authorize` and `/s3/bucket/{create,delete,info,list}`
-  (issuer `did:web:hilt`, audience ingot's did:key, subject `did:web:hilt`)
+  (issuer `did:web:hilt`, audience `did:web:ingot`, subject `did:web:hilt`)
 
-Ingot's did:key is also what the `hilt-init` registrar registers as the
+`did:web:ingot` is also what the `hilt-init` registrar registers as the
 **us-west-1 provider** — hilt only accepts S3 RPC invocations issued by the
-tenant's registered provider.
+tenant's registered provider, and each tenant records its provider DID at
+provisioning. A hilt-postgres volume or snapshot that predates the did:web
+identity still holds ingot's did:key as the provider: `hilt-init` reports it
+as already registered (hilt treats a region held by another DID the same
+way) and hilt then rejects every ingot invocation. Start such a stack fresh
+(`make clean`, then regenerate proofs with `--force` so the stale did:key
+audience is replaced).
 
 ## Volumes
 

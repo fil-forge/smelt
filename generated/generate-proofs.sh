@@ -181,19 +181,16 @@ else
 fi
 
 # Generate hilt → ingot S3 proof (all /s3/* commands ingot invokes on hilt).
-# Ingot presents these when calling hilt's UCAN RPC API. Audience is ingot's
-# did:key, read from the ingot.did file emitted by `smelt generate`.
+# Ingot presents these when calling hilt's UCAN RPC API. The audience is
+# ingot's did:web service identity (systems/ingot/config/config.yaml), which
+# hilt resolves to ingot's key via http://ingot/.well-known/did.json.
 INGOT_PROOF_FILE="$PROOFS_DIR/hilt-ingot-s3-proof.txt"
 if [[ -f "$INGOT_PROOF_FILE" && "$FORCE" != "--force" ]]; then
     echo ""
     echo "[skip] hilt-ingot-s3-proof.txt already exists"
 else
     check_key "$KEYS_DIR/hilt.pem"
-    if [[ ! -f "$KEYS_DIR/ingot.did" ]]; then
-        echo "Error: $KEYS_DIR/ingot.did not found — run 'make generate' first"
-        exit 1
-    fi
-    INGOT_DID=$(cat "$KEYS_DIR/ingot.did")
+    INGOT_DID="did:web:ingot"
 
     echo ""
     echo "Generating hilt → ingot S3 proof..."

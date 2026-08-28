@@ -9,12 +9,14 @@
 # idempotent: the provider record persists in hilt-postgres, so re-runs hit
 # the tolerated "already registered" path below.
 #
-# The provider DID comes from /piri-keys/ingot.did, emitted by
-# `smelt generate` (the hilt image has no DID tooling to derive it from the
-# key itself). The admin CLI signs with the service identity from this
-# container's HILT_* env and derives the server URL from HILT_SERVER_* —
-# the compose file sets HILT_SERVER_HOST=hilt so the CLI reaches the hilt
-# container across the network instead of this one.
+# The provider DID is ingot's did:web service identity (INGOT_DID, default
+# did:web:ingot — the same value systems/ingot/config/config.yaml sets as
+# identity.service_id); hilt resolves it to ingot's key via
+# http://ingot/.well-known/did.json when validating ingot's invocations. The
+# admin CLI signs with the service identity from this container's HILT_* env
+# and derives the server URL from HILT_SERVER_* — the compose file sets
+# HILT_SERVER_HOST=hilt so the CLI reaches the hilt container across the
+# network instead of this one.
 
 set -e
 
@@ -33,23 +35,18 @@ until curl -sf http://hilt:80/health >/dev/null 2>&1; do
 done
 echo "hilt-init: hilt is serving (took ${waited}s)"
 
-did_file="/piri-keys/ingot.did"
-if [ ! -f "$did_file" ]; then
-    echo "hilt-init: ${did_file} not found — run 'make generate' to emit DID files" >&2
-    exit 1
-fi
-ingot_did=$(cat "$did_file")
-if [ -z "$ingot_did" ]; then
-    echo "hilt-init: ${did_file} is empty — run 'make generate --force' to regenerate" >&2
-    exit 1
-fi
+ingot_did="${INGOT_DID:-did:web:ingot}"
 
 region="${INGOT_REGION:-us-west-1}"
 echo "hilt-init: registering ingot (${ingot_did}) as provider for ${region}"
 # Tolerate "already registered" — expected if this re-runs against a hilt
-# whose provider store still holds the record (e.g. a snapshot boot). Any
-# other failure is fatal (note: registration requires a hilt image with
-# did:web resolver support; see systems/hilt/README.md).
+# whose provider store still holds the record (e.g. a snapshot boot). Hilt
+# reports the same when the *region* is held by a different DID, so a stack
+# whose hilt-postgres predates the did:web:ingot identity looks registered
+# here and then rejects every ingot invocation: start from a fresh stack
+# (`make clean`) after changing ingot's DID. Any other failure is fatal (note:
+# registration requires a hilt image with did:web resolver support; see
+# systems/hilt/README.md).
 if add_err=$(hilt client admin provider add "$ingot_did" "$region" 2>&1); then
     :
 elif echo "$add_err" | grep -q "already registered"; then

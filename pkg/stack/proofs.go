@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	blobcmds "github.com/fil-forge/libforge/commands/blob"
 	replicacmds "github.com/fil-forge/libforge/commands/blob/replica"
@@ -79,14 +78,11 @@ func generateProofs(tempDir string, nodes []manifest.ResolvedPiriNode) error {
 	}
 
 	// hilt → ingot (/s3/*): ingot presents these when invoking hilt's UCAN
-	// RPC API. Audience is ingot's did:key, read from the ingot.did file
-	// emitted by key generation (which always runs before proofs).
-	ingotDID, err := os.ReadFile(filepath.Join(keysDir, "ingot.did"))
-	if err != nil {
-		return fmt.Errorf("read ingot DID: %w", err)
-	}
+	// RPC API. The audience is ingot's did:web service identity
+	// (systems/ingot/config/config.yaml identity.service_id), which hilt
+	// resolves to ingot's key via http://ingot/.well-known/did.json.
 	if err := writeProofs(keysDir, proofsDir,
-		"hilt", "did:web:hilt", strings.TrimSpace(string(ingotDID)),
+		"hilt", "did:web:hilt", "did:web:ingot",
 		"hilt-ingot-s3-proof.txt",
 		[]ucan.Command{
 			s3req.Authorize.Command,
