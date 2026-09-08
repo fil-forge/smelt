@@ -82,10 +82,18 @@ services:
       - INGOT_REGION=${INGOT_REGION:-us-west-1}
     volumes:
       - ../../generated/keys/hilt.pem:/keys/hilt.pem:ro
+      # Full keys directory so the script can collect every piri-N node DID
+      # declared in smelt.yml. Read-only.
+      - ../../generated/keys:/piri-keys:ro
       - ./register-provider.sh:/register-provider.sh:ro
     depends_on:
       hilt:
         condition: service_healthy
+      # Provider registration pushes the piri node set to sprue as the
+      # region's routing policy, and sprue only accepts nodes it has
+      # registered.
+      upload-init:
+        condition: service_completed_successfully
     restart: "no"
     networks:
       - forge-network

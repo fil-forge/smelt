@@ -9,6 +9,14 @@
 # idempotent: the provider record persists in hilt-postgres, so re-runs hit
 # the tolerated "already registered" path below.
 #
+# Registration also carries the storage nodes ingot operates: every piri-N
+# DID from /piri-keys (the .did files `smelt generate` writes for scripts
+# without DID tooling). Hilt creates the region's routing policy from them and
+# pushes it to sprue, so sprue must already know the nodes: compose orders
+# hilt-init after upload-init for that reason. On the "already registered"
+# path the node set is re-applied with `provider nodes set` so a persisted
+# provider row still tracks the current piri nodes.
+#
 # The provider DID is ingot's did:web service identity, did:web:ingot. It is
 # fixed by the stack's did:web:<service> convention: the DID must resolve to
 # the `ingot` container (http://ingot/.well-known/did.json), and the same
@@ -39,8 +47,19 @@ echo "hilt-init: hilt is serving (took ${waited}s)"
 
 ingot_did="did:web:ingot"
 
+nodes=""
+for did_file in /piri-keys/piri-[0-9]*.did; do
+    [ -f "$did_file" ] || continue
+    nodes="$nodes $(tr -d '[:space:]' < "$did_file")"
+done
+if [ -z "$nodes" ]; then
+    echo "hilt-init: no piri-N nodes found in /piri-keys — aborting" >&2
+    echo "hilt-init: check that 'smelt generate' populated generated/keys" >&2
+    exit 1
+fi
+
 region="${INGOT_REGION:-us-west-1}"
-echo "hilt-init: registering ingot (${ingot_did}) as provider for ${region}"
+echo "hilt-init: registering ingot (${ingot_did}) as provider for ${region} with nodes:${nodes}"
 # Tolerate "already registered" — expected if this re-runs against a hilt
 # whose provider store still holds the record (e.g. a snapshot boot). Hilt
 # reports the same when the *region* is held by a different DID, so a stack
@@ -49,10 +68,12 @@ echo "hilt-init: registering ingot (${ingot_did}) as provider for ${region}"
 # (`make clean`) after changing ingot's DID. Any other failure is fatal (note:
 # registration requires a hilt image with did:web resolver support; see
 # systems/hilt/README.md).
-if add_err=$(hilt client admin provider add "$ingot_did" "$region" 2>&1); then
+# shellcheck disable=SC2086  # $nodes is a space-separated list of DIDs
+if add_err=$(hilt client admin provider add "$ingot_did" "$region" $nodes 2>&1); then
     :
 elif echo "$add_err" | grep -q "already registered"; then
-    echo "hilt-init:   (provider already registered — continuing)"
+    echo "hilt-init:   (provider already registered — re-applying nodes)"
+    hilt client admin provider nodes set "$ingot_did" $nodes
 else
     echo "$add_err" >&2
     exit 1
