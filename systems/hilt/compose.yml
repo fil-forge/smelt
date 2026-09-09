@@ -82,10 +82,18 @@ services:
       - INGOT_REGION=${INGOT_REGION:-us-west-1}
     volumes:
       - ../../generated/keys/hilt.pem:/keys/hilt.pem:ro
+      # The piri node DID list only: this container needs the node
+      # identities, never the node keys.
+      - ../../generated/keys/piri-nodes.did:/piri-nodes.did:ro
       - ./register-provider.sh:/register-provider.sh:ro
     depends_on:
       hilt:
         condition: service_healthy
+      # Provider registration pushes the piri node set to sprue as the
+      # region's routing policy, and sprue only accepts nodes it has
+      # registered.
+      upload-init:
+        condition: service_completed_successfully
     restart: "no"
     networks:
       - forge-network

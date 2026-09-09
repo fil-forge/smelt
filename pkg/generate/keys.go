@@ -65,16 +65,51 @@ func GenerateKeys(keysDir string, nodes []manifest.ResolvedPiriNode, force bool)
 		return fmt.Errorf("generate payer key: %w", err)
 	}
 
+	if err := writePiriNodesFile(keysDir, nodes); err != nil {
+		return fmt.Errorf("write piri nodes file: %w", err)
+	}
+
 	return nil
+}
+
+// PiriNodesFile is the name of the file in the keys directory listing the DID
+// of every piri node declared in the manifest, one per line. It holds no
+// secrets, so containers that only need the node identities (e.g. hilt-init)
+// mount it alone rather than the whole keys directory.
+const PiriNodesFile = "piri-nodes.did"
+
+// writePiriNodesFile rewrites [PiriNodesFile] from the per-node .did files, so
+// it always reflects the current manifest.
+func writePiriNodesFile(keysDir string, nodes []manifest.ResolvedPiriNode) error {
+	var b strings.Builder
+	for _, node := range nodes {
+		id, err := os.ReadFile(filepath.Join(keysDir, node.Name+".did"))
+		if err != nil {
+			return fmt.Errorf("read DID for %s: %w", node.Name, err)
+		}
+		b.WriteString(strings.TrimSpace(string(id)))
+		b.WriteByte('\n')
+	}
+	return os.WriteFile(filepath.Join(keysDir, PiriNodesFile), []byte(b.String()), 0644)
 }
 
 // generateEd25519Key generates an Ed25519 key pair in PEM format, plus a
 // <name>.did file holding the key's did:key identifier (consumed by shell
 // scripts that have no DID tooling, e.g. systems/hilt/register-provider.sh).
+// An existing key is kept unless force is true; its <name>.did is written if
+// missing, so a keys directory created before DID files existed is completed
+// by a plain `smelt generate`.
 func generateEd25519Key(keysDir, name string, force bool) error {
 	privPath := filepath.Join(keysDir, name+".pem")
 	if !force && fileExists(privPath) {
-		return nil
+		if fileExists(filepath.Join(keysDir, name+".did")) {
+			return nil
+		}
+		privPEM, err := os.ReadFile(privPath)
+		if err != nil {
+			return fmt.Errorf("read existing private key: %w", err)
+		}
+		return writeDIDFile(keysDir, name, privPEM)
 	}
 
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
@@ -109,7 +144,12 @@ func generateEd25519Key(keysDir, name string, force bool) error {
 		return fmt.Errorf("write public key: %w", err)
 	}
 
-	// Emit <name>.did alongside the freshly-generated key.
+	return writeDIDFile(keysDir, name, privPEM)
+}
+
+// writeDIDFile writes <name>.did holding the did:key identifier derived from
+// the PEM-encoded private key.
+func writeDIDFile(keysDir, name string, privPEM []byte) error {
 	signer, err := identity.DecodeSignerFromPEM(privPEM)
 	if err != nil {
 		return fmt.Errorf("decode private key for DID derivation: %w", err)
@@ -119,7 +159,6 @@ func generateEd25519Key(keysDir, name string, force bool) error {
 	if err := os.WriteFile(didPath, []byte(id+"\n"), 0644); err != nil {
 		return fmt.Errorf("write DID file: %w", err)
 	}
-
 	return nil
 }
 

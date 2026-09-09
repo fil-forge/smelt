@@ -62,8 +62,12 @@ healthy, registering **ingot** as the regional provider for **us-west-1** via
 `did:web:ingot` (fixed by the stack's `did:web:<service>` convention; hilt
 resolves it via `http://ingot/.well-known/did.json`). Ingot must be the registered provider because
 hilt only accepts `/s3/*` invocations issued by the tenant's provider.
+The add also carries every piri-N node DID from `generated/keys/piri-nodes.did`; hilt creates
+the region's routing policy from them and pushes it to sprue, so `hilt-init`
+runs after `upload-init` has registered the nodes with sprue.
 Registration is idempotent — when the record already exists in postgres the
-"already registered" response is tolerated. Any other failure fails the
+"already registered" response is tolerated and the node set is re-applied with
+`hilt client admin provider nodes set`. Any other failure fails the
 `hilt-init` container, which blocks ingot's start (mirroring
 `systems/upload/register-providers.sh`).
 
