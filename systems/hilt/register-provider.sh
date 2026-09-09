@@ -50,7 +50,7 @@ echo "hilt-init: hilt is serving (took ${waited}s)"
 ingot_did="did:web:ingot"
 
 nodes_file=/piri-nodes.did
-if [ ! -s "$nodes_file" ]; then
+if [ ! -f "$nodes_file" ] || [ ! -s "$nodes_file" ]; then
     # `smelt generate` rewrites this file on every run, including for keys
     # directories created before it existed, so a missing or empty file means
     # generate has not run against the current checkout.
@@ -58,8 +58,14 @@ if [ ! -s "$nodes_file" ]; then
     echo "hilt-init: run 'make generate' to write it from smelt.yml" >&2
     exit 1
 fi
-nodes=$(tr '\n' ' ' < "$nodes_file")
-
+nodes=$(tr -d '\r' < "$nodes_file" | tr '\n' ' ' | tr -s ' ')
+nodes=${nodes# }
+nodes=${nodes% }
+if [ -z "$nodes" ]; then
+    echo "hilt-init: piri node DID list in generated/keys/piri-nodes.did is empty — aborting" >&2
+    echo "hilt-init: run 'make generate' to write it from smelt.yml" >&2
+    exit 1
+fi
 region="${INGOT_REGION:-us-west-1}"
 echo "hilt-init: registering ingot (${ingot_did}) as provider for ${region} with nodes:${nodes}"
 # Tolerate "already registered" — expected if this re-runs against a hilt
