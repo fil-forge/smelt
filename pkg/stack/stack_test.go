@@ -99,6 +99,8 @@ func TestEmbeddedFilesExist(t *testing.T) {
 		"systems/upload/register-providers.sh",
 		"systems/ingot/openbao/config.hcl",
 		"systems/ingot/openbao/init.sh",
+		"systems/central-openbao/config.hcl",
+		"systems/central-openbao/init.sh",
 	}
 
 	for _, f := range files {

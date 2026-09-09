@@ -1,18 +1,22 @@
 #!/bin/sh
-# Initialize, unseal, and provision ingot-openbao.
+# Initialize and provision ingot-openbao.
 #
 # Runs as the one-shot `ingot-openbao-init` compose service, gated on
-# ingot-openbao's healthcheck (which only means "listening": a fresh server
-# is uninitialized and a restarted one is sealed). Every step is idempotent
-# so the script runs on each `make up`:
+# ingot-openbao's healthcheck (which only means "listening"). The server is
+# sealed by central-openbao (`seal "transit"` in config.hcl), so unsealing is
+# not this script's job: a started server either auto-unseals or, with
+# central unreachable or its seal token revoked, does not start at all.
+# Every step is idempotent so the script runs on each `make up`:
 #
-#   1. first boot: `bao operator init` (one unseal share); the share and the
-#      root token are kept on the ingot-openbao-init volume (/init). Dev-only
-#      custody: production replaces the stored share with a transit seal
-#      against a central OpenBao.
-#   2. every boot: unseal if sealed, then make sure the transit engine, the
-#      region KEK (aes256-gcm96, derived=true, exportable=false), the ingot
-#      policy, and ingot's scoped token exist.
+#   1. first boot: `bao operator init` (one recovery share); the share and
+#      the root token are kept on the ingot-openbao-init volume (/init).
+#      Dev-only custody.
+#   2. once, for a volume that predates the transit seal (Shamir-sealed, its
+#      unseal share on /init): `bao operator unseal -migrate` moves it to the
+#      transit seal and the share becomes the recovery share.
+#   3. every boot: make sure the transit engine, the region KEK
+#      (aes256-gcm96, derived=true, exportable=false), the ingot policy, and
+#      ingot's scoped token exist.
 #
 # Nothing secret is ever echoed: no `set -x`, and bao output that carries
 # key material goes to files or /dev/null.
@@ -20,7 +24,8 @@
 set -eu
 
 INIT_DIR=/init
-UNSEAL_KEY_FILE="$INIT_DIR/unseal-key"
+RECOVERY_KEY_FILE="$INIT_DIR/recovery-key"
+LEGACY_UNSEAL_KEY_FILE="$INIT_DIR/unseal-key"   # Shamir share from before the transit seal
 ROOT_TOKEN_FILE="$INIT_DIR/root-token"
 KEK="${INGOT_REGION_KEK:-region-kek}"
 POLICY_NAME=ingot-region-kek
@@ -47,6 +52,10 @@ is_sealed() {
     bao status >/dev/null 2>&1 || rc=$?
     [ "$rc" -eq 2 ]
 }
+# A pending Shamir-to-transit seal migration is reported by `bao status` as
+# "migration": true (api.SealStatusResponse); the match tolerates compact
+# and pretty-printed JSON alike.
+migration_pending() { bao status -format=json 2>/dev/null | grep -Eq '"migration": *true'; }
 
 log "waiting for OpenBao at $BAO_ADDR..."
 waited=0
@@ -55,7 +64,7 @@ while :; do
     bao status >/dev/null 2>&1 || rc=$?
     if [ "$rc" -ne 1 ]; then break; fi
     if [ "$waited" -ge 120 ]; then
-        die "OpenBao never answered after ${waited}s; aborting"
+        die "OpenBao never answered after ${waited}s; aborting (a transit-sealed server does not start while central-openbao is unreachable or its seal token is revoked)"
     fi
     sleep 1
     waited=$((waited + 1))
@@ -73,28 +82,42 @@ json_string() {
 mkdir -p "$INIT_DIR"
 
 if ! is_initialized; then
-    log "server is uninitialized; running operator init (1 share)"
+    log "server is uninitialized; running operator init (1 recovery share)"
     # Stale material from a previous data volume is useless now; overwrite.
-    init_json=$(bao operator init -key-shares=1 -key-threshold=1 -format=json)
-    unseal_key=$(json_string "$init_json" unseal_keys_b64)
+    init_json=$(bao operator init -recovery-shares=1 -recovery-threshold=1 -format=json)
+    recovery_key=$(json_string "$init_json" recovery_keys_b64)
     root_token=$(json_string "$init_json" root_token)
-    [ -n "$unseal_key" ] || die "could not parse the unseal key from operator init output"
+    [ -n "$recovery_key" ] || die "could not parse the recovery key from operator init output"
     [ -n "$root_token" ] || die "could not parse the root token from operator init output"
     umask 077
-    printf '%s' "$unseal_key" > "$UNSEAL_KEY_FILE"
+    printf '%s' "$recovery_key" > "$RECOVERY_KEY_FILE"
     printf '%s' "$root_token" > "$ROOT_TOKEN_FILE"
-    unset init_json unseal_key root_token
-    log "initialized; unseal share and root token stored on the init volume"
-elif [ ! -s "$UNSEAL_KEY_FILE" ] || [ ! -s "$ROOT_TOKEN_FILE" ]; then
-    die "server is initialized but $INIT_DIR holds no unseal material (init volume lost); run 'make clean' to reset both ingot-openbao volumes"
+    rm -f "$LEGACY_UNSEAL_KEY_FILE"
+    unset init_json recovery_key root_token
+    log "initialized; recovery share and root token stored on the init volume"
+elif [ ! -s "$ROOT_TOKEN_FILE" ]; then
+    die "server is initialized but $INIT_DIR holds no root token (init volume lost); run 'make clean' to reset both ingot-openbao volumes"
 fi
 
 if is_sealed; then
-    log "unsealing"
-    bao operator unseal "$(cat "$UNSEAL_KEY_FILE")" >/dev/null
+    if migration_pending && [ -s "$LEGACY_UNSEAL_KEY_FILE" ]; then
+        log "migrating the seal from shamir to transit (one-time)"
+        bao operator unseal -migrate "$(cat "$LEGACY_UNSEAL_KEY_FILE")" >/dev/null
+        mv "$LEGACY_UNSEAL_KEY_FILE" "$RECOVERY_KEY_FILE"
+        log "seal migrated; the former unseal share is now the recovery share"
+    fi
+    # Auto-unseal runs right after start (and after init/migration); give it
+    # a moment rather than racing it.
+    waited=0
+    while is_sealed; do
+        if [ "$waited" -ge 60 ]; then
+            die "server is still sealed after ${waited}s: central-openbao unreachable, or the seal token was revoked"
+        fi
+        sleep 1
+        waited=$((waited + 1))
+    done
 fi
-is_sealed && die "server is still sealed after unseal"
-log "unsealed"
+log "unsealed (transit seal via central-openbao)"
 
 BAO_TOKEN=$(cat "$ROOT_TOKEN_FILE")
 export BAO_TOKEN

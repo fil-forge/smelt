@@ -1,0 +1,66 @@
+# Central OpenBao System - seal root for the appliance OpenBaos
+#
+# The "central OpenBao" of the regional security RFC. It holds one transit
+# key per appliance under `seal/`; each appliance's local OpenBao
+# (ingot-openbao) is configured with `seal "transit"` against it and presents
+# a scoped token at boot to unwrap its barrier key and unseal. Revoking that
+# token here means the appliance never starts again (the RFC's startup-kill
+# lever). Deliberately separate from hilt-vault: this is the one Fil One
+# endpoint operator-controlled hardware talks to, so it holds nothing else.
+# Used by: ingot-openbao (seal), and central-openbao-init (provisioning).
+
+services:
+  central-openbao:
+    image: openbao/openbao:2.6
+    command: ["server"]
+    ports:
+      - "${SMELT_CENTRAL_OPENBAO_PORT:-15210:8200}"
+    environment:
+      # For `docker compose exec central-openbao bao ...` (the CLI defaults to https)
+      - BAO_ADDR=http://127.0.0.1:8200
+    volumes:
+      - ./config.hcl:/openbao/config/config.hcl:ro
+      - central-openbao-data:/openbao/file
+    # Healthy means listening: a fresh server is uninitialized and a
+    # restarted one is sealed until central-openbao-init runs again (which
+    # `make up` does, since one-shot services re-run on every up).
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8200/v1/sys/health?sealedcode=200&uninitcode=200"]
+      start_interval: 1s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - forge-network
+
+  # One-shot initializer: `operator init` on first boot (one unseal share +
+  # root token on the central-openbao-init volume, dev-only custody), unseal
+  # on every boot, then make sure the `seal/` transit engine, the appliance
+  # seal key, the appliance policy (encrypt/decrypt on that key only), and the
+  # appliance's periodic seal token exist. See init.sh.
+  central-openbao-init:
+    image: openbao/openbao:2.6
+    user: "0:0"  # the image runs as `openbao`; the init volume is root-owned
+    entrypoint: ["sh", "/init.sh"]
+    environment:
+      - BAO_ADDR=http://central-openbao:8200
+      - APPLIANCE_NAME=ingot-openbao
+      # Token ingot-openbao presents to unseal; local-dev value, override with
+      # INGOT_OPENBAO_SEAL_TOKEN. Must match the BAO_TOKEN ingot-openbao gets
+      # in systems/ingot/compose.yml.
+      - APPLIANCE_SEAL_TOKEN=${INGOT_OPENBAO_SEAL_TOKEN:-dev-ingot-openbao-seal-token}
+    volumes:
+      - ./init.sh:/init.sh:ro
+      - central-openbao-init:/init
+    depends_on:
+      central-openbao:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - forge-network
+
+volumes:
+  central-openbao-data:  # raft storage: appliance seal keys
+  central-openbao-init:  # unseal share + root token (dev-only custody)
