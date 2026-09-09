@@ -65,7 +65,32 @@ func GenerateKeys(keysDir string, nodes []manifest.ResolvedPiriNode, force bool)
 		return fmt.Errorf("generate payer key: %w", err)
 	}
 
+	if err := writePiriNodesFile(keysDir, nodes); err != nil {
+		return fmt.Errorf("write piri nodes file: %w", err)
+	}
+
 	return nil
+}
+
+// PiriNodesFile is the name of the file in the keys directory listing the DID
+// of every piri node declared in the manifest, one per line. It holds no
+// secrets, so containers that only need the node identities (e.g. hilt-init)
+// mount it alone rather than the whole keys directory.
+const PiriNodesFile = "piri-nodes.did"
+
+// writePiriNodesFile rewrites [PiriNodesFile] from the per-node .did files, so
+// it always reflects the current manifest.
+func writePiriNodesFile(keysDir string, nodes []manifest.ResolvedPiriNode) error {
+	var b strings.Builder
+	for _, node := range nodes {
+		id, err := os.ReadFile(filepath.Join(keysDir, node.Name+".did"))
+		if err != nil {
+			return fmt.Errorf("read DID for %s: %w", node.Name, err)
+		}
+		b.WriteString(strings.TrimSpace(string(id)))
+		b.WriteByte('\n')
+	}
+	return os.WriteFile(filepath.Join(keysDir, PiriNodesFile), []byte(b.String()), 0644)
 }
 
 // generateEd25519Key generates an Ed25519 key pair in PEM format, plus a

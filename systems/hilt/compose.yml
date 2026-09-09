@@ -82,9 +82,9 @@ services:
       - INGOT_REGION=${INGOT_REGION:-us-west-1}
     volumes:
       - ../../generated/keys/hilt.pem:/keys/hilt.pem:ro
-      # Full keys directory so the script can collect every piri-N node DID
-      # declared in smelt.yml. Read-only.
-      - ../../generated/keys:/piri-keys:ro
+      # The piri node DID list only: this container needs the node
+      # identities, never the node keys.
+      - ../../generated/keys/piri-nodes.did:/piri-nodes.did:ro
       - ./register-provider.sh:/register-provider.sh:ro
     depends_on:
       hilt:

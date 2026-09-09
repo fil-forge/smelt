@@ -10,12 +10,14 @@
 # the tolerated "already registered" path below.
 #
 # Registration also carries the storage nodes ingot operates: every piri-N
-# DID from /piri-keys (the .did files `smelt generate` writes for scripts
-# without DID tooling). Hilt creates the region's routing policy from them and
-# pushes it to sprue, so sprue must already know the nodes: compose orders
-# hilt-init after upload-init for that reason. On the "already registered"
-# path the node set is re-applied with `provider nodes set` so a persisted
-# provider row still tracks the current piri nodes.
+# DID listed in /piri-nodes.did, the one-DID-per-line file `smelt generate`
+# writes from smelt.yml for scripts without DID tooling. Only that file is
+# mounted here; the node keys never enter this container. Hilt creates the
+# region's routing policy from the DIDs and pushes it to sprue, so sprue must
+# already know the nodes: compose orders hilt-init after upload-init for that
+# reason. On the "already registered" path the node set is re-applied with
+# `provider nodes set` so a persisted provider row still tracks the current
+# piri nodes.
 #
 # The provider DID is ingot's did:web service identity, did:web:ingot. It is
 # fixed by the stack's did:web:<service> convention: the DID must resolve to
@@ -47,23 +49,16 @@ echo "hilt-init: hilt is serving (took ${waited}s)"
 
 ingot_did="did:web:ingot"
 
-nodes=""
-for did_file in /piri-keys/piri-[0-9]*.did; do
-    [ -f "$did_file" ] || continue
-    nodes="$nodes $(tr -d '[:space:]' < "$did_file")"
-done
-if [ -z "$nodes" ]; then
-    # Distinguish a keys directory that predates the .did files (keys present,
-    # DIDs missing) from one that was never generated: the remedy differs.
-    if ls /piri-keys/piri-[0-9]*.pem >/dev/null 2>&1; then
-        echo "hilt-init: piri-N keys exist in generated/keys but their .did files are missing — aborting" >&2
-        echo "hilt-init: run 'make generate' to write the missing .did files (or 'make regen' to replace the keys)" >&2
-    else
-        echo "hilt-init: no piri-N nodes found in /piri-keys — aborting" >&2
-        echo "hilt-init: run 'make generate' to populate generated/keys from smelt.yml" >&2
-    fi
+nodes_file=/piri-nodes.did
+if [ ! -s "$nodes_file" ]; then
+    # `smelt generate` rewrites this file on every run, including for keys
+    # directories created before it existed, so a missing or empty file means
+    # generate has not run against the current checkout.
+    echo "hilt-init: no piri node DIDs in generated/keys/piri-nodes.did — aborting" >&2
+    echo "hilt-init: run 'make generate' to write it from smelt.yml" >&2
     exit 1
 fi
+nodes=$(tr '\n' ' ' < "$nodes_file")
 
 region="${INGOT_REGION:-us-west-1}"
 echo "hilt-init: registering ingot (${ingot_did}) as provider for ${region} with nodes:${nodes}"
