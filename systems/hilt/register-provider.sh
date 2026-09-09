@@ -53,8 +53,15 @@ for did_file in /piri-keys/piri-[0-9]*.did; do
     nodes="$nodes $(tr -d '[:space:]' < "$did_file")"
 done
 if [ -z "$nodes" ]; then
-    echo "hilt-init: no piri-N nodes found in /piri-keys — aborting" >&2
-    echo "hilt-init: check that 'smelt generate' populated generated/keys" >&2
+    # Distinguish a keys directory that predates the .did files (keys present,
+    # DIDs missing) from one that was never generated: the remedy differs.
+    if ls /piri-keys/piri-[0-9]*.pem >/dev/null 2>&1; then
+        echo "hilt-init: piri-N keys exist in generated/keys but their .did files are missing — aborting" >&2
+        echo "hilt-init: run 'make generate' to write the missing .did files (or 'make regen' to replace the keys)" >&2
+    else
+        echo "hilt-init: no piri-N nodes found in /piri-keys — aborting" >&2
+        echo "hilt-init: run 'make generate' to populate generated/keys from smelt.yml" >&2
+    fi
     exit 1
 fi
 
