@@ -189,7 +189,7 @@ func buildPostgresInitService(databases []string) ComposeService {
 
 func buildMinioService() ComposeService {
 	return ComposeService{
-		Image:   "minio/minio:latest",
+		Image:   "${MINIO_IMAGE:-ghcr.io/fil-forge/minio:RELEASE.2025-10-15T17-29-55Z}",
 		Command: []string{"server", "/data", "--console-address", ":9001"},
 		Ports: []string{
 			"${SMELT_PIRI_MINIO_S3_PORT:-15072:9000}",
@@ -203,7 +203,7 @@ func buildMinioService() ComposeService {
 			"piri-minio-data:/data",
 		},
 		Healthcheck: &Healthcheck{
-			Test:          []string{"CMD", "mc", "ready", "local"},
+			Test:          []string{"CMD", "curl", "-f", "http://localhost:9000/minio/health/cluster"},
 			StartInterval: "1s",
 			Interval:      "5s",
 			Timeout:       "3s",
