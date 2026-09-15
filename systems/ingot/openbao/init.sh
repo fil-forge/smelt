@@ -10,9 +10,10 @@
 #      root token are kept on the ingot-openbao-init volume (/init). Dev-only
 #      custody: production replaces the stored share with a transit seal
 #      against a central OpenBao.
-#   2. every boot: unseal if sealed, then make sure the transit engine, the
-#      region KEK (aes256-gcm96, derived=true, exportable=false), the ingot
-#      policy, and ingot's scoped token exist.
+#   2. every boot: unseal if sealed, wait for the node to go active (raft
+#      serves nothing until it has a leader), then make sure the transit
+#      engine, the region KEK (aes256-gcm96, derived=true, exportable=false),
+#      the ingot policy, and ingot's scoped token exist.
 #
 # Nothing secret is ever echoed: no `set -x`, and bao output that carries
 # key material goes to files or /dev/null.
@@ -95,6 +96,24 @@ if is_sealed; then
 fi
 is_sealed && die "server is still sealed after unseal"
 log "unsealed"
+
+# An unsealed raft node is not yet serving: it has to win its leadership
+# election first, and until it does every request is refused with 500
+# "local node not active but active cluster node not found". sys/health's
+# default codes settle it, since 200 means initialized, unsealed and active
+# (a standby answers 429, a sealed node 503) — unlike the compose
+# healthcheck, which passes sealedcode and uninitcode so it can gate this
+# container on a server that is merely listening.
+log "waiting for the node to become active..."
+waited=0
+until wget -q --spider "$BAO_ADDR/v1/sys/health" 2>/dev/null; do
+    if [ "$waited" -ge 60 ]; then
+        die "node never became active after ${waited}s; aborting"
+    fi
+    sleep 1
+    waited=$((waited + 1))
+done
+log "node is active (took ${waited}s)"
 
 BAO_TOKEN=$(cat "$ROOT_TOKEN_FILE")
 export BAO_TOKEN

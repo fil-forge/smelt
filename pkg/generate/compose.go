@@ -163,21 +163,19 @@ func buildPostgresService() ComposeService {
 }
 
 func buildPostgresInitService(databases []string) ComposeService {
-	// Build idempotent CREATE DATABASE commands.
-	var cmds []string
-	for _, db := range databases {
-		cmds = append(cmds,
-			fmt.Sprintf(`psql -h piri-postgres -U piri -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = '%s'" | grep -q 1 || psql -h piri-postgres -U piri -d postgres -c "CREATE DATABASE %s;"`, db, db),
-		)
-	}
-	script := strings.Join(cmds, "\n")
-
 	return ComposeService{
 		Image:      "postgres:16-alpine",
-		Entrypoint: []string{"sh", "-c"},
-		Command:    []string{script},
+		Entrypoint: []string{"sh", "/postgres-init.sh"},
 		Environment: []string{
 			"PGPASSWORD=piri",
+			fmt.Sprintf("PIRI_POSTGRES_DATABASES=%s", strings.Join(databases, " ")),
+		},
+		// The script waits for postgres to accept sessions before creating
+		// anything; it lives in the tree rather than inline here because
+		// compose interpolates $ in a command, which would eat its shell
+		// variables. See systems/piri/postgres-init.sh.
+		Volumes: []string{
+			"../../systems/piri/postgres-init.sh:/postgres-init.sh:ro",
 		},
 		DependsOn: map[string]DependsOnCondition{
 			"piri-postgres": {Condition: "service_healthy"},
