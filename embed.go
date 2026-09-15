@@ -36,6 +36,7 @@ import "embed"
 
 //go:embed systems/piri/entrypoint.sh
 //go:embed systems/piri/register-did.sh
+//go:embed systems/piri/postgres-init.sh
 //go:embed systems/piri/config/*
 
 //go:embed systems/signing-service/compose.yml
