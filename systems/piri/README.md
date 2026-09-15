@@ -23,7 +23,7 @@ One or more `piri-{N}` services, each configured according to the corresponding 
 - `config/piri-overrides.toml` — Additional overrides merged after init.
 - `entrypoint.sh` — Shared startup script mounted into every piri container. Reads environment variables injected by the generator (`PIRI_DB_BACKEND`, `PIRI_BLOB_BACKEND`, `PIRI_DB_POSTGRES_URL`, `PIRI_S3_*`, etc.) to decide which backends to use.
 - `register-did.sh` — Helper script for DynamoDB allow-list registration during init.
-- `postgres-init.sh` — Creates the per-node databases listed in `PIRI_POSTGRES_DATABASES`, mounted into the generated `piri-postgres-init` sidecar. Waits for postgres to accept a session first: `pg_isready`, and so the compose healthcheck, goes green while the server is still refusing connections with "the database system is starting up".
+- `postgres-init.sh` — Creates the per-node databases listed in `PIRI_POSTGRES_DATABASES`, mounted into the generated `piri-postgres-init` sidecar. It waits for postgres to accept a session before creating anything. The compose healthcheck uses `pg_isready`, which reports the server up while it is still refusing connections with "the database system is starting up".
 
 ## Keys (generated)
 

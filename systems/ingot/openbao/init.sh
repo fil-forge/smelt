@@ -104,16 +104,17 @@ log "unsealed"
 # (a standby answers 429, a sealed node 503) — unlike the compose
 # healthcheck, which passes sealedcode and uninitcode so it can gate this
 # container on a server that is merely listening.
+# -T bounds each probe, so one hung connect cannot outlast the deadline, which
+# is wall-clock rather than a count of attempts.
 log "waiting for the node to become active..."
-waited=0
-until wget -q --spider "$BAO_ADDR/v1/sys/health" 2>/dev/null; do
-    if [ "$waited" -ge 60 ]; then
-        die "node never became active after ${waited}s; aborting"
+started=$(date +%s)
+until wget -q -T 2 --spider "$BAO_ADDR/v1/sys/health" 2>/dev/null; do
+    if [ "$(($(date +%s) - started))" -ge 60 ]; then
+        die "node never became active after 60s; aborting"
     fi
     sleep 1
-    waited=$((waited + 1))
 done
-log "node is active (took ${waited}s)"
+log "node is active (took $(($(date +%s) - started))s)"
 
 BAO_TOKEN=$(cat "$ROOT_TOKEN_FILE")
 export BAO_TOKEN
