@@ -31,12 +31,12 @@ type Result struct {
 // Generate reads the manifest, generates keys, and produces Docker Compose files.
 func Generate(opts Options) (*Result, error) {
 	manifestPath := opts.ManifestPath
-	fromSession := false
 	if manifestPath == "" {
-		manifestPath, fromSession = manifest.ResolveManifestPath(opts.ProjectDir)
-	}
-	if fromSession {
-		fmt.Printf("Using session manifest: %s\n", manifestPath)
+		var source manifest.ManifestSource
+		manifestPath, source = manifest.ResolveManifestPath(opts.ProjectDir)
+		if source != manifest.SourceProject {
+			fmt.Printf("Using manifest from %s: %s\n", source, manifestPath)
+		}
 	}
 
 	m, err := manifest.Parse(manifestPath)

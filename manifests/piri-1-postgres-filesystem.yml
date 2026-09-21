@@ -1,0 +1,13 @@
+# One piri node storing blobs on its own data volume, with postgres for the
+# database. Closest to a production deployment, where piri writes to a local
+# filesystem. Use it with:
+#
+#   SMELT_MANIFEST=manifests/piri-1-postgres-filesystem.yml make up
+#
+# See docs/MULTI_PIRI.md for the manifest schema.
+version: 1
+piri:
+  nodes:
+    - storage:
+        db: postgres
+        blob: filesystem

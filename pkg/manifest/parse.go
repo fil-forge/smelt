@@ -17,17 +17,41 @@ const SessionManifestPath = "generated/snapshot-scratch/smelt.yml"
 // ProjectManifestPath is the tracked manifest at the project root.
 const ProjectManifestPath = "smelt.yml"
 
+// ManifestEnvVar names the environment variable that overrides the manifest
+// path. `SMELT_MANIFEST=manifests/piri-1-postgres-filesystem.yml make up`
+// drives the whole stack off that file without editing the tracked smelt.yml.
+// A relative value is resolved against the project directory.
+const ManifestEnvVar = "SMELT_MANIFEST"
+
+// ManifestSource says where ResolveManifestPath found the manifest.
+type ManifestSource string
+
+const (
+	// SourceEnv: the path came from SMELT_MANIFEST.
+	SourceEnv ManifestSource = "SMELT_MANIFEST"
+	// SourceSession: a snapshot session is active and its manifest is used.
+	SourceSession ManifestSource = "snapshot session"
+	// SourceProject: the tracked smelt.yml at the project root.
+	SourceProject ManifestSource = "project"
+)
+
 // ResolveManifestPath returns the manifest smelt should drive off for the
-// given project. If a snapshot session is active (the scratch manifest
-// exists), that path is returned; otherwise the tracked project manifest.
-// The second return value reports whether the result is the session
-// manifest — callers that want to log the choice can use it.
-func ResolveManifestPath(projectDir string) (string, bool) {
+// given project, and where it came from. Precedence: SMELT_MANIFEST, then the
+// session manifest of an active snapshot session, then the tracked project
+// manifest. Every code path that needs the topology (generate, workspace
+// build, snapshot save) goes through here, so one variable steers them all.
+func ResolveManifestPath(projectDir string) (string, ManifestSource) {
+	if env := os.Getenv(ManifestEnvVar); env != "" {
+		if filepath.IsAbs(env) {
+			return env, SourceEnv
+		}
+		return filepath.Join(projectDir, env), SourceEnv
+	}
 	session := filepath.Join(projectDir, SessionManifestPath)
 	if _, err := os.Stat(session); err == nil {
-		return session, true
+		return session, SourceSession
 	}
-	return filepath.Join(projectDir, ProjectManifestPath), false
+	return filepath.Join(projectDir, ProjectManifestPath), SourceProject
 }
 
 // Parse reads a smelt.yml manifest from the given path.

@@ -112,6 +112,8 @@ piri:
 
 Running `make generate` (or implicitly `make up`) regenerates `generated/compose/piri.yml` and any new keys. The Makefile has a file-target rule that reruns the generator whenever `smelt.yml` or any file under `cmd/smelt/`, `pkg/generate/`, or `pkg/manifest/` changes, so compose-invoking targets transparently stay in sync on fresh checkouts and post-`nuke` states.
 
+To run a different topology without editing the tracked file, point `SMELT_MANIFEST` at another manifest (ready-made ones live in `manifests/`), e.g. `SMELT_MANIFEST=manifests/piri-1-postgres-filesystem.yml make up`. Export it for the whole session: generate, workspace build and snapshot save all read it.
+
 See [docs/MULTI_PIRI.md](docs/MULTI_PIRI.md) for the full manifest schema, shared infrastructure (postgres, MinIO), Anvil wallet mapping, and hot-add/remove behavior.
 
 ### Starting and Stopping

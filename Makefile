@@ -12,6 +12,15 @@ YES ?= 0
 # compose call mounts them over the published images.
 SMELT_WORKSPACE ?= 0
 
+# Set SMELT_MANIFEST=path/to/manifest.yml to drive the stack off a manifest
+# other than the tracked smelt.yml (e.g. manifests/piri-1-postgres-filesystem.yml).
+# The Go side reads the same variable (see manifest.ResolveManifestPath), so
+# generate, workspace build and snapshot save all follow it; the Makefile only
+# needs it to know which file the generated compose depends on.
+SMELT_MANIFEST ?=
+MANIFEST := $(or $(SMELT_MANIFEST),smelt.yml)
+export SMELT_MANIFEST
+
 WORKSPACE_OVERRIDE := generated/compose/workspace.override.yml
 
 # Chain the workspace binary-mount override into every compose call, but only
@@ -62,6 +71,8 @@ help:
 	@echo "Piri Configuration:"
 	@echo "  Edit smelt.yml to configure piri node count and storage backends."
 	@echo "  Run 'make generate' (or 'make up') to apply changes."
+	@echo "  SMELT_MANIFEST=manifests/<name>.yml make up  Use another manifest"
+	@echo "  without editing smelt.yml (ready-made ones live in manifests/)."
 	@echo ""
 	@echo "Snapshots:"
 	@echo "  make cli                          Build the ./smelt CLI binary"
@@ -136,7 +147,7 @@ generate:
 # File target: rebuild the generated piri compose when the manifest or
 # generator source changes. Compose-invoking targets below depend on this
 # so fresh checkouts and post-nuke states regenerate piri.yml on demand.
-generated/compose/piri.yml: smelt.yml $(shell find cmd/smelt pkg/generate pkg/manifest -name '*.go' 2>/dev/null)
+generated/compose/piri.yml: $(MANIFEST) $(shell find cmd/smelt pkg/generate pkg/manifest -name '*.go' 2>/dev/null)
 	@go run ./cmd/smelt generate
 
 # Initialize the environment (generate keys, proofs, create network)

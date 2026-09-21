@@ -183,6 +183,20 @@ s.PiriCount()        // number of nodes
 - The indexer's `RESOLVE_DID_WEB` environment variable still references `did:web:piri` (singular). This does not currently break functionality but may need updating for full multi-provider DID resolution.
 - Hot-remove does not automatically clean up data volumes. Use `make clean` or `docker volume rm` manually.
 
+## Alternate Manifests
+
+`SMELT_MANIFEST` points smelt at a manifest other than the tracked `smelt.yml`,
+so a different topology needs no edit to a versioned file:
+
+```bash
+SMELT_MANIFEST=manifests/piri-1-postgres-filesystem.yml make up
+```
+
+Ready-made manifests live in `manifests/`. The variable takes precedence over
+an active snapshot session; `make generate`, `smelt workspace build` and
+`./smelt snapshot save` all read it, so keep it set for every command of the
+same session (export it in the shell).
+
 ## Quick Reference
 
 ```bash
