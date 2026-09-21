@@ -477,6 +477,8 @@ otherwise-published images — no Dockerfiles, no image rebuilds. **Full walkthr
   flag runs `smelt workspace build` → binaries in `generated/bin/` + mounts in
   `generated/compose/workspace.override.yml` (chained into `$(COMPOSE)`); a plain `make up`
   removes the override and runs published images.
+- Binaries are built for the Docker engine's architecture (arm64 on Apple silicon, amd64 on
+  Linux), so the same command works on macOS, Linux desktops and CI. `SMELT_GOARCH` overrides.
 - **Fast per-edit loop:** `docker compose stop <svc>` → `SMELT_WORKSPACE=1 make workspace-build`
   → `docker compose start <svc>` (stop first — the bind-mounted binary is executing, so an
   in-place rebuild hits `ETXTBSY`).

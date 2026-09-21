@@ -1,9 +1,39 @@
 package workspace
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
+
+func TestResolveTargetArch(t *testing.T) {
+	dockerSays := func(arch string) func() (string, error) {
+		return func() (string, error) { return arch, nil }
+	}
+	dockerFails := func() (string, error) { return "", errors.New("no daemon") }
+
+	cases := []struct {
+		name       string
+		override   string
+		docker     func() (string, error)
+		host       string
+		wantArch   string
+		wantSource string
+	}{
+		{"SMELT_GOARCH wins over everything", "amd64", dockerSays("arm64"), "arm64", "amd64", "SMELT_GOARCH"},
+		{"docker server arch wins over the host", "", dockerSays("arm64"), "amd64", "arm64", "docker server"},
+		{"host arch when docker is unreachable", "", dockerFails, "amd64", "amd64", "host (docker server arch unavailable)"},
+		{"host arch when docker reports an unsupported arch", "", dockerSays("s390x"), "arm64", "arm64", "host (docker server arch unavailable)"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			arch, source := resolveTargetArch(tc.override, tc.docker, tc.host)
+			if arch != tc.wantArch || source != tc.wantSource {
+				t.Errorf("got (%q, %q), want (%q, %q)", arch, source, tc.wantArch, tc.wantSource)
+			}
+		})
+	}
+}
 
 func TestRenderOverrideBinariesAndConfigs(t *testing.T) {
 	data, err := RenderOverride(

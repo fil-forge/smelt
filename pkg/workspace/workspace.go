@@ -23,8 +23,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
+	"sync"
 
 	"gopkg.in/yaml.v3"
 )
@@ -102,9 +104,52 @@ func Detect() (root string, services []string, err error) {
 	return root, services, nil
 }
 
+// TargetArch returns the GOARCH the workspace binaries are built for, and
+// where that answer came from, for the build log. The binaries are
+// bind-mounted into containers, so they must match the Docker *server*
+// (the engine that runs them), which is what makes arm64 Macs, amd64 Linux
+// desktops, CI runners and remote Docker hosts all work with no configuration.
+// Resolution order: SMELT_GOARCH, the Docker server's architecture, then the
+// architecture of this process as a last resort. The result is memoized.
+func TargetArch() (arch, source string) {
+	targetArchOnce.Do(func() {
+		targetArch, targetArchSource = resolveTargetArch(os.Getenv("SMELT_GOARCH"), dockerServerArch, runtime.GOARCH)
+	})
+	return targetArch, targetArchSource
+}
+
+var (
+	targetArchOnce   sync.Once
+	targetArch       string
+	targetArchSource string
+)
+
+// supportedArchs are the GOARCH values smelt publishes images for.
+var supportedArchs = map[string]bool{"amd64": true, "arm64": true}
+
+func resolveTargetArch(override string, dockerArch func() (string, error), hostArch string) (arch, source string) {
+	if override != "" {
+		return override, "SMELT_GOARCH"
+	}
+	if a, err := dockerArch(); err == nil && supportedArchs[a] {
+		return a, "docker server"
+	}
+	return hostArch, "host (docker server arch unavailable)"
+}
+
+// dockerServerArch asks the Docker engine for its architecture. Docker reports
+// it using Go's GOARCH names (amd64, arm64), so no mapping is needed.
+func dockerServerArch() (string, error) {
+	out, err := exec.Command("docker", "version", "--format", "{{.Server.Arch}}").Output()
+	if err != nil {
+		return "", fmt.Errorf("docker version: %w", err)
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
 // BuildBinary compiles one service's binary from its sibling module under root
-// into outDir, returning the absolute output path. It produces a static
-// linux/amd64 binary with the workspace active so local cross-module edits
+// into outDir, returning the absolute output path. It produces a static linux
+// binary for TargetArch with the workspace active so local cross-module edits
 // (e.g. a local libforge) are compiled in.
 func BuildBinary(root, service, outDir string) (string, error) {
 	spec, ok := Services[service]
@@ -133,13 +178,15 @@ func BuildBinary(root, service, outDir string) (string, error) {
 	args = append(args, spec.buildTarget)
 	cmd := exec.Command(goTool(), args...)
 	cmd.Dir = moduleRoot
-	// Static linux/amd64 build so the binary drops into the published image's
-	// base cleanly. GOWORK is pinned explicitly so the build resolves the same
-	// workspace regardless of the caller's cwd or environment.
+	// Static linux build for the Docker server's architecture so the binary
+	// drops into the published image's base cleanly. GOWORK is pinned
+	// explicitly so the build resolves the same workspace regardless of the
+	// caller's cwd or environment.
+	arch, _ := TargetArch()
 	cmd.Env = append(os.Environ(),
 		"CGO_ENABLED=0",
 		"GOOS=linux",
-		"GOARCH=amd64",
+		"GOARCH="+arch,
 		"GOWORK="+gowork(root),
 	)
 	var stderr bytes.Buffer

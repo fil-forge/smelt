@@ -51,6 +51,9 @@ func runWorkspaceBuild(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	arch, archSource := workspace.TargetArch()
+	fmt.Printf("Building linux/%s binaries (arch from %s)\n", arch, archSource)
+
 	binDir := filepath.Join(projectDir, "generated", "bin")
 	binaries := make(map[string]string, len(services))
 	for _, svc := range services {

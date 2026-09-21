@@ -9,8 +9,9 @@ use a **Go workspace** (`go.work`) plus the `SMELT_WORKSPACE=1` flag.
 With the flag set, smelt:
 
 1. reads the active `go.work` to decide which services you're editing,
-2. compiles each from your local checkout into a static `linux/amd64` binary (the workspace
-   bakes in your cross-module edits, including a local `libforge`), and
+2. compiles each from your local checkout into a static Linux binary for the Docker engine's
+   architecture (arm64 on Apple silicon, amd64 on Linux desktops and CI; the workspace bakes in
+   your cross-module edits, including a local `libforge`), and
 3. bind-mounts each binary over the binary in the otherwise-**published** image.
 
 So the published image still provides the runtime (base OS, certs, side tools like guppy's
@@ -157,6 +158,9 @@ what you're working on.
 
 - **Back to published images:** run any `make` target *without* `SMELT_WORKSPACE=1` (it removes
   the override), or `rm go.work` to also drop local resolution for your editor.
+- **"exec format error" in a service's logs:** the binary was built for the wrong architecture.
+  `smelt workspace build` prints the arch it chose and where it came from (`SMELT_GOARCH`, the
+  Docker server, or the host). Force one with `SMELT_GOARCH=amd64` (or `arm64`).
 - **Build/selection surprises:** `go env GOWORK` shows the active workspace; if it's empty,
   `SMELT_WORKSPACE=1` will error asking you to `go work init`. Confirm every sibling in the
   `use`-list actually exists on disk.
