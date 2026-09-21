@@ -117,3 +117,20 @@ func TestRenderOverrideNoConfigPath(t *testing.T) {
 		t.Fatal("expected error for service without a config path")
 	}
 }
+
+func TestContainers(t *testing.T) {
+	got, err := Containers([]string{"piri", "upload", "ingot"}, []string{"piri-0", "piri-1"})
+	if err != nil {
+		t.Fatalf("Containers: %v", err)
+	}
+	want := []string{"ingot", "piri-0", "piri-1", "upload", "upload-init"}
+	if strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+func TestContainersUnknownService(t *testing.T) {
+	if _, err := Containers([]string{"nope"}, nil); err == nil {
+		t.Fatal("expected error for unknown service")
+	}
+}

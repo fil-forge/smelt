@@ -178,8 +178,14 @@ func BuildBinary(root, service, outDir string) (string, error) {
 		return "", err
 	}
 
+	// Build to a temp name and rename into place. A container may be running
+	// the current binary through a file bind mount: writing over it fails on
+	// Linux with ETXTBSY, and even a successful overwrite would change the
+	// bytes under a running process. The rename gives the path a new inode
+	// while the running container keeps the old one until it is recreated.
 	out := filepath.Join(absOutDir, service)
-	args := []string{"build", "-o", out}
+	tmp := out + ".tmp"
+	args := []string{"build", "-o", tmp}
 	if len(spec.buildTags) > 0 {
 		args = append(args, "-tags", strings.Join(spec.buildTags, ","))
 	}
@@ -205,7 +211,40 @@ func BuildBinary(root, service, outDir string) (string, error) {
 	if err := cmd.Run(); err != nil {
 		return "", fmt.Errorf("build %s (%s in %s): %w\n%s", service, spec.buildTarget, moduleRoot, err, stderr.String())
 	}
+	if err := os.Rename(tmp, out); err != nil {
+		return "", fmt.Errorf("install %s: %w", service, err)
+	}
 	return filepath.Abs(out)
+}
+
+// Containers returns the compose service names that run a workspace binary
+// for the given smelt services: the service itself, its registrar-style
+// siblings (alsoBinIn), and for piri every generated piri-N node. Sorted and
+// without duplicates, ready for `docker compose up --force-recreate`.
+func Containers(services, piriNodes []string) ([]string, error) {
+	seen := map[string]bool{}
+	for _, service := range services {
+		spec, ok := Services[service]
+		if !ok {
+			return nil, fmt.Errorf("unknown service %q", service)
+		}
+		if service == "piri" {
+			for _, node := range piriNodes {
+				seen[node] = true
+			}
+		} else {
+			seen[service] = true
+		}
+		for _, also := range spec.alsoBinIn {
+			seen[also] = true
+		}
+	}
+	names := make([]string, 0, len(seen))
+	for name := range seen {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names, nil
 }
 
 // RenderOverride returns a docker-compose override (YAML) that mounts each built

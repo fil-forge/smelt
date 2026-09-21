@@ -138,21 +138,21 @@ workspace, use `stack.WithServiceBinary("upload", "/path/to/sprue")`.
 ## Fast per-edit loop
 
 Once the stack is up with `SMELT_WORKSPACE=1`, you don't need to re-boot it for a one-line
-change — rebuild just the affected service's binary and restart its container. The rest of the
-stack (and the chain state) stays up, so you skip the slow contract-deploy + registration boot:
+change. `make redeploy` rebuilds the workspace binaries and recreates only the containers that
+run them; the rest of the stack (chain state, one-shot init services, volumes) stays up, so you
+skip the slow contract-deploy + registration boot:
 
 ```bash
-docker compose stop piri-0              # + piri-1 piri-2 … for multi-node setups
-SMELT_WORKSPACE=1 make workspace-build  # recompiles selected services into generated/bin/
-docker compose start piri-0
+SMELT_WORKSPACE=1 make redeploy            # every service in the go.work use-list
+SMELT_WORKSPACE=1 make redeploy SVC=ingot  # just ingot (comma-separated list allowed)
 ```
 
-Stop the container **first**: its `/usr/bin/piri` is the bind-mounted binary that's currently
-executing, and rebuilding over an executing file fails with `text file busy` (`ETXTBSY`).
-Stopping releases it; starting re-execs the freshly built binary.
-
-Keep the `use`-list narrow (e.g. just `./smelt ./piri`) so `workspace-build` only recompiles
-what you're working on.
+`SVC=` rebuilds only the named services and reuses the previous build of the others, so the
+mount override keeps covering every workspace service. Under the hood the build installs each
+binary as a new file (build to a temp name, then rename), so nothing writes over the binary a
+running container is executing, and `docker compose up -d --no-deps --force-recreate` brings
+up fresh containers that pick up the new file. `smelt workspace services` prints which
+containers those are.
 
 ## Turning it off / troubleshooting
 

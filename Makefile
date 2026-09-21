@@ -47,7 +47,7 @@ workspace-build:
 		rm -f $(WORKSPACE_OVERRIDE); \
 	fi
 
-.PHONY: help generate init up down restart clean nuke fresh logs pull build cli status guppy regen debug-upload ensure-state check-docker workspace-build shell-guppy shell-piri shell-upload shell-hilt
+.PHONY: help generate init up down restart clean nuke fresh logs pull build cli status guppy regen debug-upload redeploy ensure-state check-docker workspace-build shell-guppy shell-piri shell-upload shell-hilt
 
 # Default target - show help
 help:
@@ -99,6 +99,8 @@ help:
 	@echo "                     sibling checkouts (selected via the active go.work"
 	@echo "                     use-list). 'SMELT_WORKSPACE=1 make up' compiles them"
 	@echo "                     and mounts them over the published images."
+	@echo "  make redeploy      Rebuild the workspace binaries and recreate their"
+	@echo "                     containers (SMELT_WORKSPACE=1; SVC=ingot to limit)."
 	@echo ""
 	@echo "Destructive commands (clean, nuke, fresh) require confirmation."
 	@echo ""
@@ -325,6 +327,26 @@ shell-upload: ensure-state
 # Shell into hilt container
 shell-hilt: ensure-state
 	$(COMPOSE) exec hilt bash
+
+# Rebuild the workspace binaries and recreate the containers that run them,
+# leaving the rest of the stack (chain state, init services, volumes) alone.
+# SVC=ingot (comma-separated list allowed) limits both the build and the
+# recreate to those services. Containers are recreated rather than restarted:
+# the binary is a file bind mount resolved when the container is created, and
+# the build installs a new file (new inode) under the same path.
+redeploy: generated/compose/piri.yml ensure-state
+	@if [ "$(SMELT_WORKSPACE)" != "1" ]; then \
+		echo "ERROR: redeploy needs SMELT_WORKSPACE=1 (binaries come from the go.work checkouts)"; \
+		exit 1; \
+	fi
+	go run ./cmd/smelt workspace build $(if $(SVC),--only $(SVC))
+	@# Resolve the container list first and refuse to continue when it is
+	@# empty: `up --force-recreate` with no service args would recreate the
+	@# whole stack.
+	@services=$$(go run ./cmd/smelt workspace services $(if $(SVC),--only $(SVC))) || exit 1; \
+	if [ -z "$$services" ]; then echo "ERROR: no workspace services to redeploy"; exit 1; fi; \
+	echo "Recreating: $$services"; \
+	$(COMPOSE) up -d --no-deps --force-recreate $$services
 
 # Run upload (sprue) under Delve for remote debugging.
 # See compose.debug.yml for the overlay; attach to localhost:2345.
