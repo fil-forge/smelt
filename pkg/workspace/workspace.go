@@ -33,6 +33,7 @@ import (
 type serviceBuild struct {
 	moduleDir   string   // go.work use-dir basename, e.g. "piri"
 	buildTarget string   // `go build` package arg, e.g. "./cmd"
+	buildTags   []string // `go build -tags` the module's Dockerfile builds with, if any
 	binPath     string   // absolute path of the binary inside the container image
 	configPath  string   // absolute path of the service's config file inside the container; empty when the service has no single-file config to override
 	alsoBinIn   []string // additional compose services that run the same image and must receive the binary mount (e.g. one-shot registrars invoking the service's CLI)
@@ -43,7 +44,9 @@ type serviceBuild struct {
 // the generated piri-N nodes. Verified against each sibling's Dockerfile — note
 // delegator installs its binary as /usr/bin/registrar (binary name != module).
 var Services = map[string]serviceBuild{
-	"piri":            {moduleDir: "piri", buildTarget: "./cmd", binPath: "/usr/bin/piri"},
+	// `skiff` selects Curio's FFI-free variants, as piri's Dockerfile does;
+	// without it the build pulls in filecoin-ffi and needs cgo and pkg-config.
+	"piri":            {moduleDir: "piri", buildTarget: "./cmd", buildTags: []string{"skiff"}, binPath: "/usr/bin/piri"},
 	"upload":          {moduleDir: "sprue", buildTarget: "./cmd/main.go", binPath: "/usr/bin/sprue", alsoBinIn: []string{"upload-init"}},
 	"signing-service": {moduleDir: "piri-signing-service", buildTarget: ".", binPath: "/usr/bin/signer"},
 	"indexer":         {moduleDir: "indexing-service", buildTarget: "./cmd", binPath: "/usr/bin/indexer"},
@@ -123,7 +126,12 @@ func BuildBinary(root, service, outDir string) (string, error) {
 	}
 
 	out := filepath.Join(absOutDir, service)
-	cmd := exec.Command(goTool(), "build", "-o", out, spec.buildTarget)
+	args := []string{"build", "-o", out}
+	if len(spec.buildTags) > 0 {
+		args = append(args, "-tags", strings.Join(spec.buildTags, ","))
+	}
+	args = append(args, spec.buildTarget)
+	cmd := exec.Command(goTool(), args...)
 	cmd.Dir = moduleRoot
 	// Static linux/amd64 build so the binary drops into the published image's
 	// base cleanly. GOWORK is pinned explicitly so the build resolves the same

@@ -103,6 +103,10 @@ Module → service → container binary (defined in `pkg/workspace`):
 | `delegator` | delegator | `/usr/bin/registrar` |
 | `guppy` | guppy | `/usr/bin/guppy` |
 
+Each binary is built the way its Dockerfile builds it. Piri is compiled with
+`-tags skiff`, Curio's FFI-free variant, so the build needs neither cgo nor
+`pkg-config`.
+
 ## 2. Run with local binaries
 
 ```bash
