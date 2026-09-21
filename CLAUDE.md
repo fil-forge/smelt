@@ -229,6 +229,18 @@ guppy retrieve $SPACE <CID> /tmp/retrieved
 - Uploads are per-space; when content changes and upload is re-run, changes are uploaded (like rsync)
 - Multiple sources can be added to a space; each gets its own CID in the upload output
 
+### Using the S3 Gateway (Ingot)
+
+```bash
+make s3-key                                   # tenant "dev" -> AWS CLI profile "smelt"
+aws --profile smelt s3 mb s3://my-bucket
+aws --profile smelt s3 cp README.md s3://my-bucket/
+```
+
+`scripts/s3-key.sh` creates the hilt tenant if needed, mints an access key with every S3
+permission, and writes the profile with the stack's region, ingot's endpoint and path-style
+addressing. `TENANT=` / `PROFILE=` override the defaults.
+
 ### Regenerating Keys and Proofs
 
 ```bash

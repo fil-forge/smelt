@@ -47,7 +47,7 @@ workspace-build:
 		rm -f $(WORKSPACE_OVERRIDE); \
 	fi
 
-.PHONY: help generate init up down restart clean nuke fresh logs pull build cli status guppy regen debug-upload redeploy ensure-state check-docker workspace-build shell-guppy shell-piri shell-upload shell-hilt
+.PHONY: help generate init up down restart clean nuke fresh logs pull build cli status guppy regen debug-upload redeploy s3-key ensure-state check-docker workspace-build shell-guppy shell-piri shell-upload shell-hilt
 
 # Default target - show help
 help:
@@ -89,6 +89,8 @@ help:
 	@echo "  make logs          Follow all service logs"
 	@echo "  make status        Show service status"
 	@echo "  make shell-guppy   Open shell in guppy container"
+	@echo "  make s3-key        Mint an S3 access key and save it as AWS CLI profile"
+	@echo "                     'smelt' (TENANT=..., PROFILE=... to override)"
 	@echo ""
 	@echo "Debugging:"
 	@echo "  make debug-upload  Run upload (sprue) under Delve on localhost:2345"
@@ -311,6 +313,11 @@ status: generated/compose/piri.yml ensure-state
 	@$(COMPOSE) ps
 	@echo ""
 	@$(COMPOSE) ps --format "table {{.Name}}\t{{.Status}}" | grep -E "(healthy|unhealthy|starting)" || true
+
+# Mint an S3 access key via hilt and save it as an AWS CLI profile pointed at
+# ingot. TENANT and PROFILE default to "dev" and "smelt"; see scripts/s3-key.sh.
+s3-key:
+	@TENANT="$(TENANT)" PROFILE="$(PROFILE)" ./scripts/s3-key.sh
 
 # Shell into guppy container
 shell-guppy: generated/compose/piri.yml ensure-state
