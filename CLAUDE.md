@@ -85,6 +85,7 @@ smelt/
     ├── MULTI_PIRI.md       # Multi-piri design and manifest reference
     ├── SNAPSHOTS.md        # Snapshot save/load (skip slow cold-boot)
     ├── TROUBLESHOOTING.md  # Common issues and diagnostics
+    ├── PERF_TESTING.md     # Benchmark loop against the local ingot
     └── EXTENDING.md        # Adding services and customizations
 ```
 
@@ -517,6 +518,14 @@ In Go tests, `stack.WithWorkspaceBinaries()` does the same; `stack.WithServiceBi
 mounts a specific prebuilt binary without the workspace machinery, and
 `stack.WithServiceConfig(name, path)` mounts a test-provided config file over the service's
 in-container config path.
+
+## Performance Testing
+
+`scripts/perf-s3-speedtest.sh setup|run` benchmarks the local ingot with the fil-one
+s3-speedtests harness and records code versions, container stats and logs per run under
+`generated/perf-runs/`; `scripts/perf-results.py compare s3-speedtest <label>...` puts runs side
+by side. Pair it with `make redeploy` for the edit-measure loop. Full guide:
+[docs/PERF_TESTING.md](docs/PERF_TESTING.md).
 
 ## Service Repos Own Their E2E Tests (Smelt as SDK)
 
