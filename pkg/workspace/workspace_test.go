@@ -21,15 +21,29 @@ func TestResolveTargetArch(t *testing.T) {
 		wantSource string
 	}{
 		{"SMELT_GOARCH wins over everything", "amd64", dockerSays("arm64"), "arm64", "amd64", "SMELT_GOARCH"},
+		{"SMELT_GOARCH is normalized", " ARM64\n", dockerSays("amd64"), "amd64", "arm64", "SMELT_GOARCH"},
 		{"docker server arch wins over the host", "", dockerSays("arm64"), "amd64", "arm64", "docker server"},
 		{"host arch when docker is unreachable", "", dockerFails, "amd64", "amd64", "host (docker server arch unavailable)"},
 		{"host arch when docker reports an unsupported arch", "", dockerSays("s390x"), "arm64", "arm64", "host (docker server arch unavailable)"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			arch, source := resolveTargetArch(tc.override, tc.docker, tc.host)
+			arch, source, err := resolveTargetArch(tc.override, tc.docker, tc.host)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
 			if arch != tc.wantArch || source != tc.wantSource {
 				t.Errorf("got (%q, %q), want (%q, %q)", arch, source, tc.wantArch, tc.wantSource)
+			}
+		})
+	}
+
+	unsupported := []string{"s390x", "x86_64", "aarch64"}
+	for _, override := range unsupported {
+		t.Run("SMELT_GOARCH="+override+" is rejected", func(t *testing.T) {
+			_, _, err := resolveTargetArch(override, dockerSays("amd64"), "amd64")
+			if err == nil || !strings.Contains(err.Error(), override) {
+				t.Errorf("want error naming %q, got %v", override, err)
 			}
 		})
 	}

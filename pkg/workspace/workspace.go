@@ -111,30 +111,38 @@ func Detect() (root string, services []string, err error) {
 // desktops, CI runners and remote Docker hosts all work with no configuration.
 // Resolution order: SMELT_GOARCH, the Docker server's architecture, then the
 // architecture of this process as a last resort. The result is memoized.
-func TargetArch() (arch, source string) {
+// An SMELT_GOARCH value outside the supported set is an error: the build
+// would otherwise succeed and fail later inside the container with an
+// unhelpful "exec format error".
+func TargetArch() (arch, source string, err error) {
 	targetArchOnce.Do(func() {
-		targetArch, targetArchSource = resolveTargetArch(os.Getenv("SMELT_GOARCH"), dockerServerArch, runtime.GOARCH)
+		targetArch, targetArchSource, targetArchErr = resolveTargetArch(os.Getenv("SMELT_GOARCH"), dockerServerArch, runtime.GOARCH)
 	})
-	return targetArch, targetArchSource
+	return targetArch, targetArchSource, targetArchErr
 }
 
 var (
 	targetArchOnce   sync.Once
 	targetArch       string
 	targetArchSource string
+	targetArchErr    error
 )
 
 // supportedArchs are the GOARCH values smelt publishes images for.
 var supportedArchs = map[string]bool{"amd64": true, "arm64": true}
 
-func resolveTargetArch(override string, dockerArch func() (string, error), hostArch string) (arch, source string) {
+func resolveTargetArch(override string, dockerArch func() (string, error), hostArch string) (arch, source string, err error) {
 	if override != "" {
-		return override, "SMELT_GOARCH"
+		a := strings.ToLower(strings.TrimSpace(override))
+		if !supportedArchs[a] {
+			return "", "", fmt.Errorf("SMELT_GOARCH=%q is not supported; use amd64 or arm64", override)
+		}
+		return a, "SMELT_GOARCH", nil
 	}
 	if a, err := dockerArch(); err == nil && supportedArchs[a] {
-		return a, "docker server"
+		return a, "docker server", nil
 	}
-	return hostArch, "host (docker server arch unavailable)"
+	return hostArch, "host (docker server arch unavailable)", nil
 }
 
 // dockerServerArch asks the Docker engine for its architecture. Docker reports
@@ -182,7 +190,10 @@ func BuildBinary(root, service, outDir string) (string, error) {
 	// drops into the published image's base cleanly. GOWORK is pinned
 	// explicitly so the build resolves the same workspace regardless of the
 	// caller's cwd or environment.
-	arch, _ := TargetArch()
+	arch, _, err := TargetArch()
+	if err != nil {
+		return "", err
+	}
 	cmd.Env = append(os.Environ(),
 		"CGO_ENABLED=0",
 		"GOOS=linux",
