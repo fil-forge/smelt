@@ -5,12 +5,13 @@ Optional observability stack for Smelt local development. Provides metrics colle
 ## Quick Start
 
 ```bash
-# Start all services WITH telemetry
-make up-telemetry
+# Start the stack, pointing ingot at the collector
+INGOT_OTEL_ENDPOINT=http://otel-collector:4318 make up
 
-# View dashboards
-make grafana
-# Opens: http://localhost:3001
+# Start the telemetry services on the same forge-network
+cd systems/telemetry && docker compose --profile telemetry up -d
+
+# View dashboards and traces: http://localhost:3001
 ```
 
 ## Components
@@ -59,9 +60,11 @@ Pre-configured dashboards are available in Grafana under the "Smelt" folder:
 
 ## Configuring Services
 
-Services send telemetry to the OTEL Collector when started with `make up-telemetry`.
+Ingot exports traces when `INGOT_OTEL_ENDPOINT` is set (see the quick start);
+it is unset by default, so `make up` and the SDK test stacks export nothing.
+In Grafana, traces are under Explore → Tempo, service `ingot`.
 
-To manually configure a service:
+To configure another service:
 
 ```yaml
 environment:
@@ -88,10 +91,13 @@ The telemetry stack adds approximately:
 
 ## Cleanup
 
+The telemetry services are their own Compose project (`telemetry`), so root
+`make down` leaves them running. From `systems/telemetry`:
+
 ```bash
 # Stop telemetry services
-make down
+docker compose --profile telemetry down
 
-# Remove telemetry volumes (delete all stored data)
-docker volume rm smelt_prometheus-data smelt_tempo-data smelt_grafana-data
+# Stop them and delete stored metrics, traces and dashboards
+docker compose --profile telemetry down -v
 ```
