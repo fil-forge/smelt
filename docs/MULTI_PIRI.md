@@ -195,7 +195,9 @@ SMELT_MANIFEST=manifests/piri-1-postgres-filesystem.yml make up
 Ready-made manifests live in `manifests/`. The variable takes precedence over
 an active snapshot session; `make generate`, `smelt workspace build` and
 `./smelt snapshot save` all read it, so keep it set for every command of the
-same session (export it in the shell).
+same session (export it in the shell). The Makefile records which manifest the
+compose files were generated from, so pointing the variable at another
+manifest regenerates them on the next `make` target.
 
 ## Quick Reference
 

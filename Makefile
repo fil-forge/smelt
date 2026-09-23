@@ -140,15 +140,26 @@ ensure-state: check-docker
 		cp systems/blockchain/state/deployed-addresses.json generated/snapshot-scratch/deployed-addresses.json; \
 	fi
 
-# Generate compose files and keys from smelt.yml manifest
+# Generate compose files and keys from the selected manifest. Every
+# generation also records which manifest it used, so a later run can tell a
+# switch to another manifest apart from an unchanged selection.
+MANIFEST_STAMP := generated/compose/.manifest-path
+GENERATE := go run ./cmd/smelt generate && mkdir -p $(dir $(MANIFEST_STAMP)) && echo "$(MANIFEST)" > $(MANIFEST_STAMP)
 generate:
-	@go run ./cmd/smelt generate
+	@$(GENERATE)
 
 # File target: rebuild the generated piri compose when the manifest or
 # generator source changes. Compose-invoking targets below depend on this
 # so fresh checkouts and post-nuke states regenerate piri.yml on demand.
-generated/compose/piri.yml: $(MANIFEST) $(shell find cmd/smelt pkg/generate pkg/manifest -name '*.go' 2>/dev/null)
-	@go run ./cmd/smelt generate
+generated/compose/piri.yml: $(MANIFEST) $(shell find cmd/smelt pkg/generate pkg/manifest -name '*.go' 2>/dev/null) | manifest-switch
+	@$(GENERATE)
+
+# Timestamps miss a switch between two existing manifests (both are older
+# than piri.yml), so this order-only prerequisite regenerates whenever the
+# selected manifest differs from the one recorded by the last generation.
+manifest-switch:
+	@if [ -f generated/compose/piri.yml ] && [ "$$(cat $(MANIFEST_STAMP) 2>/dev/null)" != "$(MANIFEST)" ]; then $(GENERATE); fi
+.PHONY: manifest-switch
 
 # Initialize the environment (generate keys, proofs, create network)
 init: generate

@@ -74,12 +74,19 @@ func Save(ctx context.Context, opts SaveOpts) error {
 	if err != nil {
 		return err
 	}
-	// Read the manifest bytes now: during a snapshot session manifestPath
-	// lives inside the scratch dir, which is cleared below before the stack
-	// stops, so the file must be captured (and later restored) up front.
 	manifestBytes, err := os.ReadFile(manifestPath)
 	if err != nil {
 		return fmt.Errorf("read manifest: %w", err)
+	}
+	// Capture the session manifest now, whether or not it is the one being
+	// saved: it lives inside the scratch dir, which is cleared below before
+	// the stack stops. With SMELT_MANIFEST set the saved manifest is the
+	// override, but the session must still survive the save so a later
+	// `make up` without the variable resumes on the session's topology.
+	sessionManifest := filepath.Join(projectDir, manifest.SessionManifestPath)
+	sessionBytes, err := os.ReadFile(sessionManifest)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("read session manifest: %w", err)
 	}
 	vols, err := resolveVolumes(m)
 	if err != nil {
@@ -146,9 +153,8 @@ func Save(ctx context.Context, opts SaveOpts) error {
 	}
 	// Put the session manifest back if clearing scratch removed it, so the
 	// session survives the save and `make up` resumes on the same topology.
-	sessionManifest := filepath.Join(projectDir, manifest.SessionManifestPath)
-	if manifestPath == sessionManifest {
-		if err := os.WriteFile(sessionManifest, manifestBytes, 0644); err != nil {
+	if sessionBytes != nil {
+		if err := os.WriteFile(sessionManifest, sessionBytes, 0644); err != nil {
 			return fmt.Errorf("restore session manifest: %w", err)
 		}
 	}
