@@ -100,6 +100,7 @@ mint_key() {
 # the same key to sign the did:plc tombstone. Nothing can revive that
 # tenant, so fall back to the next free id (dev-2, dev-3, ...).
 tenant="$TENANT"
+status=
 for attempt in $(seq 2 9); do
   state="$(ensure_tenant "$tenant")"
   status="$(mint_key "$tenant")"
@@ -107,12 +108,12 @@ for attempt in $(seq 2 9); do
   if [ "$status" = "500" ] && [ "$state" = "exists" ]; then
     echo "tenant $tenant exists but hilt cannot sign for it (hilt-vault lost its key on restart); trying $TENANT-$attempt" >&2
     tenant="$TENANT-$attempt"
+    status=
     continue
   fi
   die "create access key for $tenant: HTTP $status: $(cat "$body")"
 done
-[ "$status" = "200" ] || [ "$status" = "201" ] \
-  || die "create access key for $tenant: HTTP $status: $(cat "$body")"
+[ -n "$status" ] || die "gave up after 8 stale tenants ($TENANT ... $TENANT-8); run 'make clean && make up' for a fresh hilt"
 echo "tenant $tenant ready (region $region)"
 if [ "$tenant" != "$TENANT" ]; then
   echo "NOTE: using tenant $tenant instead of $TENANT; keys minted for $TENANT before the restart no longer work" >&2
