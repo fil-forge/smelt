@@ -316,7 +316,7 @@ status: generated/compose/piri.yml ensure-state
 
 # Mint an S3 access key via hilt and save it as an AWS CLI profile pointed at
 # ingot. TENANT and PROFILE default to "dev" and "smelt"; see scripts/s3-key.sh.
-s3-key:
+s3-key: generated/compose/piri.yml ensure-state
 	@TENANT="$(TENANT)" PROFILE="$(PROFILE)" ./scripts/s3-key.sh
 
 # Shell into guppy container

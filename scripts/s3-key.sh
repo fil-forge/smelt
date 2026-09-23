@@ -11,7 +11,7 @@
 # The secret access key is written only to the AWS CLI credentials file (hilt
 # returns it once); this script never prints it.
 #
-# Needs: a running stack, curl, jq, and AWS CLI v2 (2.13+, for the per-profile
+# Needs: a running stack, docker, curl, jq, and AWS CLI v2 (2.13+, for the per-profile
 # endpoint_url setting).
 set -euo pipefail
 
@@ -19,11 +19,6 @@ TENANT="${TENANT:-dev}"
 PROFILE="${PROFILE:-smelt}"
 # Hilt requires key names to be unique per tenant, so each run mints a new one.
 KEY_NAME="${KEY_NAME:-$PROFILE-$(date -u +%Y%m%dT%H%M%SZ)}"
-HILT_URL="${HILT_URL:-http://localhost:15110}"
-INGOT_URL="${INGOT_URL:-http://localhost:15130}"
-# Same default as HILT_AUTH_PARTNER_KEY in systems/hilt/compose.yml.
-PARTNER_KEY="${HILT_PARTNER_KEY:-dev-partner-key}"
-
 PERMISSIONS='[
   "s3:GetObject", "s3:GetObjectVersion", "s3:GetObjectRetention", "s3:GetObjectLegalHold",
   "s3:ListBucket", "s3:ListBucketVersions",
@@ -45,6 +40,27 @@ region="$(docker compose exec -T ingot printenv INGOT_REGION 2>/dev/null)" \
   || die "cannot read INGOT_REGION from the ingot container; is the stack up? (make up)"
 [ -n "$region" ] || die "ingot container has no INGOT_REGION set"
 
+# The partner key and the two URLs come from the running stack, so the
+# HILT_PARTNER_KEY and SMELT_*_PORT overrides given to `make up` carry over.
+# Setting HILT_PARTNER_KEY, HILT_URL or INGOT_URL for this script bypasses that.
+PARTNER_KEY="${HILT_PARTNER_KEY:-}"
+if [ -z "$PARTNER_KEY" ]; then
+  PARTNER_KEY="$(docker compose exec -T hilt printenv HILT_AUTH_PARTNER_KEY 2>/dev/null)" \
+    || die "cannot read HILT_AUTH_PARTNER_KEY from the hilt container; is the stack up? (make up)"
+fi
+
+# published_url <service> <container-port>: http://localhost:<host-port>
+published_url() {
+  local port
+  port="$(docker compose port "$1" "$2" 2>/dev/null)" \
+    || die "$1 does not publish port $2; is the stack up? (make up)"
+  echo "http://localhost:${port##*:}"
+}
+HILT_URL="${HILT_URL:-}"
+if [ -z "$HILT_URL" ]; then HILT_URL="$(published_url hilt 80)"; fi
+INGOT_URL="${INGOT_URL:-}"
+if [ -z "$INGOT_URL" ]; then INGOT_URL="$(published_url ingot 80)"; fi
+
 auth=(-H "Authorization: Bearer $PARTNER_KEY" -H "Content-Type: application/json")
 
 body="$(mktemp)"
@@ -60,7 +76,8 @@ case "$status" in
 esac
 
 status="$(curl -sS -o "$body" -w '%{http_code}' -X POST "$HILT_URL/tenants/$TENANT/access-keys" \
-  "${auth[@]}" -d "{\"name\":\"$KEY_NAME\",\"permissions\":$PERMISSIONS}")"
+  "${auth[@]}" -d "{\"name\":\"$KEY_NAME\",\"permissions\":$PERMISSIONS}")" \
+  || die "hilt unreachable at $HILT_URL"
 [ "$status" = "200" ] || [ "$status" = "201" ] \
   || die "create access key for $TENANT: HTTP $status: $(cat "$body")"
 
@@ -69,6 +86,10 @@ secret_access_key="$(jq -r '.secretAccessKey // empty' "$body")"
 [ -n "$access_key_id" ] && [ -n "$secret_access_key" ] \
   || die "hilt returned incomplete credentials: $(jq -c 'del(.secretAccessKey)' "$body")"
 
+# The secret passes through argv here, visible to other local users in the
+# process list for the instant the command runs. This is a single-user dev
+# box minting a key for a local stack, so that is accepted over the
+# alternative of staging a credentials CSV on disk for `aws configure import`.
 aws configure set --profile "$PROFILE" aws_access_key_id "$access_key_id"
 aws configure set --profile "$PROFILE" aws_secret_access_key "$secret_access_key"
 aws configure set --profile "$PROFILE" region "$region"
