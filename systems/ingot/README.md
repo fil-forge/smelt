@@ -154,6 +154,11 @@ The profile stores `endpoint_url`, which needs AWS CLI v2.13 or newer. To
 drive the tenant API by hand instead, see the smoke test in
 [systems/hilt/README.md](../hilt/README.md).
 
+Rerun `make s3-key` after `make down && make up`: hilt-vault runs in memory,
+so a restart loses the tenant's signing key and the saved access key stops
+working. The script then provisions the next free tenant id (`dev-2`, ...)
+and writes a fresh key to the profile.
+
 ### Region KEK smoke test
 
 ```bash

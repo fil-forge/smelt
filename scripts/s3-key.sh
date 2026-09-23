@@ -11,6 +11,11 @@
 # The secret access key is written only to the AWS CLI credentials file (hilt
 # returns it once); this script never prints it.
 #
+# After `make down && make up` hilt has forgotten the tenant's signing key
+# (hilt-vault is in-memory), so the script moves on to the next free tenant id
+# (dev-2, dev-3, ...) and the previously saved key stops working; rerun
+# `make s3-key` to get a working profile again.
+#
 # Needs: a running stack, docker, curl, jq, and AWS CLI v2 (2.13+, for the per-profile
 # endpoint_url setting).
 set -euo pipefail
@@ -66,20 +71,53 @@ auth=(-H "Authorization: Bearer $PARTNER_KEY" -H "Content-Type: application/json
 body="$(mktemp)"
 trap 'rm -f "$body"' EXIT
 
-status="$(curl -sS -o "$body" -w '%{http_code}' -X PUT "$HILT_URL/tenants/$TENANT" \
-  "${auth[@]}" -d "{\"region\":\"$region\"}")" \
-  || die "hilt unreachable at $HILT_URL"
-# PUT is idempotent on the tenant id (200 when it already exists, 201 when created).
-case "$status" in
-  200|201) echo "tenant $TENANT ready (region $region)" ;;
-  *)       die "create tenant $TENANT: HTTP $status: $(cat "$body")" ;;
-esac
+# ensure_tenant <id>: PUT the tenant; prints "created" or "exists". PUT is
+# idempotent on the tenant id (201 when created, 200 when it already exists).
+ensure_tenant() {
+  local status
+  status="$(curl -sS -o "$body" -w '%{http_code}' -X PUT "$HILT_URL/tenants/$1" \
+    "${auth[@]}" -d "{\"region\":\"$region\"}")" \
+    || die "hilt unreachable at $HILT_URL"
+  case "$status" in
+    201) echo created ;;
+    200) echo exists ;;
+    *)   die "create tenant $1: HTTP $status: $(cat "$body")" ;;
+  esac
+}
 
-status="$(curl -sS -o "$body" -w '%{http_code}' -X POST "$HILT_URL/tenants/$TENANT/access-keys" \
-  "${auth[@]}" -d "{\"name\":\"$KEY_NAME\",\"permissions\":$PERMISSIONS}")" \
-  || die "hilt unreachable at $HILT_URL"
+# mint_key <tenant-id>: POST an access key; prints the HTTP status, leaves
+# the response in $body.
+mint_key() {
+  curl -sS -o "$body" -w '%{http_code}' -X POST "$HILT_URL/tenants/$1/access-keys" \
+    "${auth[@]}" -d "{\"name\":\"$KEY_NAME\",\"permissions\":$PERMISSIONS}" \
+    || die "hilt unreachable at $HILT_URL"
+}
+
+# Hilt keeps tenant records in postgres but the tenant's signing key in
+# hilt-vault, which runs OpenBao in dev mode: in memory, gone after
+# `make down && make up`. The tenant then still exists (PUT says 200) but
+# every access-key request fails with 500, and so does DELETE, which needs
+# the same key to sign the did:plc tombstone. Nothing can revive that
+# tenant, so fall back to the next free id (dev-2, dev-3, ...).
+tenant="$TENANT"
+for attempt in $(seq 2 9); do
+  state="$(ensure_tenant "$tenant")"
+  status="$(mint_key "$tenant")"
+  if [ "$status" = "200" ] || [ "$status" = "201" ]; then break; fi
+  if [ "$status" = "500" ] && [ "$state" = "exists" ]; then
+    echo "tenant $tenant exists but hilt cannot sign for it (hilt-vault lost its key on restart); trying $TENANT-$attempt" >&2
+    tenant="$TENANT-$attempt"
+    continue
+  fi
+  die "create access key for $tenant: HTTP $status: $(cat "$body")"
+done
 [ "$status" = "200" ] || [ "$status" = "201" ] \
-  || die "create access key for $TENANT: HTTP $status: $(cat "$body")"
+  || die "create access key for $tenant: HTTP $status: $(cat "$body")"
+echo "tenant $tenant ready (region $region)"
+if [ "$tenant" != "$TENANT" ]; then
+  echo "NOTE: using tenant $tenant instead of $TENANT; keys minted for $TENANT before the restart no longer work" >&2
+fi
+TENANT="$tenant"
 
 access_key_id="$(jq -r '.accessKeyId // empty' "$body")"
 secret_access_key="$(jq -r '.secretAccessKey // empty' "$body")"

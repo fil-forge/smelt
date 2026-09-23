@@ -239,7 +239,9 @@ aws --profile smelt s3 cp README.md s3://my-bucket/
 
 `scripts/s3-key.sh` creates the hilt tenant if needed, mints an access key with every S3
 permission, and writes the profile with the stack's region, ingot's endpoint and path-style
-addressing. `TENANT=` / `PROFILE=` override the defaults.
+addressing. `TENANT=` / `PROFILE=` override the defaults. Rerun it after `make down && make up`:
+hilt-vault is in-memory, so the tenant's signing key is gone and the script moves on to the
+next free tenant id (`dev-2`, ...) with a fresh key.
 
 ### Regenerating Keys and Proofs
 
