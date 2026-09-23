@@ -2,3 +2,6 @@
 generated/
 # Built smelt CLI binary
 /smelt
+# Python bytecode caches (scripts/perf-results.py)
+__pycache__/
+*.py[cod]

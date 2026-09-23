@@ -33,9 +33,16 @@ def main(argv: list[str]) -> int:
         rows = record(suite, Path(argv[3]))
         print_table(rows)
         return 0
-    rows = load_rows(suite, argv[3:])
+    labels = argv[3:]
+    rows = load_rows(suite, labels)
     if not rows:
-        print(f"no runs recorded for suite {suite!r}" + (f" with labels {argv[3:]}" if argv[3:] else ""), file=sys.stderr)
+        print(f"no runs recorded for suite {suite!r}", file=sys.stderr)
+        return 1
+    # A label with no run (say, the `after` run failed before recording) must
+    # not quietly turn a comparison into a one-column table.
+    missing = [label for label in labels if not any(r["label"] == label for r in rows)]
+    if missing:
+        print(f"no runs recorded for suite {suite!r} with label(s): {', '.join(missing)}", file=sys.stderr)
         return 1
     print_table(rows)
     return 0

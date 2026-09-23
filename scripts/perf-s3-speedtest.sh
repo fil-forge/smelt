@@ -9,13 +9,15 @@
 #   ./scripts/perf-results.py compare s3-speedtest before after
 #
 # Environment:
-#   S3_SPEEDTESTS_DIR  checkout of fil-one/s3-speedtests (default ~/src/ff/s3-speedtests)
+#   S3_SPEEDTESTS_DIR  checkout of fil-one/s3-speedtests (default: fil-one/s3-speedtests
+#                      beside the fil-forge/ directory this smelt checkout lives in)
 #   TESTFILES_DIR      where the random_*.bin payloads live (default generated/perf/testfiles)
 #   FILE_SET           quick | standard | large | full (default quick)
 #   LABEL              run label, required for `run`
 #   RUNS               repeats per file (default 1)
 #   SNAPSHOT           run: `make down && make up SNAPSHOT=...` first, then re-run setup
-#                      (hilt's dev vault is in memory, so a restore loses the access key)
+#                      (hilt's dev vault is in memory, so a restore loses the access key).
+#                      With SMELT_MANIFEST also set, the two manifests must match.
 #
 # Output: generated/perf-runs/s3-speedtest/<utc-ts>-<label>/ plus one row per
 # (operation, file size) appended to generated/perf-runs/s3-speedtest/runs.jsonl.
@@ -26,7 +28,9 @@ source "$(dirname "${BASH_SOURCE[0]}")/perf-lib.sh"
 
 SUITE=s3-speedtest
 PROJECT="$(perf_project_dir)"
-S3_SPEEDTESTS_DIR="${S3_SPEEDTESTS_DIR:-$HOME/src/ff/s3-speedtests}"
+# Go-style layout: github.com/fil-forge/smelt and github.com/fil-one/s3-speedtests
+# are checked out as <root>/fil-forge/smelt and <root>/fil-one/s3-speedtests.
+S3_SPEEDTESTS_DIR="${S3_SPEEDTESTS_DIR:-$(dirname "$(dirname "$PROJECT")")/fil-one/s3-speedtests}"
 TESTFILES_DIR="${TESTFILES_DIR:-$PROJECT/generated/perf/testfiles}"
 FILE_SET="${FILE_SET:-quick}"
 RUNS="${RUNS:-1}"
@@ -44,6 +48,10 @@ setup() {
   perf_require aws jq docker python3
   [ -d "$S3_SPEEDTESTS_DIR/scripts" ] || perf_die "s3-speedtests checkout not found at $S3_SPEEDTESTS_DIR (set S3_SPEEDTESTS_DIR)"
 
+  # `make up` returns before the services are healthy; a head-bucket against
+  # a starting ingot fails like a missing bucket would.
+  wait_healthy hilt
+  wait_healthy ingot
   (cd "$PROJECT" && TENANT="$TENANT" PROFILE="$PROFILE" ./scripts/s3-key.sh)
   local region
   region="$(aws configure get --profile "$PROFILE" region)"
@@ -95,8 +103,8 @@ run() {
     if [ -f "$PROJECT/generated/compose/workspace.override.yml" ] && [ "${SMELT_WORKSPACE:-0}" != "1" ]; then
       perf_die "the stack runs workspace binaries but SMELT_WORKSPACE is not 1; export SMELT_WORKSPACE=1 so the snapshot restore keeps them"
     fi
+    check_snapshot_manifest
     (cd "$PROJECT" && make down && make up SNAPSHOT="$SNAPSHOT")
-    wait_healthy ingot
     setup
   fi
 
@@ -143,6 +151,20 @@ run() {
 
   "$PROJECT/scripts/perf-results.py" record "$SUITE" "$run_dir"
   [ "$status" -eq 0 ] || perf_die "a speedtest step failed (exit $status); see $run_dir/*.out"
+}
+
+# check_snapshot_manifest: SMELT_MANIFEST takes precedence over the manifest a
+# snapshot installs as its session, for the restore and for every make target
+# after it. A mismatch would boot the override's services on the snapshot's
+# volumes, keys and chain state, so refuse unless the two files agree.
+check_snapshot_manifest() {
+  [ -n "${SMELT_MANIFEST:-}" ] || return 0
+  local override="$SMELT_MANIFEST" snap_dir="$SNAPSHOT"
+  [[ "$override" = /* ]] || override="$PROJECT/$override"
+  [[ "$snap_dir" = */* ]] || snap_dir="$PROJECT/generated/snapshots/$snap_dir"
+  [ -f "$snap_dir/smelt.yml" ] || perf_die "no smelt.yml in snapshot $SNAPSHOT ($snap_dir)"
+  cmp -s "$override" "$snap_dir/smelt.yml" \
+    || perf_die "SMELT_MANIFEST ($SMELT_MANIFEST) differs from the manifest of snapshot $SNAPSHOT; unset it or pick a snapshot with the same topology"
 }
 
 # wait_healthy <compose-service>: poll until docker reports the container healthy.

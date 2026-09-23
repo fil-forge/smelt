@@ -29,13 +29,20 @@ perf_run_dir() {
   echo "$dir"
 }
 
-# perf_git_info <repo-dir>: JSON {sha, dirty} for a checkout, or null when absent.
+# perf_git_info <repo-dir>: JSON {sha, dirty} for a checkout, or null when the
+# directory is missing or is not the root of a repository. Linked worktrees
+# have a .git file rather than a directory, so ask git instead of testing for
+# one; comparing the toplevel keeps a plain directory nested inside some other
+# repository from reporting that repository's SHA.
 perf_git_info() {
-  local dir="$1"
-  if [ ! -d "$dir/.git" ]; then echo null; return; fi
+  local dir="$1" top
+  if [ ! -d "$dir" ]; then echo null; return; fi
+  top="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)" || { echo null; return; }
+  if [ "$top" != "$(cd "$dir" && pwd -P)" ]; then echo null; return; fi
   local sha dirty=false
   sha="$(git -C "$dir" rev-parse --short HEAD)"
-  [ -z "$(git -C "$dir" status --porcelain --untracked-files=no)" ] || dirty=true
+  # Untracked files count: a workspace build compiles them all the same.
+  [ -z "$(git -C "$dir" status --porcelain)" ] || dirty=true
   jq -cn --arg sha "$sha" --argjson dirty "$dirty" '{sha: $sha, dirty: $dirty}'
 }
 
@@ -43,23 +50,30 @@ perf_git_info() {
 # suite-json is a JSON object with the suite's own settings (file set, runs,
 # aws profile settings, ...); it lands under the "suite" key.
 perf_metadata() {
+  perf_require git jq docker
   local run_dir="$1" label="$2" suite_json="$3"
-  local project sibling repos manifest arch workspace_services
+  local project sibling repos manifest manifest_file arch workspace_services
   project="$(perf_project_dir)"
   sibling="$(dirname "$project")"
 
+  # libforge is in the list because a go.work that includes it rebuilds every
+  # service from it (see pkg/workspace), so its revision changes the binaries.
   repos="{}"
   local name
-  for name in smelt ingot sprue piri hilt; do
+  for name in smelt ingot sprue piri hilt libforge; do
     local dir="$sibling/$name"
     [ "$name" = smelt ] && dir="$project"
     repos="$(jq -cn --argjson acc "$repos" --arg name "$name" --argjson info "$(perf_git_info "$dir")" '$acc + {($name): $info}')"
   done
 
+  # Same precedence as manifest.ResolveManifestPath: SMELT_MANIFEST (absolute
+  # or relative to the project), then the snapshot session, then smelt.yml.
   manifest="${SMELT_MANIFEST:-smelt.yml}"
   if [ -f "$project/generated/snapshot-scratch/smelt.yml" ] && [ -z "${SMELT_MANIFEST:-}" ]; then
     manifest="generated/snapshot-scratch/smelt.yml"
   fi
+  manifest_file="$manifest"
+  [[ "$manifest_file" = /* ]] || manifest_file="$project/$manifest_file"
 
   workspace_services="[]"
   if [ -f "$project/generated/compose/workspace.override.yml" ]; then
@@ -75,7 +89,7 @@ perf_metadata() {
     --arg started "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     --arg host "$(hostname)" \
     --arg manifest "$manifest" \
-    --arg blob "$(grep -o 'blob: *[a-z0-9]*' "$project/$manifest" 2>/dev/null | head -1 | sed 's/blob: *//')" \
+    --arg blob "$(grep -o 'blob: *[a-z0-9]*' "$manifest_file" 2>/dev/null | head -1 | sed 's/blob: *//')" \
     --arg arch "$arch" \
     --arg ncpu "$(docker info --format '{{.NCPU}}' 2>/dev/null || echo unknown)" \
     --arg mem "$(docker info --format '{{.MemTotal}}' 2>/dev/null || echo unknown)" \
