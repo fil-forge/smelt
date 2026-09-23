@@ -1,8 +1,9 @@
 # Telemetry System - Observability stack (optional)
 #
 # Provides metrics and distributed tracing for Smelt services.
-# Enable with: docker compose --profile telemetry up -d
-# Or use: make up-telemetry
+# Not part of the root compose file. After `make up`, start it from this
+# directory: docker compose --profile telemetry up -d
+# It joins the shared forge-network that `make init` creates.
 #
 # Components:
 #   - OTEL Collector: Telemetry pipeline (receives OTLP, exports to backends)
@@ -100,6 +101,10 @@ services:
     restart: unless-stopped
     networks:
       - forge-network
+
+networks:
+  forge-network:
+    external: true
 
 volumes:
   prometheus-data:
