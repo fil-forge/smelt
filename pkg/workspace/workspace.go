@@ -139,7 +139,7 @@ func resolveTargetArch(override string, dockerArch func() (string, error), hostA
 		}
 		return a, "SMELT_GOARCH", nil
 	}
-	if a, err := dockerArch(); err == nil && supportedArchs[a] {
+	if a, dockerErr := dockerArch(); dockerErr == nil && supportedArchs[a] {
 		return a, "docker server", nil
 	}
 	return hostArch, "host (docker server arch unavailable)", nil
