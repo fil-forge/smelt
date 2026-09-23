@@ -154,6 +154,10 @@ running container is executing, and `docker compose up -d --no-deps --force-recr
 up fresh containers that pick up the new file. `smelt workspace services` prints which
 containers those are.
 
+`make redeploy` recreates the services in the *current* go.work selection only. After removing
+a module from the use-list, run `SMELT_WORKSPACE=1 make up` instead: it recreates the container
+whose mount went away, so it returns to the published binary.
+
 ## Turning it off / troubleshooting
 
 - **Back to published images:** run any `make` target *without* `SMELT_WORKSPACE=1` (it removes

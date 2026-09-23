@@ -333,7 +333,9 @@ shell-hilt: ensure-state
 # SVC=ingot (comma-separated list allowed) limits both the build and the
 # recreate to those services. Containers are recreated rather than restarted:
 # the binary is a file bind mount resolved when the container is created, and
-# the build installs a new file (new inode) under the same path.
+# the build installs a new file (new inode) under the same path. Only the
+# current go.work selection is recreated; after dropping a module from the
+# use-list, `make up` is what recreates its container without the mount.
 redeploy: generated/compose/piri.yml ensure-state
 	@if [ "$(SMELT_WORKSPACE)" != "1" ]; then \
 		echo "ERROR: redeploy needs SMELT_WORKSPACE=1 (binaries come from the go.work checkouts)"; \
