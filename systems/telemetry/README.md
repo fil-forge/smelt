@@ -91,10 +91,13 @@ The telemetry stack adds approximately:
 
 ## Cleanup
 
+The telemetry services are their own Compose project (`telemetry`), so root
+`make down` leaves them running. From `systems/telemetry`:
+
 ```bash
 # Stop telemetry services
-make down
+docker compose --profile telemetry down
 
-# Remove telemetry volumes (delete all stored data)
-docker volume rm smelt_prometheus-data smelt_tempo-data smelt_grafana-data
+# Stop them and delete stored metrics, traces and dashboards
+docker compose --profile telemetry down -v
 ```
