@@ -18,6 +18,9 @@ services:
     # falls back to the config.yaml value.
     environment:
       - SPRUE_SERVER_PUBLIC_URL
+      # OTLP/HTTP collector for sprue's traces; tracing is off when empty.
+      # With systems/telemetry running: OTEL_ENDPOINT=http://otel-collector:4318
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_ENDPOINT:-}
     volumes:
       - ../../generated/keys/upload.pem:/keys/upload.pem:ro
       - ./config:/etc/sprue:ro

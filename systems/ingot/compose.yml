@@ -27,8 +27,8 @@ services:
       - INGOT_REGION=${INGOT_REGION:-us-west-1}
       - INGOT_LOG_LEVEL=${INGOT_LOG_LEVEL:-info}
       # OTLP/HTTP collector for ingot's traces; tracing is off when empty.
-      # With systems/telemetry running: INGOT_OTEL_ENDPOINT=http://otel-collector:4318
-      - OTEL_EXPORTER_OTLP_ENDPOINT=${INGOT_OTEL_ENDPOINT:-}
+      # With systems/telemetry running: OTEL_ENDPOINT=http://otel-collector:4318
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_ENDPOINT:-}
       # Token for the region-KEK transit calls (config/config.yaml sets the
       # rest of the regionkey block). Provisioned by ingot-openbao-init on
       # every boot; local-dev value, like the partner key in systems/hilt.
