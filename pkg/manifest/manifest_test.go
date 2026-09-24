@@ -1,6 +1,8 @@
 package manifest
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -231,5 +233,42 @@ piri:
 		if n.Name != expected {
 			t.Errorf("node %d: expected name %q, got %q", i, expected, n.Name)
 		}
+	}
+}
+
+func TestResolveManifestPathPrecedence(t *testing.T) {
+	projectDir := t.TempDir()
+	sessionPath := filepath.Join(projectDir, SessionManifestPath)
+	if err := os.MkdirAll(filepath.Dir(sessionPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	cases := []struct {
+		name        string
+		env         string
+		withSession bool
+		wantPath    string
+		wantSource  ManifestSource
+	}{
+		{"project manifest by default", "", false, filepath.Join(projectDir, ProjectManifestPath), SourceProject},
+		{"session manifest wins over project", "", true, sessionPath, SourceSession},
+		{"relative SMELT_MANIFEST resolved against the project", "manifests/x.yml", true, filepath.Join(projectDir, "manifests/x.yml"), SourceEnv},
+		{"absolute SMELT_MANIFEST used as is", "/abs/x.yml", true, "/abs/x.yml", SourceEnv},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(ManifestEnvVar, tc.env)
+			if tc.withSession {
+				if err := os.WriteFile(sessionPath, []byte("version: 1\n"), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				_ = os.Remove(sessionPath)
+			}
+			path, source := ResolveManifestPath(projectDir)
+			if path != tc.wantPath || source != tc.wantSource {
+				t.Errorf("got (%q, %q), want (%q, %q)", path, source, tc.wantPath, tc.wantSource)
+			}
+		})
 	}
 }

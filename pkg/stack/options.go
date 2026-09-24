@@ -143,7 +143,8 @@ func WithPiriImage(image string) Option {
 
 // WithServiceBinary mounts a prebuilt binary over a service's binary in the
 // container, replacing the image's copy without rebuilding the image. The
-// binary must be a static linux/amd64 build. service is a smelt service name
+// binary must be a static Linux build for the Docker engine's architecture
+// (see workspace.TargetArch). service is a smelt service name
 // (piri, upload, signing-service, indexer, delegator, guppy).
 //
 // For building from a local checkout via the Go workspace, prefer
@@ -160,7 +161,8 @@ func WithServiceBinary(service, path string) Option {
 
 // WithPiriBinary mounts a local piri binary into the piri container(s),
 // replacing the image's binary for fast iteration. The binary must be compiled
-// for linux/amd64. Equivalent to WithServiceBinary("piri", path).
+// for Linux on the Docker engine's architecture. Equivalent to
+// WithServiceBinary("piri", path).
 func WithPiriBinary(path string) Option {
 	return WithServiceBinary("piri", path)
 }

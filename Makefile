@@ -12,6 +12,15 @@ YES ?= 0
 # compose call mounts them over the published images.
 SMELT_WORKSPACE ?= 0
 
+# Set SMELT_MANIFEST=path/to/manifest.yml to drive the stack off a manifest
+# other than the tracked smelt.yml (e.g. manifests/piri-1-postgres-filesystem.yml).
+# The Go side reads the same variable (see manifest.ResolveManifestPath), so
+# generate, workspace build and snapshot save all follow it; the Makefile only
+# needs it to know which file the generated compose depends on.
+SMELT_MANIFEST ?=
+MANIFEST := $(or $(SMELT_MANIFEST),smelt.yml)
+export SMELT_MANIFEST
+
 WORKSPACE_OVERRIDE := generated/compose/workspace.override.yml
 
 # Chain the workspace binary-mount override into every compose call, but only
@@ -38,7 +47,7 @@ workspace-build:
 		rm -f $(WORKSPACE_OVERRIDE); \
 	fi
 
-.PHONY: help generate init up down restart clean nuke fresh logs pull build cli status guppy regen debug-upload ensure-state check-docker workspace-build shell-guppy shell-piri shell-upload shell-hilt
+.PHONY: help generate init up down restart clean nuke fresh logs pull build cli status guppy regen debug-upload redeploy s3-key ensure-state check-docker workspace-build shell-guppy shell-piri shell-upload shell-hilt
 
 # Default target - show help
 help:
@@ -62,6 +71,8 @@ help:
 	@echo "Piri Configuration:"
 	@echo "  Edit smelt.yml to configure piri node count and storage backends."
 	@echo "  Run 'make generate' (or 'make up') to apply changes."
+	@echo "  SMELT_MANIFEST=manifests/<name>.yml make up  Use another manifest"
+	@echo "  without editing smelt.yml (ready-made ones live in manifests/)."
 	@echo ""
 	@echo "Snapshots:"
 	@echo "  make cli                          Build the ./smelt CLI binary"
@@ -78,6 +89,8 @@ help:
 	@echo "  make logs          Follow all service logs"
 	@echo "  make status        Show service status"
 	@echo "  make shell-guppy   Open shell in guppy container"
+	@echo "  make s3-key        Mint an S3 access key and save it as AWS CLI profile"
+	@echo "                     'smelt' (TENANT=..., PROFILE=... to override)"
 	@echo ""
 	@echo "Debugging:"
 	@echo "  make debug-upload  Run upload (sprue) under Delve on localhost:2345"
@@ -88,6 +101,8 @@ help:
 	@echo "                     sibling checkouts (selected via the active go.work"
 	@echo "                     use-list). 'SMELT_WORKSPACE=1 make up' compiles them"
 	@echo "                     and mounts them over the published images."
+	@echo "  make redeploy      Rebuild the workspace binaries and recreate their"
+	@echo "                     containers (SMELT_WORKSPACE=1; SVC=ingot to limit)."
 	@echo ""
 	@echo "Destructive commands (clean, nuke, fresh) require confirmation."
 	@echo ""
@@ -129,15 +144,26 @@ ensure-state: check-docker
 		cp systems/blockchain/state/deployed-addresses.json generated/snapshot-scratch/deployed-addresses.json; \
 	fi
 
-# Generate compose files and keys from smelt.yml manifest
+# Generate compose files and keys from the selected manifest. Every
+# generation also records which manifest it used, so a later run can tell a
+# switch to another manifest apart from an unchanged selection.
+MANIFEST_STAMP := generated/compose/.manifest-path
+GENERATE := go run ./cmd/smelt generate && mkdir -p $(dir $(MANIFEST_STAMP)) && echo "$(MANIFEST)" > $(MANIFEST_STAMP)
 generate:
-	@go run ./cmd/smelt generate
+	@$(GENERATE)
 
 # File target: rebuild the generated piri compose when the manifest or
 # generator source changes. Compose-invoking targets below depend on this
 # so fresh checkouts and post-nuke states regenerate piri.yml on demand.
-generated/compose/piri.yml: smelt.yml $(shell find cmd/smelt pkg/generate pkg/manifest -name '*.go' 2>/dev/null)
-	@go run ./cmd/smelt generate
+generated/compose/piri.yml: $(MANIFEST) $(shell find cmd/smelt pkg/generate pkg/manifest -name '*.go' 2>/dev/null) | manifest-switch
+	@$(GENERATE)
+
+# Timestamps miss a switch between two existing manifests (both are older
+# than piri.yml), so this order-only prerequisite regenerates whenever the
+# selected manifest differs from the one recorded by the last generation.
+manifest-switch:
+	@if [ -f generated/compose/piri.yml ] && [ "$$(cat $(MANIFEST_STAMP) 2>/dev/null)" != "$(MANIFEST)" ]; then $(GENERATE); fi
+.PHONY: manifest-switch
 
 # Initialize the environment (generate keys, proofs, create network)
 init: generate
@@ -288,6 +314,11 @@ status: generated/compose/piri.yml ensure-state
 	@echo ""
 	@$(COMPOSE) ps --format "table {{.Name}}\t{{.Status}}" | grep -E "(healthy|unhealthy|starting)" || true
 
+# Mint an S3 access key via hilt and save it as an AWS CLI profile pointed at
+# ingot. TENANT and PROFILE default to "dev" and "smelt"; see scripts/s3-key.sh.
+s3-key: generated/compose/piri.yml ensure-state
+	@TENANT="$(TENANT)" PROFILE="$(PROFILE)" ./scripts/s3-key.sh
+
 # Shell into guppy container
 shell-guppy: generated/compose/piri.yml ensure-state
 	$(COMPOSE) exec guppy bash
@@ -303,6 +334,28 @@ shell-upload: ensure-state
 # Shell into hilt container
 shell-hilt: ensure-state
 	$(COMPOSE) exec hilt bash
+
+# Rebuild the workspace binaries and recreate the containers that run them,
+# leaving the rest of the stack (chain state, init services, volumes) alone.
+# SVC=ingot (comma-separated list allowed) limits both the build and the
+# recreate to those services. Containers are recreated rather than restarted:
+# the binary is a file bind mount resolved when the container is created, and
+# the build installs a new file (new inode) under the same path. Only the
+# current go.work selection is recreated; after dropping a module from the
+# use-list, `make up` is what recreates its container without the mount.
+redeploy: generated/compose/piri.yml ensure-state
+	@if [ "$(SMELT_WORKSPACE)" != "1" ]; then \
+		echo "ERROR: redeploy needs SMELT_WORKSPACE=1 (binaries come from the go.work checkouts)"; \
+		exit 1; \
+	fi
+	go run ./cmd/smelt workspace build $(if $(SVC),--only $(SVC))
+	@# Resolve the container list first and refuse to continue when it is
+	@# empty: `up --force-recreate` with no service args would recreate the
+	@# whole stack.
+	@services=$$(go run ./cmd/smelt workspace services $(if $(SVC),--only $(SVC))) || exit 1; \
+	if [ -z "$$services" ]; then echo "ERROR: no workspace services to redeploy"; exit 1; fi; \
+	echo "Recreating: $$services"; \
+	$(COMPOSE) up -d --no-deps --force-recreate $$services
 
 # Run upload (sprue) under Delve for remote debugging.
 # See compose.debug.yml for the overlay; attach to localhost:2345.

@@ -23,8 +23,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
+	"sync"
 
 	"gopkg.in/yaml.v3"
 )
@@ -33,6 +35,7 @@ import (
 type serviceBuild struct {
 	moduleDir   string   // go.work use-dir basename, e.g. "piri"
 	buildTarget string   // `go build` package arg, e.g. "./cmd"
+	buildTags   []string // `go build -tags` the module's Dockerfile builds with, if any
 	binPath     string   // absolute path of the binary inside the container image
 	configPath  string   // absolute path of the service's config file inside the container; empty when the service has no single-file config to override
 	alsoBinIn   []string // additional compose services that run the same image and must receive the binary mount (e.g. one-shot registrars invoking the service's CLI)
@@ -43,7 +46,9 @@ type serviceBuild struct {
 // the generated piri-N nodes. Verified against each sibling's Dockerfile — note
 // delegator installs its binary as /usr/bin/registrar (binary name != module).
 var Services = map[string]serviceBuild{
-	"piri":            {moduleDir: "piri", buildTarget: "./cmd", binPath: "/usr/bin/piri"},
+	// `skiff` selects Curio's FFI-free variants, as piri's Dockerfile does;
+	// without it the build pulls in filecoin-ffi and needs cgo and pkg-config.
+	"piri":            {moduleDir: "piri", buildTarget: "./cmd", buildTags: []string{"skiff"}, binPath: "/usr/bin/piri"},
 	"upload":          {moduleDir: "sprue", buildTarget: "./cmd/main.go", binPath: "/usr/bin/sprue", alsoBinIn: []string{"upload-init"}},
 	"signing-service": {moduleDir: "piri-signing-service", buildTarget: ".", binPath: "/usr/bin/signer"},
 	"indexer":         {moduleDir: "indexing-service", buildTarget: "./cmd", binPath: "/usr/bin/indexer"},
@@ -99,9 +104,60 @@ func Detect() (root string, services []string, err error) {
 	return root, services, nil
 }
 
+// TargetArch returns the GOARCH the workspace binaries are built for, and
+// where that answer came from, for the build log. The binaries are
+// bind-mounted into containers, so they must match the Docker *server*
+// (the engine that runs them), which is what makes arm64 Macs, amd64 Linux
+// desktops, CI runners and remote Docker hosts all work with no configuration.
+// Resolution order: SMELT_GOARCH, the Docker server's architecture, then the
+// architecture of this process as a last resort. The result is memoized.
+// An SMELT_GOARCH value outside the supported set is an error: the build
+// would otherwise succeed and fail later inside the container with an
+// unhelpful "exec format error".
+func TargetArch() (arch, source string, err error) {
+	targetArchOnce.Do(func() {
+		targetArch, targetArchSource, targetArchErr = resolveTargetArch(os.Getenv("SMELT_GOARCH"), dockerServerArch, runtime.GOARCH)
+	})
+	return targetArch, targetArchSource, targetArchErr
+}
+
+var (
+	targetArchOnce   sync.Once
+	targetArch       string
+	targetArchSource string
+	targetArchErr    error
+)
+
+// supportedArchs are the GOARCH values smelt publishes images for.
+var supportedArchs = map[string]bool{"amd64": true, "arm64": true}
+
+func resolveTargetArch(override string, dockerArch func() (string, error), hostArch string) (arch, source string, err error) {
+	if override != "" {
+		a := strings.ToLower(strings.TrimSpace(override))
+		if !supportedArchs[a] {
+			return "", "", fmt.Errorf("SMELT_GOARCH=%q is not supported; use amd64 or arm64", override)
+		}
+		return a, "SMELT_GOARCH", nil
+	}
+	if a, dockerErr := dockerArch(); dockerErr == nil && supportedArchs[a] {
+		return a, "docker server", nil
+	}
+	return hostArch, "host (docker server arch unavailable)", nil
+}
+
+// dockerServerArch asks the Docker engine for its architecture. Docker reports
+// it using Go's GOARCH names (amd64, arm64), so no mapping is needed.
+func dockerServerArch() (string, error) {
+	out, err := exec.Command("docker", "version", "--format", "{{.Server.Arch}}").Output()
+	if err != nil {
+		return "", fmt.Errorf("docker version: %w", err)
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
 // BuildBinary compiles one service's binary from its sibling module under root
-// into outDir, returning the absolute output path. It produces a static
-// linux/amd64 binary with the workspace active so local cross-module edits
+// into outDir, returning the absolute output path. It produces a static linux
+// binary for TargetArch with the workspace active so local cross-module edits
 // (e.g. a local libforge) are compiled in.
 func BuildBinary(root, service, outDir string) (string, error) {
 	spec, ok := Services[service]
@@ -122,16 +178,32 @@ func BuildBinary(root, service, outDir string) (string, error) {
 		return "", err
 	}
 
+	// Build to a temp name and rename into place. A container may be running
+	// the current binary through a file bind mount: writing over it fails on
+	// Linux with ETXTBSY, and even a successful overwrite would change the
+	// bytes under a running process. The rename gives the path a new inode
+	// while the running container keeps the old one until it is recreated.
 	out := filepath.Join(absOutDir, service)
-	cmd := exec.Command(goTool(), "build", "-o", out, spec.buildTarget)
+	tmp := out + ".tmp"
+	args := []string{"build", "-o", tmp}
+	if len(spec.buildTags) > 0 {
+		args = append(args, "-tags", strings.Join(spec.buildTags, ","))
+	}
+	args = append(args, spec.buildTarget)
+	cmd := exec.Command(goTool(), args...)
 	cmd.Dir = moduleRoot
-	// Static linux/amd64 build so the binary drops into the published image's
-	// base cleanly. GOWORK is pinned explicitly so the build resolves the same
-	// workspace regardless of the caller's cwd or environment.
+	// Static linux build for the Docker server's architecture so the binary
+	// drops into the published image's base cleanly. GOWORK is pinned
+	// explicitly so the build resolves the same workspace regardless of the
+	// caller's cwd or environment.
+	arch, _, err := TargetArch()
+	if err != nil {
+		return "", err
+	}
 	cmd.Env = append(os.Environ(),
 		"CGO_ENABLED=0",
 		"GOOS=linux",
-		"GOARCH=amd64",
+		"GOARCH="+arch,
 		"GOWORK="+gowork(root),
 	)
 	var stderr bytes.Buffer
@@ -139,7 +211,40 @@ func BuildBinary(root, service, outDir string) (string, error) {
 	if err := cmd.Run(); err != nil {
 		return "", fmt.Errorf("build %s (%s in %s): %w\n%s", service, spec.buildTarget, moduleRoot, err, stderr.String())
 	}
+	if err := os.Rename(tmp, out); err != nil {
+		return "", fmt.Errorf("install %s: %w", service, err)
+	}
 	return filepath.Abs(out)
+}
+
+// Containers returns the compose service names that run a workspace binary
+// for the given smelt services: the service itself, its registrar-style
+// siblings (alsoBinIn), and for piri every generated piri-N node. Sorted and
+// without duplicates, ready for `docker compose up --force-recreate`.
+func Containers(services, piriNodes []string) ([]string, error) {
+	seen := map[string]bool{}
+	for _, service := range services {
+		spec, ok := Services[service]
+		if !ok {
+			return nil, fmt.Errorf("unknown service %q", service)
+		}
+		if service == "piri" {
+			for _, node := range piriNodes {
+				seen[node] = true
+			}
+		} else {
+			seen[service] = true
+		}
+		for _, also := range spec.alsoBinIn {
+			seen[also] = true
+		}
+	}
+	names := make([]string, 0, len(seen))
+	for name := range seen {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names, nil
 }
 
 // RenderOverride returns a docker-compose override (YAML) that mounts each built

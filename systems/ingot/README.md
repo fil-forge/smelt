@@ -139,14 +139,25 @@ build the image once first (`make up` or `docker compose build ingot`) — the
 ## Smoke Test
 
 ```bash
-# Tenant + access key via hilt (see systems/hilt/README.md), then:
-export AWS_ACCESS_KEY_ID=<accessKeyId> AWS_SECRET_ACCESS_KEY=<secretAccessKey> AWS_REGION=us-west-1
-aws configure set default.s3.addressing_style path
-aws --endpoint-url http://localhost:15130 s3api create-bucket --bucket test-bucket
-aws --endpoint-url http://localhost:15130 s3api put-object --bucket test-bucket --key hello.txt --body ./hello.txt
-aws --endpoint-url http://localhost:15130 s3api get-object --bucket test-bucket --key hello.txt /tmp/hello.txt
-aws --endpoint-url http://localhost:15130 s3api list-buckets
+# Create a hilt tenant + access key and save them as AWS CLI profile "smelt"
+# (region, endpoint and path-style addressing included). TENANT=... and
+# PROFILE=... override the defaults; the secret is never printed.
+make s3-key
+
+aws --profile smelt s3api create-bucket --bucket test-bucket
+aws --profile smelt s3api put-object --bucket test-bucket --key hello.txt --body ./hello.txt
+aws --profile smelt s3api get-object --bucket test-bucket --key hello.txt /tmp/hello.txt
+aws --profile smelt s3api list-buckets
 ```
+
+The profile stores `endpoint_url`, which needs AWS CLI v2.13 or newer. To
+drive the tenant API by hand instead, see the smoke test in
+[systems/hilt/README.md](../hilt/README.md).
+
+Rerun `make s3-key` after `make down && make up`: hilt-vault runs in memory,
+so a restart loses the tenant's signing key and the saved access key stops
+working. The script then provisions the next free tenant id (`dev-2`, ...)
+and writes a fresh key to the profile.
 
 ### Region KEK smoke test
 

@@ -9,8 +9,9 @@ use a **Go workspace** (`go.work`) plus the `SMELT_WORKSPACE=1` flag.
 With the flag set, smelt:
 
 1. reads the active `go.work` to decide which services you're editing,
-2. compiles each from your local checkout into a static `linux/amd64` binary (the workspace
-   bakes in your cross-module edits, including a local `libforge`), and
+2. compiles each from your local checkout into a static Linux binary for the Docker engine's
+   architecture (arm64 on Apple silicon, amd64 on Linux desktops and CI; the workspace bakes in
+   your cross-module edits, including a local `libforge`), and
 3. bind-mounts each binary over the binary in the otherwise-**published** image.
 
 So the published image still provides the runtime (base OS, certs, side tools like guppy's
@@ -103,6 +104,10 @@ Module → service → container binary (defined in `pkg/workspace`):
 | `delegator` | delegator | `/usr/bin/registrar` |
 | `guppy` | guppy | `/usr/bin/guppy` |
 
+Each binary is built the way its Dockerfile builds it. Piri is compiled with
+`-tags skiff`, Curio's FFI-free variant, so the build needs neither cgo nor
+`pkg-config`.
+
 ## 2. Run with local binaries
 
 ```bash
@@ -133,26 +138,33 @@ workspace, use `stack.WithServiceBinary("upload", "/path/to/sprue")`.
 ## Fast per-edit loop
 
 Once the stack is up with `SMELT_WORKSPACE=1`, you don't need to re-boot it for a one-line
-change — rebuild just the affected service's binary and restart its container. The rest of the
-stack (and the chain state) stays up, so you skip the slow contract-deploy + registration boot:
+change. `make redeploy` rebuilds the workspace binaries and recreates only the containers that
+run them; the rest of the stack (chain state, one-shot init services, volumes) stays up, so you
+skip the slow contract-deploy + registration boot:
 
 ```bash
-docker compose stop piri-0              # + piri-1 piri-2 … for multi-node setups
-SMELT_WORKSPACE=1 make workspace-build  # recompiles selected services into generated/bin/
-docker compose start piri-0
+SMELT_WORKSPACE=1 make redeploy            # every service in the go.work use-list
+SMELT_WORKSPACE=1 make redeploy SVC=ingot  # just ingot (comma-separated list allowed)
 ```
 
-Stop the container **first**: its `/usr/bin/piri` is the bind-mounted binary that's currently
-executing, and rebuilding over an executing file fails with `text file busy` (`ETXTBSY`).
-Stopping releases it; starting re-execs the freshly built binary.
+`SVC=` rebuilds only the named services and reuses the previous build of the others, so the
+mount override keeps covering every workspace service. Under the hood the build installs each
+binary as a new file (build to a temp name, then rename), so nothing writes over the binary a
+running container is executing, and `docker compose up -d --no-deps --force-recreate` brings
+up fresh containers that pick up the new file. `smelt workspace services` prints which
+containers those are.
 
-Keep the `use`-list narrow (e.g. just `./smelt ./piri`) so `workspace-build` only recompiles
-what you're working on.
+`make redeploy` recreates the services in the *current* go.work selection only. After removing
+a module from the use-list, run `SMELT_WORKSPACE=1 make up` instead: it recreates the container
+whose mount went away, so it returns to the published binary.
 
 ## Turning it off / troubleshooting
 
 - **Back to published images:** run any `make` target *without* `SMELT_WORKSPACE=1` (it removes
   the override), or `rm go.work` to also drop local resolution for your editor.
+- **"exec format error" in a service's logs:** the binary was built for the wrong architecture.
+  `smelt workspace build` prints the arch it chose and where it came from (`SMELT_GOARCH`, the
+  Docker server, or the host). Force one with `SMELT_GOARCH=amd64` (or `arm64`).
 - **Build/selection surprises:** `go env GOWORK` shows the active workspace; if it's empty,
   `SMELT_WORKSPACE=1` will error asking you to `go work init`. Confirm every sibling in the
   `use`-list actually exists on disk.

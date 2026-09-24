@@ -85,6 +85,7 @@ smelt/
     ├── MULTI_PIRI.md       # Multi-piri design and manifest reference
     ├── SNAPSHOTS.md        # Snapshot save/load (skip slow cold-boot)
     ├── TROUBLESHOOTING.md  # Common issues and diagnostics
+    ├── PERF_TESTING.md     # Benchmark loop against the local ingot
     └── EXTENDING.md        # Adding services and customizations
 ```
 
@@ -111,6 +112,8 @@ piri:
 ```
 
 Running `make generate` (or implicitly `make up`) regenerates `generated/compose/piri.yml` and any new keys. The Makefile has a file-target rule that reruns the generator whenever `smelt.yml` or any file under `cmd/smelt/`, `pkg/generate/`, or `pkg/manifest/` changes, so compose-invoking targets transparently stay in sync on fresh checkouts and post-`nuke` states.
+
+To run a different topology without editing the tracked file, point `SMELT_MANIFEST` at another manifest (ready-made ones live in `manifests/`), e.g. `SMELT_MANIFEST=manifests/piri-1-postgres-filesystem.yml make up`. Export it for the whole session: generate, workspace build and snapshot save all read it.
 
 See [docs/MULTI_PIRI.md](docs/MULTI_PIRI.md) for the full manifest schema, shared infrastructure (postgres, MinIO), Anvil wallet mapping, and hot-add/remove behavior.
 
@@ -226,6 +229,20 @@ guppy retrieve $SPACE <CID> /tmp/retrieved
 - Upload command is `guppy upload $SPACE` (uploads all sources in that space)
 - Uploads are per-space; when content changes and upload is re-run, changes are uploaded (like rsync)
 - Multiple sources can be added to a space; each gets its own CID in the upload output
+
+### Using the S3 Gateway (Ingot)
+
+```bash
+make s3-key                                   # tenant "dev" -> AWS CLI profile "smelt"
+aws --profile smelt s3 mb s3://my-bucket
+aws --profile smelt s3 cp README.md s3://my-bucket/
+```
+
+`scripts/s3-key.sh` creates the hilt tenant if needed, mints an access key with every S3
+permission, and writes the profile with the stack's region, ingot's endpoint and path-style
+addressing. `TENANT=` / `PROFILE=` override the defaults. Rerun it after `make down && make up`:
+hilt-vault is in-memory, so the tenant's signing key is gone and the script moves on to the
+next free tenant id (`dev-2`, ...) with a fresh key.
 
 ### Regenerating Keys and Proofs
 
@@ -477,9 +494,11 @@ otherwise-published images — no Dockerfiles, no image rebuilds. **Full walkthr
   flag runs `smelt workspace build` → binaries in `generated/bin/` + mounts in
   `generated/compose/workspace.override.yml` (chained into `$(COMPOSE)`); a plain `make up`
   removes the override and runs published images.
-- **Fast per-edit loop:** `docker compose stop <svc>` → `SMELT_WORKSPACE=1 make workspace-build`
-  → `docker compose start <svc>` (stop first — the bind-mounted binary is executing, so an
-  in-place rebuild hits `ETXTBSY`).
+- Binaries are built for the Docker engine's architecture (arm64 on Apple silicon, amd64 on
+  Linux), so the same command works on macOS, Linux desktops and CI. `SMELT_GOARCH` overrides.
+- **Fast per-edit loop:** `SMELT_WORKSPACE=1 make redeploy` (or `SVC=ingot` to limit it)
+  rebuilds the workspace binaries and recreates only the containers that run them; the rest of
+  the stack keeps running.
 
 Module → service / container binary map (see `pkg/workspace`):
 
@@ -499,6 +518,14 @@ In Go tests, `stack.WithWorkspaceBinaries()` does the same; `stack.WithServiceBi
 mounts a specific prebuilt binary without the workspace machinery, and
 `stack.WithServiceConfig(name, path)` mounts a test-provided config file over the service's
 in-container config path.
+
+## Performance Testing
+
+`scripts/perf-s3-speedtest.sh setup|run` benchmarks the local ingot with the fil-one
+s3-speedtests harness and records code versions, container stats and logs per run under
+`generated/perf-runs/`; `scripts/perf-results.py compare s3-speedtest <label>...` puts runs side
+by side. Pair it with `make redeploy` for the edit-measure loop. Full guide:
+[docs/PERF_TESTING.md](docs/PERF_TESTING.md).
 
 ## Service Repos Own Their E2E Tests (Smelt as SDK)
 
