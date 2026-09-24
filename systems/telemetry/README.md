@@ -5,8 +5,8 @@ Optional observability stack for Smelt local development. Provides metrics colle
 ## Quick Start
 
 ```bash
-# Start the stack, pointing ingot at the collector
-INGOT_OTEL_ENDPOINT=http://otel-collector:4318 make up
+# Start the stack, pointing ingot, hilt and sprue at the collector
+OTEL_ENDPOINT=http://otel-collector:4318 make up
 
 # Start the telemetry services on the same forge-network
 cd systems/telemetry && docker compose --profile telemetry up -d
@@ -60,9 +60,11 @@ Pre-configured dashboards are available in Grafana under the "Smelt" folder:
 
 ## Configuring Services
 
-Ingot exports traces when `INGOT_OTEL_ENDPOINT` is set (see the quick start);
-it is unset by default, so `make up` and the SDK test stacks export nothing.
-In Grafana, traces are under Explore → Tempo, service `ingot`.
+Ingot, hilt and sprue export traces to `OTEL_ENDPOINT` when it is set (see
+the quick start). It is unset by default, so `make up` and the SDK test stacks
+export nothing. In Grafana, traces are under Explore → Tempo, services
+`ingot`, `hilt` and `sprue`; a request through ingot shows hilt's and sprue's
+spans inside ingot's trace.
 
 To configure another service:
 
