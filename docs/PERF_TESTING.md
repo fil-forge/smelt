@@ -22,8 +22,9 @@ calling it fixed.
   of its file set. Each run uploads under its own prefix and nothing is
   deleted afterwards, so a before/after pair on the `large` set (25 and 50 GiB
   objects, roughly 150 GB per run) needs about 300 GB. On Docker Desktop raise
-  the VM disk limit accordingly, or run `make clean` between runs when you do
-  not need the retained objects.
+  the VM disk limit accordingly. To reclaim the space, `make clean` drops
+  every volume (tenant, keys and objects); `make up` and `setup` are needed
+  again afterwards.
 
 ## The loop
 
@@ -48,7 +49,9 @@ LABEL=after ./scripts/perf-s3-speedtest.sh run
 one 1 MiB and one 100 MiB file). `RUNS=n` repeats each file. `SNAPSHOT=name`
 restores a snapshot before the run so every run starts from the same state;
 it re-runs `setup` because hilt's dev vault is in memory and loses the access
-key on restore. An exported `SMELT_MANIFEST` takes precedence over the
+key on restore. `make s3-key` then moves to the next free tenant (`perf-2`,
+...) and `setup` creates that tenant's bucket (`perf-s3-speedtest-perf-2`),
+since ingot bucket names are global and the old one belongs to `perf`. An exported `SMELT_MANIFEST` takes precedence over the
 snapshot's own manifest, so the script refuses to restore when the two differ.
 
 ## What a run records

@@ -36,7 +36,10 @@ FILE_SET="${FILE_SET:-quick}"
 RUNS="${RUNS:-1}"
 TENANT=perf
 PROFILE=smelt-perf
-BUCKET=perf-s3-speedtest
+# The bucket is named after the tenant the profile ended up on (see
+# perf_bucket): ingot bucket names are global, and after a restart s3-key.sh
+# may move to perf-2, which cannot reuse the bucket perf created.
+BUCKET_PREFIX=perf-s3-speedtest
 TARGETS_TEMPLATE="$PROJECT/generated/perf/s3_targets.ini"
 # Containers whose CPU/memory and logs are captured around each run.
 SERVICES=(ingot upload piri-0 hilt)
@@ -53,12 +56,13 @@ setup() {
   wait_healthy hilt
   wait_healthy ingot
   (cd "$PROJECT" && TENANT="$TENANT" PROFILE="$PROFILE" ./scripts/s3-key.sh)
-  local region
+  local region bucket
   region="$(aws configure get --profile "$PROFILE" region)"
+  bucket="$(perf_bucket)"
 
-  if ! aws --profile "$PROFILE" s3api head-bucket --bucket "$BUCKET" >/dev/null 2>&1; then
-    aws --profile "$PROFILE" s3api create-bucket --bucket "$BUCKET" >/dev/null
-    echo "created bucket $BUCKET"
+  if ! aws --profile "$PROFILE" s3api head-bucket --bucket "$bucket" >/dev/null 2>&1; then
+    aws --profile "$PROFILE" s3api create-bucket --bucket "$bucket" >/dev/null
+    echo "created bucket $bucket"
   fi
 
   mkdir -p "$(dirname "$TARGETS_TEMPLATE")"
@@ -70,7 +74,7 @@ setup() {
 enabled = true
 provider = smelt-ingot
 display_name = Smelt Ingot
-bucket = $BUCKET
+bucket = $bucket
 region = $region
 location = localhost
 endpoint_url = http://localhost:15130
@@ -108,7 +112,8 @@ run() {
     setup
   fi
 
-  local run_dir
+  local run_dir bucket
+  bucket="$(perf_bucket)"
   run_dir="$(perf_run_dir "$SUITE" "$LABEL")"
   local run_prefix="perf/$(basename "$run_dir")"
   sed "s|^prefix = .*|prefix = $run_prefix|" "$TARGETS_TEMPLATE" > "$run_dir/s3_targets.ini"
@@ -117,7 +122,7 @@ run() {
   chunksize="$(aws configure get --profile "$PROFILE" s3.multipart_chunksize 2>/dev/null || echo "default (8MB)")"
   concurrency="$(aws configure get --profile "$PROFILE" s3.max_concurrent_requests 2>/dev/null || echo "default (10)")"
   perf_metadata "$run_dir" "$LABEL" "$(jq -cn \
-    --arg file_set "$FILE_SET" --arg runs "$RUNS" --arg prefix "$run_prefix" --arg bucket "$BUCKET" \
+    --arg file_set "$FILE_SET" --arg runs "$RUNS" --arg prefix "$run_prefix" --arg bucket "$bucket" \
     --arg aws_version "$(aws --version 2>&1)" --arg chunksize "$chunksize" --arg concurrency "$concurrency" \
     --arg s3_speedtests "$(perf_git_info "$S3_SPEEDTESTS_DIR")" \
     '{file_set: $file_set, runs: ($runs|tonumber), prefix: $prefix, bucket: $bucket,
@@ -151,6 +156,15 @@ run() {
 
   "$PROJECT/scripts/perf-results.py" record "$SUITE" "$run_dir"
   [ "$status" -eq 0 ] || perf_die "a speedtest step failed (exit $status); see $run_dir/*.out"
+}
+
+# perf_bucket: the suite's bucket for the tenant the AWS profile belongs to
+# (s3-key.sh records that tenant as `tenant_id` in the profile).
+perf_bucket() {
+  local tenant
+  tenant="$(aws configure get --profile "$PROFILE" tenant_id 2>/dev/null)" \
+    || perf_die "profile $PROFILE has no tenant_id; run '$0 setup' first"
+  echo "$BUCKET_PREFIX-$tenant"
 }
 
 # check_snapshot_manifest: SMELT_MANIFEST takes precedence over the manifest a
