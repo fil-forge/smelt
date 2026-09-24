@@ -9,7 +9,8 @@
 # The region is read from the running ingot container (INGOT_REGION): it is
 # the region hilt registered ingot for and the region clients must sign with.
 # The secret access key is written only to the AWS CLI credentials file (hilt
-# returns it once); this script never prints it.
+# returns it once); this script never prints it. The profile also carries a
+# custom `tenant_id` key naming the tenant it belongs to.
 #
 # After `make down && make up` hilt has forgotten the tenant's signing key
 # (hilt-vault is in-memory), so the script moves on to the next free tenant id
@@ -135,6 +136,9 @@ aws configure set --profile "$PROFILE" region "$region"
 aws configure set --profile "$PROFILE" endpoint_url "$INGOT_URL"
 # Ingot serves path-style requests only.
 aws configure set --profile "$PROFILE" s3.addressing_style path
+# Not an AWS setting: callers (scripts/perf-s3-speedtest.sh) read it back to
+# learn which tenant this profile ended up on after the fallback above.
+aws configure set --profile "$PROFILE" tenant_id "$TENANT"
 
 cat <<EOF
 
