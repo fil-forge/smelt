@@ -20,6 +20,7 @@ One or more `piri-{N}` services, each configured according to the corresponding 
 ## Files in this directory
 
 - `config/piri-base-config.toml` — Base configuration (contract addresses, service DIDs). Mounted read-only into every piri container.
+- `config/piri-indexing.toml` — The indexer claims service and IPNI announce URLs. The entrypoint appends it to the base config before init unless `PIRI_INDEXER=off` (see [../../docs/PERF_TESTING.md](../../docs/PERF_TESTING.md)).
 - `config/piri-overrides.toml` — Additional overrides merged after init.
 - `entrypoint.sh` — Shared startup script mounted into every piri container. Reads environment variables injected by the generator (`PIRI_DB_BACKEND`, `PIRI_BLOB_BACKEND`, `PIRI_DB_POSTGRES_URL`, `PIRI_S3_*`, etc.) to decide which backends to use.
 - `register-did.sh` — Helper script for DynamoDB allow-list registration during init.

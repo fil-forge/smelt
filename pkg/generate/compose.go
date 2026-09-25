@@ -80,6 +80,10 @@ func buildPiriService(node manifest.ResolvedPiriNode) ComposeService {
 		fmt.Sprintf("PUBLIC_URL=http://%s:3000", node.Name),
 		fmt.Sprintf("PIRI_DB_BACKEND=%s", node.Storage.DB),
 		fmt.Sprintf("PIRI_BLOB_BACKEND=%s", node.Storage.Blob),
+		// Bare: taken from the shell when set, absent otherwise. The
+		// entrypoint reads on (default) or off; off leaves out the indexer
+		// claims and IPNI announce, as on dev and staging.
+		"PIRI_INDEXER",
 	}
 
 	if node.Storage.DB == manifest.DBPostgres {
@@ -113,6 +117,7 @@ func buildPiriService(node manifest.ResolvedPiriNode) ComposeService {
 			"../../systems/piri/entrypoint.sh:/entrypoint.sh:ro",
 			"../../systems/piri/register-did.sh:/scripts/register-did.sh:ro",
 			"../../systems/piri/config/piri-base-config.toml:/config/piri-base-config.toml:ro",
+			"../../systems/piri/config/piri-indexing.toml:/config/piri-indexing.toml:ro",
 			"../../systems/piri/config/piri-overrides.toml:/config/piri-overrides.toml:ro",
 		},
 		Environment: env,

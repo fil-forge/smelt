@@ -1,0 +1,11 @@
+
+# Content claims to the indexer and IPNI announce. The entrypoint appends
+# this file to piri-base-config.toml before `piri init` unless
+# PIRI_INDEXER=off. Dev and staging run without both: with announce URLs
+# empty piri still builds adverts locally and notifies no one.
+[ucan.services.indexer]
+did = "did:web:indexer"
+url = "http://indexer:80/claims"
+
+[ucan.services.publisher]
+ipni_announce_urls = ["http://ipni:3001/announce"]

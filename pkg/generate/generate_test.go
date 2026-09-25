@@ -292,3 +292,45 @@ func TestPiriAccountIndex(t *testing.T) {
 		}
 	}
 }
+
+func TestGeneratePiriComposeIndexerSetting(t *testing.T) {
+	nodes := []manifest.ResolvedPiriNode{
+		{Name: "piri-0", Index: 0, Storage: manifest.StorageSpec{DB: "sqlite", Blob: "filesystem"}},
+		{Name: "piri-1", Index: 1, Storage: manifest.StorageSpec{DB: "postgres", Blob: "s3"}},
+	}
+
+	data, err := GeneratePiriCompose(nodes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var compose ComposeFile
+	if err := yaml.Unmarshal(data, &compose); err != nil {
+		t.Fatal(err)
+	}
+
+	const mount = "../../systems/piri/config/piri-indexing.toml:/config/piri-indexing.toml:ro"
+	for _, name := range []string{"piri-0", "piri-1"} {
+		svc := compose.Services[name]
+		bare := 0
+		for _, e := range svc.Environment {
+			if strings.HasPrefix(e, "PIRI_INDEXER") {
+				if e != "PIRI_INDEXER" {
+					t.Errorf("%s: PIRI_INDEXER must be bare so an unset shell leaves it absent, got %q", name, e)
+				}
+				bare++
+			}
+		}
+		if bare != 1 {
+			t.Errorf("%s: want exactly one PIRI_INDEXER entry, got %d", name, bare)
+		}
+		found := false
+		for _, v := range svc.Volumes {
+			if v == mount {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("%s: missing volume %s", name, mount)
+		}
+	}
+}

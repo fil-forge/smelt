@@ -1,8 +1,5 @@
 # Piri Base Configuration for Local Development
 # Contract addresses from systems/blockchain/state/deployed-addresses.json
-#
-# The entrypoint appends piri-indexing.toml to this file before `piri init`
-# unless PIRI_INDEXER=off.
 
 [pdp]
 chain_id = "31337"
@@ -20,6 +17,13 @@ service_view = "0x9A676e781A523b5d0C0e43731313A708CB607508"
 payments = "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6"
 usdfc_token = "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9"
 
+[ucan.services.indexer]
+did = "did:web:indexer"
+url = "http://indexer:80/claims"
+
 [ucan.services.upload]
 did = "did:web:upload"
 url = "http://upload:80"
+
+[ucan.services.publisher]
+ipni_announce_urls = ["http://ipni:3001/announce"]
