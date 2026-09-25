@@ -2,7 +2,11 @@
 // concrete node configurations ready for compose generation.
 package manifest
 
-import "fmt"
+import (
+	"fmt"
+	"regexp"
+	"strings"
+)
 
 const (
 	// MaxPiriNodes is limited by the number of Anvil pre-funded accounts.
@@ -14,7 +18,16 @@ const (
 	DBPostgres = "postgres"
 	BlobFS     = "filesystem"
 	BlobS3     = "s3"
+
+	// maxBucketNameLen is the S3 limit on bucket name length.
+	maxBucketNameLen = 63
+	// longestPiriBucket is the longest of the store names piri appends to
+	// its bucket prefix (allocations, acceptances, claims, receipts, pdp,
+	// consolidation).
+	longestPiriBucket = "consolidation"
 )
+
+var bucketPrefixRE = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]*$`)
 
 // Manifest is the top-level smelt.yml schema.
 type Manifest struct {
@@ -45,8 +58,29 @@ type PiriNodeSpec struct {
 
 // StorageSpec controls piri's database and blob backends.
 type StorageSpec struct {
-	DB   string `yaml:"db,omitempty"`
-	Blob string `yaml:"blob,omitempty"`
+	DB   string  `yaml:"db,omitempty"`
+	Blob string  `yaml:"blob,omitempty"`
+	S3   *S3Spec `yaml:"s3,omitempty"`
+}
+
+// S3Spec points an S3-backed node at a store outside the stack. Unset, or
+// with an empty endpoint, the node uses the stack's piri-minio. Credentials
+// never appear here: the generated compose reads them from the shell as
+// SMELT_PIRI_S3_ACCESS_KEY_ID and SMELT_PIRI_S3_SECRET_ACCESS_KEY.
+type S3Spec struct {
+	// Endpoint is host[:port] with no scheme. For AWS use the regional
+	// host (s3.<region>.amazonaws.com): piri passes no region, and its S3
+	// client derives the signing region from the hostname.
+	Endpoint string `yaml:"endpoint,omitempty"`
+	// BucketPrefix is prepended to "<node>-"; piri appends each store name.
+	BucketPrefix string `yaml:"bucket_prefix,omitempty"`
+	// Insecure selects plain HTTP. Defaults to false (TLS).
+	Insecure *bool `yaml:"insecure,omitempty"`
+}
+
+// External reports whether the spec names an endpoint outside the stack.
+func (s *S3Spec) External() bool {
+	return s != nil && s.Endpoint != ""
 }
 
 // ResolvedPiriNode is a fully resolved node ready for compose generation.
@@ -104,8 +138,16 @@ func (m *Manifest) Resolve() ([]ResolvedPiriNode, error) {
 		// Storage: node override > defaults > hardcoded defaults
 		r.Storage.DB = firstNonEmpty(n.Storage.DB, spec.Defaults.Storage.DB, DBSQLite)
 		r.Storage.Blob = firstNonEmpty(n.Storage.Blob, spec.Defaults.Storage.Blob, BlobFS)
+		// A defaults-level s3 block reaches only the nodes that store
+		// blobs in S3, so defaults can serve a mixed topology. A node's own
+		// s3 block is kept as written and validated below.
+		defaultS3 := spec.Defaults.Storage.S3
+		if r.Storage.Blob != BlobS3 {
+			defaultS3 = nil
+		}
+		r.Storage.S3 = mergeS3(n.Storage.S3, defaultS3)
 
-		if err := validateStorage(r.Storage); err != nil {
+		if err := validateStorage(r.Name, r.Storage); err != nil {
 			return nil, fmt.Errorf("manifest: node %q: %w", r.Name, err)
 		}
 
@@ -115,7 +157,31 @@ func (m *Manifest) Resolve() ([]ResolvedPiriNode, error) {
 	return resolved, nil
 }
 
-func validateStorage(s StorageSpec) error {
+// mergeS3 overlays node fields on the defaults, field by field. It returns
+// nil when neither sets a block.
+func mergeS3(node, defaults *S3Spec) *S3Spec {
+	if node == nil && defaults == nil {
+		return nil
+	}
+	var n, d S3Spec
+	if node != nil {
+		n = *node
+	}
+	if defaults != nil {
+		d = *defaults
+	}
+	out := &S3Spec{
+		Endpoint:     firstNonEmpty(n.Endpoint, d.Endpoint),
+		BucketPrefix: firstNonEmpty(n.BucketPrefix, d.BucketPrefix),
+		Insecure:     d.Insecure,
+	}
+	if n.Insecure != nil {
+		out.Insecure = n.Insecure
+	}
+	return out
+}
+
+func validateStorage(name string, s StorageSpec) error {
 	switch s.DB {
 	case DBSQLite, DBPostgres:
 	default:
@@ -125,6 +191,21 @@ func validateStorage(s StorageSpec) error {
 	case BlobFS, BlobS3:
 	default:
 		return fmt.Errorf("invalid blob backend %q (must be %q or %q)", s.Blob, BlobFS, BlobS3)
+	}
+	if s.S3 == nil {
+		return nil
+	}
+	if s.Blob != BlobS3 {
+		return fmt.Errorf("storage.s3 requires blob %q (got %q)", BlobS3, s.Blob)
+	}
+	if strings.Contains(s.S3.Endpoint, "://") {
+		return fmt.Errorf("storage.s3.endpoint %q must be host[:port] without a scheme", s.S3.Endpoint)
+	}
+	if s.S3.BucketPrefix != "" && !bucketPrefixRE.MatchString(s.S3.BucketPrefix) {
+		return fmt.Errorf("storage.s3.bucket_prefix %q must match %s", s.S3.BucketPrefix, bucketPrefixRE)
+	}
+	if longest := s.S3.BucketPrefix + name + "-" + longestPiriBucket; len(longest) > maxBucketNameLen {
+		return fmt.Errorf("storage.s3.bucket_prefix %q makes bucket %q longer than %d characters", s.S3.BucketPrefix, longest, maxBucketNameLen)
 	}
 	return nil
 }

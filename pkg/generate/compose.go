@@ -38,11 +38,14 @@ func GeneratePiriCompose(nodes []manifest.ResolvedPiriNode) ([]byte, error) {
 			// Add infra dependencies to this node.
 			svc.DependsOn["piri-postgres-init"] = DependsOnCondition{Condition: "service_completed_successfully"}
 		}
-		if node.Storage.Blob == manifest.BlobS3 {
+		// A node with an external S3 endpoint needs neither the stack's
+		// MinIO nor the storage network it lives on.
+		inStackS3 := node.Storage.Blob == manifest.BlobS3 && !node.Storage.S3.External()
+		if inStackS3 {
 			needsS3 = true
 			svc.DependsOn["piri-minio"] = DependsOnCondition{Condition: "service_healthy"}
 		}
-		if node.Storage.DB == manifest.DBPostgres || node.Storage.Blob == manifest.BlobS3 {
+		if node.Storage.DB == manifest.DBPostgres || inStackS3 {
 			svc.Networks = append(svc.Networks, "piri-storage-net")
 		}
 
@@ -87,7 +90,19 @@ func buildPiriService(node manifest.ResolvedPiriNode) ComposeService {
 			fmt.Sprintf("PIRI_DB_POSTGRES_URL=postgres://piri:piri@piri-postgres:5432/piri_%d?sslmode=disable", node.Index),
 		)
 	}
-	if node.Storage.Blob == manifest.BlobS3 {
+	if ext := node.Storage.S3; node.Storage.Blob == manifest.BlobS3 && ext.External() {
+		env = append(env,
+			"PIRI_S3_ENDPOINT="+ext.Endpoint,
+			fmt.Sprintf("PIRI_S3_BUCKET_PREFIX=%s%s-", ext.BucketPrefix, node.Name),
+			// Credentials never enter the manifest; they come from the
+			// shell that runs compose. ":-" rather than ":?" keeps
+			// down/status/nuke working in a shell without them; the piri
+			// entrypoint refuses to start with empty ones.
+			"PIRI_S3_ACCESS_KEY_ID=${SMELT_PIRI_S3_ACCESS_KEY_ID:-}",
+			"PIRI_S3_SECRET_ACCESS_KEY=${SMELT_PIRI_S3_SECRET_ACCESS_KEY:-}",
+			fmt.Sprintf("PIRI_S3_INSECURE=%t", ext.Insecure != nil && *ext.Insecure),
+		)
+	} else if node.Storage.Blob == manifest.BlobS3 {
 		env = append(env,
 			"PIRI_S3_ENDPOINT=piri-minio:9000",
 			fmt.Sprintf("PIRI_S3_BUCKET_PREFIX=%s-", node.Name),

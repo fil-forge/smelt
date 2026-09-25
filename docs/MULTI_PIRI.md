@@ -106,6 +106,43 @@ Nodes that use postgres or S3 share a single instance of each, namespaced per no
 
 Shared infra services are only included in the generated compose when at least one node uses that backend. If all nodes use sqlite/filesystem, no postgres or minio services are created.
 
+### External S3
+
+An S3-backed node can store its blobs outside the stack, for example in AWS S3, by adding an `s3` block to its storage:
+
+```yaml
+version: 1
+piri:
+  nodes:
+    - storage:
+        db: postgres
+        blob: s3
+        s3:
+          endpoint: s3.us-east-2.amazonaws.com  # host[:port], no scheme
+          bucket_prefix: my-stack-               # optional
+          insecure: false                        # optional; true for plain HTTP
+```
+
+| Field | Meaning |
+|-------|---------|
+| `endpoint` | S3 host and optional port, without `https://`. For AWS, use the regional host `s3.<region>.amazonaws.com`: piri sets no region, so its S3 client takes the signing region from the hostname. |
+| `bucket_prefix` | Prepended to the node's own prefix. piri appends each store name, so the example's node uses buckets `my-stack-piri-0-allocations`, `-acceptances`, `-claims`, `-receipts`, `-pdp` and `-consolidation`. Lowercase letters, digits, dots and hyphens; the longest name must fit the 63-character S3 limit. |
+| `insecure` | Plain HTTP instead of TLS. Defaults to `false`. |
+
+Credentials stay out of the manifest. The generated compose reads them from the shell that runs it:
+
+```bash
+export SMELT_PIRI_S3_ACCESS_KEY_ID=...
+export SMELT_PIRI_S3_SECRET_ACCESS_KEY=...
+SMELT_MANIFEST=manifests/piri-1-postgres-s3-external.yml make up
+```
+
+piri needs static keys; it takes no session token. If the buckets exist beforehand, the key needs only `s3:ListBucket`, `s3:GetObject`, `s3:PutObject` and `s3:DeleteObject` on them; otherwise piri creates them at startup and also needs `s3:CreateBucket`. The piri entrypoint refuses to start when the endpoint is outside the stack and either credential is empty. `make down`, `make status` and `make nuke` work without the variables set.
+
+A node with an external endpoint gets no `piri-minio` dependency. The stack runs `piri-minio` only when some other node uses it, and joins a node to `piri-storage-net` only when it uses postgres or the stack's MinIO. A `storage.s3` block under `defaults` applies to every S3-backed node and is ignored by filesystem nodes; a node's own `s3` block requires `blob: s3`. Without an `s3` block, or with an empty `endpoint`, a node uses `piri-minio` as described above.
+
+piri writes its credentials into `piri-config.toml` on the node's data volume when it initializes, and `docker inspect` shows them in the container environment. `make clean` removes the volume.
+
 ### Wallet Provisioning
 
 Each piri node requires its own funded EVM wallet for on-chain registration. Wallets are derived from Anvil's 10 deterministic pre-funded accounts:
