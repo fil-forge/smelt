@@ -41,11 +41,27 @@ Each run gets a directory `generated/perf-runs/<suite>/<utc-ts>-<label>/`
 with:
 
 - `metadata.json`:
-  - git SHA and dirty flag of smelt, ingot, sprue, piri, hilt and libforge
+  - full git SHA and dirty flag of smelt, ingot, sprue, piri, hilt and
+    libforge (null for a checkout that is not there)
   - which containers run workspace binaries
   - manifest and piri blob backend
-  - Docker server arch, CPUs and memory; the suite's settings.
-- `images.json`: image digests.
+  - Docker server arch, CPUs, memory, version, storage driver and root
+    directory under `docker`; kernel (`uname -r`) and the OS Docker reports
+    under `system`
+  - `piri.s3_endpoint` and `piri.indexer` from piri-0's environment (`on`
+    unless `PIRI_INDEXER` says otherwise), and `sprue.indexer_endpoint` from
+    upload's; an empty string means the variable is set empty, null that it
+    is unset. Credentials are never read.
+  - `images`: the contents of `images.lock.json`
+  - `extra`: `PERF_EXTRA_METADATA`, verbatim
+  - the suite's settings.
+- `images.lock.json`: one entry per compose container, exited one-shots
+  included: `service`, `ref` (the image as compose named it), `digest`,
+  `revision` and `source` (the `org.opencontainers.image.revision` and
+  `.source` labels, null when the image has none), `created`, `arch` and
+  `repo_digests`. `digest` is the ref's own when the ref pins one, and the
+  first repo digest otherwise.
+- `images.json`: `docker compose images` output.
 - `docker-df-before.txt`, `docker-df-after.txt`: `docker system df` taken
   before and after the run.
 - `stats.csv`: `docker stats` samples (CPU, memory, network, block I/O) for
@@ -53,8 +69,15 @@ with:
 - `logs/<service>.log`: `docker compose logs` for the run window.
 
 Every run also appends its results to `generated/perf-runs/<suite>/runs.jsonl`,
-which `perf-results.py compare` reads. The suite sections below list what each
-suite adds.
+which `perf-results.py compare` reads. Each row carries `images` (ref, digest
+and revision per service) and `extra`. The comparison header shows the first
+nine characters of each SHA; for a run on published images it shows each
+image's revision in place of the sibling checkouts. The suite sections below
+list what each suite adds.
+
+`PERF_EXTRA_METADATA` attaches a caller's own facts to a run, such as a run ID
+or the machine it ran on. It must be a single JSON object; anything else stops
+the run before it creates a run directory. smelt attaches no meaning to it.
 
 ## s3-speedtest
 
@@ -197,7 +220,10 @@ Besides the [common files](#what-a-run-records), a run records:
 
 `metadata.json` also holds the storage-qualification SHA, the settings above,
 the tenant, the disk estimate and the drill's exit code. Each run appends one
-row to `runs.jsonl`.
+row to `runs.jsonl`, with the drill's settings under `settings`, the Docker
+and system facts under `host`, and `manifest`, `piri` and `sprue` as in
+`metadata.json`. Rows written before these fields existed lack them, and
+`compare` reads both kinds.
 
 ### Reading drill results
 

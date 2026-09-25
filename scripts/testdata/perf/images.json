@@ -1,0 +1,8 @@
+[
+  {"Id": "sha256:1111111111111111111111111111111111111111111111111111111111111111", "RepoDigests": ["ghcr.io/fil-forge/ingot@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"], "Created": "2026-09-20T10:00:00Z", "Architecture": "arm64",
+   "Config": {"Labels": {"org.opencontainers.image.revision": "0123456789abcdef0123456789abcdef01234567", "org.opencontainers.image.source": "https://github.com/fil-forge/ingot"}}},
+  {"Id": "sha256:2222222222222222222222222222222222222222222222222222222222222222", "RepoDigests": ["ghcr.io/fil-forge/piri@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"], "Created": "2026-09-19T10:00:00Z", "Architecture": "arm64",
+   "Config": {"Labels": {"org.opencontainers.image.revision": "fedcba9876543210fedcba9876543210fedcba98"}}},
+  {"Id": "sha256:3333333333333333333333333333333333333333333333333333333333333333", "RepoDigests": ["postgres@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"], "Created": "2026-08-01T10:00:00Z", "Architecture": "arm64",
+   "Config": {"Labels": null}}
+]
