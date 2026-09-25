@@ -114,7 +114,10 @@ through ingot with the drill's key, download it and compare the bytes. An
 upload goes through ingot, piri and the indexer, so a broken piri, a stale
 delegation proof or a bad key fails the check in seconds, with the AWS CLI's
 error and the services whose logs to read, instead of failing every request
-of a drill run. `setup` runs it before it writes the provider `.env`.
+of a drill run. `setup` runs it before it writes the provider `.env`. Before
+the check, `run` waits for ingot, upload, piri-0 and hilt to report healthy,
+because `make redeploy` returns while the recreated containers are still
+starting, and a drill started then would measure the restart.
 
 `run` reads these settings from the environment and passes them to the drill
 as given:

@@ -26,7 +26,8 @@ perf_wait_healthy() {
   local svc="$1" project
   project="$(perf_project_dir)"
   for _ in $(seq 1 120); do
-    if (cd "$project" && docker compose ps --format '{{.Health}}' "$svc" 2>/dev/null | grep -q healthy); then
+    # An exact match: "unhealthy" contains "healthy".
+    if [ "$(cd "$project" && docker compose ps --format '{{.Health}}' "$svc" 2>/dev/null)" = healthy ]; then
       return
     fi
     sleep 5

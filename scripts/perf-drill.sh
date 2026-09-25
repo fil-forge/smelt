@@ -135,6 +135,10 @@ run() {
   done
   [ -f "$PROVIDER_DIR/.env" ] || perf_die "no $PROVIDER_DIR/.env; run '$0 setup' first"
   build_drill
+  # `make redeploy` recreates containers and returns before they are healthy;
+  # a drill started then would score the restart as the change's result.
+  local svc
+  for svc in "${SERVICES[@]}"; do perf_wait_healthy "$svc"; done
   check_disk
   smoke_check
 
