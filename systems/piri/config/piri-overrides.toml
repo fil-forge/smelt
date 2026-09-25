@@ -2,9 +2,6 @@
 # Appended to generated piri-config.toml by entrypoint
 
 # Telemetry - reports to otel-collector when available
-#[telemetry]
-#disable_storacha_analytics = true
-#
 #[[telemetry.metrics]]
 #endpoint = "otel-collector:4318"
 #insecure = true
