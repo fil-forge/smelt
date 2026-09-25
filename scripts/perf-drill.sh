@@ -4,7 +4,8 @@
 #
 #   ./scripts/perf-drill.sh setup             # once per stack: tenant, key, provider .env
 #   LABEL=before ./scripts/perf-drill.sh run
-#   # edit ingot / sprue / piri, then: make redeploy
+#   # edit ingot / sprue / piri, then: make clean && make redeploy
+#   ./scripts/perf-drill.sh setup             # again: make clean dropped the key
 #   LABEL=after  ./scripts/perf-drill.sh run
 #   ./scripts/perf-results.py compare drill before after
 #
@@ -290,6 +291,8 @@ smoke_fail() {
   perf_die "smoke check failed $step:
 $err
 The drill would fail the same way. Check the stack's logs: docker compose logs ingot piri-0
+InvalidAccessKeyId means hilt no longer has the key, as after 'make clean' or a
+restart; '$0 setup' mints a new one.
 If piri reports a signature mismatch, the keys and proofs in generated/ are likely out of
 sync; 'make regen', then 'make clean && make up' and '$0 setup' regenerates both."
 }

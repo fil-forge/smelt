@@ -133,8 +133,9 @@ make up
 
 LABEL=before ./scripts/perf-drill.sh run
 # edit ingot / sprue / piri ...
-make clean                                      # delete object data
+make clean                                      # delete object data, tenants and keys
 make redeploy                                   # or SVC=ingot
+./scripts/perf-drill.sh setup                   # new key: make clean dropped the old one
 LABEL=after ./scripts/perf-drill.sh run
 
 ./scripts/perf-results.py compare drill before after
@@ -147,6 +148,9 @@ same way `make s3-key` does) and writes it with ingot's endpoint and region to
 `generated/perf-runs/drill/provider/.env`, readable only by you. Neither key
 is printed. Re-run `setup` after `make down && make up`: hilt's dev vault is
 in memory, so the old key stops working and `setup` moves to tenant `drill-2`.
+Re-run it after `make clean` too, which deletes the tenant along with its key;
+`setup` then creates tenant `drill` again. Without it, `run` stops at its
+smoke check with `InvalidAccessKeyId`.
 
 ### run
 
