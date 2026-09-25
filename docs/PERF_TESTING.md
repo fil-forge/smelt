@@ -185,18 +185,23 @@ A drill run records `generated/perf-runs/drill/<utc-ts>-<label>/`:
   provider file; each run gets its own journal in `state/`, so an interrupted
   run never blocks the next one.
 
-Each run appends one row to `generated/perf-runs/drill/runs.jsonl` with these
-metrics:
+Each run appends one row to `generated/perf-runs/drill/runs.jsonl`. The rates
+are computed the way the drill report's "Sustained rates" section computes
+them, over the run's steady windows, so the table and the report agree:
 
-- ingest GB/s, median: median of the windows' ingest rates.
-- ingest GB/s, p5: the highest rate that at least 95% of windows reached, by
-  the rule the drill applies to its target. With fewer than 20 windows this is
-  the slowest window. It depends on the window length (shown in the comparison
-  header), so compare it only between runs with the same `WINDOW` and cap.
-- blob_put/s: blob PUT requests per second, as in the drill's report.
-- read-back GB/s: whole-blob read-back, bytes per second over all windows.
-- restore GB/s: ranged reads of the blocks inside blobs, bytes per second over
-  all windows. Read-back and restore together are the GB/s out.
+- ingest GB/s, median: median of the steady windows' ingest rates.
+- ingest GB/s, p5: the highest rate that at least 95% of steady windows
+  reached, by the rule the drill applies to its target. With fewer than 20
+  windows this is the slowest window. It depends on the window length (shown
+  in the comparison header), so compare it only between runs with the same
+  `WINDOW` and cap.
+- blob_put/s, median: blob PUT requests per second, per window.
+- read-back GB/s, median: whole-blob read-back per window. Reads start one
+  verification lag after the first writes, so the first few 10-second windows
+  read nothing; with only a handful of steady windows this median understates
+  the read rate.
+- restore GB/s, median: ranged reads of the blocks inside blobs, per window.
+  Read-back and restore together are the GB/s out.
 - bytes sent: every byte the drill PUT (blocks plus aggregates; the import
   profiles write no aggregates).
 - integrity failures: reads that returned wrong bytes or found a written
@@ -204,8 +209,13 @@ metrics:
 - requests, transport errors, 408, 429 and 5xx responses: the availability
   counts from the drill's report, over the whole run.
 
-Ingest metrics skip windows at the end of the run that ingested nothing. A
-stall in the middle of the run stays in.
+The steady windows of a capped run are the ones that closed before ingest
+stopped; the drill counts them in the fact `windows_before_cutoff`. The window
+the cutoff falls in is partial, the uploads in flight at the cutoff finish in
+the next one, and the windows after that carry read-back alone, so none of
+them measure sustained ingest. A cap spent inside the ramp leaves no steady
+windows, and the rates read `-`. A run that ends at `DURATION` before the cap
+counts every window, including a stall at its end.
 
 ## Adding a suite
 

@@ -162,12 +162,7 @@ def drill_rows(run_dir: Path, meta: dict) -> list[dict]:
     facts = drill.get("facts") or {}
     availability = drill["availability"]
     windows = drill.get("windows") or []
-    # A drill that keeps measuring after the cap would end on windows with no
-    # ingest (read-back draining). They say nothing about ingest speed; a
-    # stall in the middle of the run does, so only the tail is dropped.
-    ingest_windows = list(windows)
-    while ingest_windows and not ingest_windows[-1]["ingest_bytes"]:
-        ingest_windows.pop()
+    steady = steady_windows(windows, facts)
 
     row = {
         **common_fields(run_dir, meta),
@@ -178,7 +173,7 @@ def drill_rows(run_dir: Path, meta: dict) -> list[dict]:
         "drill_exit": suite.get("drill_exit"),
         "storage_qualification": suite.get("storage_qualification"),
         "windows": len(windows),
-        "ingest_windows": len(ingest_windows),
+        "steady_windows": len(steady),
         "bytes_sent": drill["bytes_ingested"] + facts.get("aggregate_bytes", 0),
         "bytes_read_back": drill["bytes_read_back"],
         "integrity_failures": drill["integrity_failures"],
@@ -187,30 +182,52 @@ def drill_rows(run_dir: Path, meta: dict) -> list[dict]:
         "status_408": availability["status_408"],
         "status_429": availability["status_429"],
         "status_5xx": availability["status_5xx"],
-        "ingest_gbps_median": None,
-        "ingest_gbps_p5": None,
-        "writes_per_second": None,
-        "read_back_gbps": None,
-        "restore_gbps": None,
+        **sustained_rates(steady),
     }
-    if ingest_windows:
-        rates = sorted(gb(w["ingest_bytes_per_second"]) for w in ingest_windows)
-        ingest_seconds = sum(w["seconds"] for w in ingest_windows)
-        row["ingest_gbps_median"] = statistics.median(rates)
-        row["ingest_gbps_p5"] = rates[p5_index(len(rates))]
-        row["writes_per_second"] = sum((w.get("requests") or {}).get("blob_put", 0) for w in ingest_windows) / ingest_seconds
-    if windows:
-        seconds = sum(w["seconds"] for w in windows)
-        row["read_back_gbps"] = gb(sum(w["read_bytes"] for w in windows) / seconds)
-        row["restore_gbps"] = gb(sum(w["restore_bytes"] for w in windows) / seconds)
     return [row]
+
+
+def steady_windows(windows: list[dict], facts: dict) -> list[dict]:
+    """The windows the sustained rates are taken over, as the drill's report
+    picks them (SustainedRates). A run capped by --stop-ingest-at keeps
+    measuring while its read-back finishes: the window the cutoff falls in is
+    partial, and the ones after it carry the uploads that were in flight and
+    then read-back alone. The drill counts the windows that closed before the
+    cutoff in the fact windows_before_cutoff (0 when the cap ran out inside the
+    ramp). Without the fact, the cutoff was never reached and every window is
+    steady, including a stall at the end of the run."""
+    before = facts.get("windows_before_cutoff")
+    if before is None:
+        return windows
+    if not isinstance(before, (int, float)) or before != int(before) or before < 0:
+        raise SystemExit(f"windows_before_cutoff must be a whole number of windows, got {before!r}")
+    return windows[:int(before)]
+
+
+def sustained_rates(steady: list[dict]) -> dict:
+    """The drill report's sustained rates: medians over the steady windows,
+    plus p5 ingest. Writes and restore skip windows of zero length, as the
+    drill does."""
+    timed = [w for w in steady if w["seconds"] > 0]
+    ingest = sorted(gb(w["ingest_bytes_per_second"]) for w in steady)
+    return {
+        "ingest_gbps_median": median(ingest),
+        "ingest_gbps_p5": ingest[p5_index(len(ingest))] if ingest else None,
+        "writes_per_second": median([(w.get("requests") or {}).get("blob_put", 0) / w["seconds"] for w in timed]),
+        "read_back_gbps": median([gb(w["read_bytes_per_second"]) for w in steady]),
+        "restore_gbps": median([gb(w["restore_bytes"] / w["seconds"]) for w in timed]),
+    }
+
+
+def median(values: list[float]) -> float | None:
+    return statistics.median(values) if values else None
 
 
 def p5_index(n: int) -> int:
     """Index into n ascending window rates of the highest rate that at least
-    95% of the windows reach, by the drill's own rule (MeetsTarget: windows at
-    or above the target >= 0.95 * windows, in float64). With fewer than 20
-    windows this is the slowest window."""
+    95% of the windows reach: the drill's target rule (windows at or above the
+    target >= 0.95 * windows, in float64), which its report's p5 (heldBy95)
+    also applies. With fewer than 20 windows this is the slowest window."""
     return max(k for k in range(n) if (n - k) >= 0.95 * n)
 
 
@@ -230,9 +247,9 @@ def print_drill_table(rows: list[dict]) -> None:
     metrics = [
         ("ingest GB/s, median", lambda r: fmt_num(r["ingest_gbps_median"], 3)),
         ("ingest GB/s, p5", lambda r: fmt_num(r["ingest_gbps_p5"], 3)),
-        ("blob_put/s", lambda r: fmt_num(r["writes_per_second"], 1)),
-        ("read-back GB/s", lambda r: fmt_num(r["read_back_gbps"], 3)),
-        ("restore GB/s", lambda r: fmt_num(r["restore_gbps"], 3)),
+        ("blob_put/s, median", lambda r: fmt_num(r["writes_per_second"], 1)),
+        ("read-back GB/s, median", lambda r: fmt_num(r["read_back_gbps"], 3)),
+        ("restore GB/s, median", lambda r: fmt_num(r["restore_gbps"], 3)),
         ("bytes sent (GB)", lambda r: fmt_num(gb(r["bytes_sent"]), 2)),
         ("integrity failures", lambda r: str(r["integrity_failures"])),
         ("requests", lambda r: str(r["requests"])),
@@ -240,7 +257,7 @@ def print_drill_table(rows: list[dict]) -> None:
         ("408 responses", lambda r: str(r["status_408"])),
         ("429 responses", lambda r: str(r["status_429"])),
         ("5xx responses", lambda r: str(r["status_5xx"])),
-        ("windows (ingest/all)", lambda r: f"{r['ingest_windows']}/{r['windows']}"),
+        ("windows (steady/all)", lambda r: f"{r['steady_windows']}/{r['windows']}"),
         ("drill exit", lambda r: str(r.get("drill_exit"))),
     ]
     lines = [["metric"] + labels]
@@ -248,7 +265,8 @@ def print_drill_table(rows: list[dict]) -> None:
         lines.append([name] + [cell(by_label[label]) for label in labels])
     print_grid(lines)
     print()
-    print("p5: the highest rate at least 95% of ingest windows reached (the drill's target rule)")
+    print("rates are taken over the steady windows, as in the drill report's Sustained rates section")
+    print("p5: the highest ingest rate at least 95% of steady windows reached (the drill's target rule)")
 
 
 def fmt_num(value: float | None, digits: int) -> str:
