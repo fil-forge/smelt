@@ -525,7 +525,7 @@ in-container config path.
 s3-speedtests harness and records code versions, container stats and logs per run under
 `generated/perf-runs/`; `scripts/perf-results.py compare s3-speedtest <label>...` puts runs side
 by side. `scripts/perf-drill.sh setup|run` does the same with the fil-one
-storage-qualification drill (sustained ingest with read-back, capped by `STOP_INGEST_AT`, 60GB by
+storage-qualification drill (sustained ingest with read-back, capped by `STOP_INGEST_AT`, 50GB by
 default; needs about 2.5x that in free disk), compared with `perf-results.py compare drill`. Pair
 either with `make redeploy` for the edit-measure loop. Full guide:
 [docs/PERF_TESTING.md](docs/PERF_TESTING.md).

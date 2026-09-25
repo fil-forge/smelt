@@ -160,6 +160,7 @@ def drill_rows(run_dir: Path, meta: dict) -> list[dict]:
     drill = json.loads(evidence_files[0].read_text())["drill"]
     suite = meta.get("suite", {})
     facts = drill.get("facts") or {}
+    availability = drill["availability"]
     windows = drill.get("windows") or []
     # A drill that keeps measuring after the cap would end on windows with no
     # ingest (read-back draining). They say nothing about ingest speed; a
@@ -181,10 +182,16 @@ def drill_rows(run_dir: Path, meta: dict) -> list[dict]:
         "bytes_sent": drill["bytes_ingested"] + facts.get("aggregate_bytes", 0),
         "bytes_read_back": drill["bytes_read_back"],
         "integrity_failures": drill["integrity_failures"],
+        "requests": availability["requests"],
+        "transport_errors": availability["transport_errors"],
+        "status_408": availability["status_408"],
+        "status_429": availability["status_429"],
+        "status_5xx": availability["status_5xx"],
         "ingest_gbps_median": None,
         "ingest_gbps_p5": None,
         "writes_per_second": None,
         "read_back_gbps": None,
+        "restore_gbps": None,
     }
     if ingest_windows:
         rates = sorted(gb(w["ingest_bytes_per_second"]) for w in ingest_windows)
@@ -193,7 +200,9 @@ def drill_rows(run_dir: Path, meta: dict) -> list[dict]:
         row["ingest_gbps_p5"] = rates[p5_index(len(rates))]
         row["writes_per_second"] = sum((w.get("requests") or {}).get("blob_put", 0) for w in ingest_windows) / ingest_seconds
     if windows:
-        row["read_back_gbps"] = gb(sum(w["read_bytes"] for w in windows) / sum(w["seconds"] for w in windows))
+        seconds = sum(w["seconds"] for w in windows)
+        row["read_back_gbps"] = gb(sum(w["read_bytes"] for w in windows) / seconds)
+        row["restore_gbps"] = gb(sum(w["restore_bytes"] for w in windows) / seconds)
     return [row]
 
 
@@ -223,8 +232,14 @@ def print_drill_table(rows: list[dict]) -> None:
         ("ingest GB/s, p5", lambda r: fmt_num(r["ingest_gbps_p5"], 3)),
         ("blob_put/s", lambda r: fmt_num(r["writes_per_second"], 1)),
         ("read-back GB/s", lambda r: fmt_num(r["read_back_gbps"], 3)),
+        ("restore GB/s", lambda r: fmt_num(r["restore_gbps"], 3)),
         ("bytes sent (GB)", lambda r: fmt_num(gb(r["bytes_sent"]), 2)),
         ("integrity failures", lambda r: str(r["integrity_failures"])),
+        ("requests", lambda r: str(r["requests"])),
+        ("transport errors", lambda r: str(r["transport_errors"])),
+        ("408 responses", lambda r: str(r["status_408"])),
+        ("429 responses", lambda r: str(r["status_429"])),
+        ("5xx responses", lambda r: str(r["status_5xx"])),
         ("windows (ingest/all)", lambda r: f"{r['ingest_windows']}/{r['windows']}"),
         ("drill exit", lambda r: str(r.get("drill_exit"))),
     ]

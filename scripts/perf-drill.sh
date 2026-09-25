@@ -13,15 +13,16 @@
 #                              fil-one/storage-qualification beside the fil-forge/
 #                              directory this smelt checkout lives in)
 #   PROFILE         drill profile: import (default), smoke or import-blocks
-#   STOP_INGEST_AT  stop ingesting after this many bytes, in GB (default 60GB)
+#   STOP_INGEST_AT  stop ingesting after this many bytes, in GB (default 50GB)
 #   RAMP            ramp-up before the first measured window (default 10s)
 #   WINDOW          measurement window length (default 10s; the drill's own is 60s)
 #   VERIFY_LAG_MIN  earliest read-back of a written block (default 30s)
 #   VERIFY_LAG_MAX  latest read-back of a written block (default 60s)
 #   RATE_TARGET     offered ingest rate in bytes per second, e.g. 5GB (default:
 #                   the profile's own); a stack faster than this measures as this
-#   WORKERS         fixed in-flight block count (default: ramp from 64 to 512)
-#   DURATION        upper bound on the run (default: the profile's own)
+#   WORKERS         fixed in-flight block count (default 16; the drill's own
+#                   is a ramp from 64 to 512)
+#   DURATION        upper bound on the run (default 15m; the profile's is 1h)
 #   LABEL           run label (default: the profile name)
 #
 # A run needs about 2.5x STOP_INGEST_AT of free disk, on the host and in
@@ -40,19 +41,25 @@ PROJECT="$(perf_project_dir)"
 SQ_DIR="${STORAGE_QUALIFICATION_DIR:-$(dirname "$(dirname "$PROJECT")")/fil-one/storage-qualification}"
 DRILL_BIN="$SQ_DIR/bin/drill"
 PROFILE="${PROFILE:-import}"
-STOP_INGEST_AT="${STOP_INGEST_AT:-60GB}"
+STOP_INGEST_AT="${STOP_INGEST_AT:-50GB}"
 RAMP="${RAMP:-10s}"
 # A capped local run ingests for minutes, not the profile's hour. With the
 # drill's 60-second windows that is a handful of windows, and p5 over fewer
 # than 20 windows is just the slowest one. 10 seconds still holds a dozen or
 # more of the import profile's ~128 MiB blobs at 0.2 GB/s.
 WINDOW="${WINDOW:-10s}"
-# The drill's defaults (5 to 15 minutes) outlast a capped local run, which
-# would then end before most lagged reads fall due and read back almost
-# nothing. With 30 to 60 seconds, reads run alongside ingest within the first
-# minute.
+# After the cap the drill keeps running until every written blob has been
+# read back. With its default lag (5 to 15 minutes) a few minutes of ingest
+# would see no reads at all and then wait up to a quarter of an hour for them.
+# With 30 to 60 seconds, reads run alongside ingest within the first minute
+# and the run ends about a minute after the cap.
 VERIFY_LAG_MIN="${VERIFY_LAG_MIN:-30s}"
 VERIFY_LAG_MAX="${VERIFY_LAG_MAX:-60s}"
+# The drill's ramp from 64 to 512 blobs in flight is more than a laptop stack
+# can serve.
+WORKERS="${WORKERS:-16}"
+# A stack too slow to reach STOP_INGEST_AT still finishes in minutes.
+DURATION="${DURATION:-15m}"
 LABEL="${LABEL:-$PROFILE}"
 TENANT=drill
 # PROFILE names the drill profile in this script, so the AWS CLI profile that
@@ -115,8 +122,8 @@ run() {
   # The disk check reads the number of GB from STOP_INGEST_AT; the drill
   # itself gets the value as given.
   [[ "$STOP_INGEST_AT" =~ ^[0-9]+(\.[0-9]+)?GB$ ]] \
-    || perf_die "STOP_INGEST_AT must be a number of GB such as 60GB or 7.5GB, got '$STOP_INGEST_AT'"
-  [[ -z "${WORKERS:-}" || "$WORKERS" =~ ^[1-9][0-9]*$ ]] || perf_die "WORKERS must be a positive integer, got '$WORKERS'"
+    || perf_die "STOP_INGEST_AT must be a number of GB such as 50GB or 7.5GB, got '$STOP_INGEST_AT'"
+  [[ "$WORKERS" =~ ^[1-9][0-9]*$ ]] || perf_die "WORKERS must be a positive integer, got '$WORKERS'"
   # The drill would reject a bad duration too, but only after the run
   # directory exists.
   local knob
@@ -150,7 +157,7 @@ run() {
   perf_metadata "$run_dir" "$LABEL" "$(jq -cn \
     --arg profile "$PROFILE" --arg stop_ingest_at "$STOP_INGEST_AT" --arg ramp "$RAMP" --arg window "$WINDOW" \
     --arg verify_lag_min "$VERIFY_LAG_MIN" --arg verify_lag_max "$VERIFY_LAG_MAX" \
-    --arg workers "${WORKERS:-}" --arg duration "${DURATION:-}" --arg rate_target "${RATE_TARGET:-}" \
+    --argjson workers "$WORKERS" --arg duration "$DURATION" --arg rate_target "${RATE_TARGET:-}" \
     --arg bucket_prefix "$bucket_prefix" --arg tenant "$tenant" \
     --argjson needed_gb "$DISK_NEEDED_GB" --argjson host_free_gb "$DISK_HOST_FREE_GB" \
     --argjson docker_free_gb "$DISK_DOCKER_FREE_GB" \
@@ -158,16 +165,13 @@ run() {
     'def nullable: if . == "" then null else . end;
      {profile: $profile, stop_ingest_at: $stop_ingest_at, ramp: $ramp, window: $window,
       verify_lag_min: $verify_lag_min, verify_lag_max: $verify_lag_max,
-      workers: ($workers|nullable|if . then tonumber else null end),
-      duration: ($duration|nullable), rate_target: ($rate_target|nullable),
+      workers: $workers, duration: $duration, rate_target: ($rate_target|nullable),
       bucket_prefix: $bucket_prefix, tenant: $tenant,
       disk: {needed_gb: $needed_gb, host_free_gb: $host_free_gb, docker_free_gb: $docker_free_gb},
       storage_qualification: ($storage_qualification|fromjson)}')"
   echo "run dir: $run_dir"
 
   local optional_flags=()
-  [ -z "${WORKERS:-}" ] || optional_flags+=(--workers "$WORKERS")
-  [ -z "${DURATION:-}" ] || optional_flags+=(--duration "$DURATION")
   [ -z "${RATE_TARGET:-}" ] || optional_flags+=(--rate-target "$RATE_TARGET")
 
   perf_stats_start "$run_dir" "${STATS_SERVICES[@]}"
@@ -187,6 +191,7 @@ run() {
     "$DRILL_BIN" --provider "$run_dir/drill" --profile "$PROFILE" \
       --stop-ingest-at "$STOP_INGEST_AT" --ramp "$RAMP" --window "$WINDOW" \
       --verify-lag-min "$VERIFY_LAG_MIN" --verify-lag-max "$VERIFY_LAG_MAX" \
+      --workers "$WORKERS" --duration "$DURATION" \
       ${optional_flags[@]+"${optional_flags[@]}"} \
     2>&1 | (trap '' INT; exec tee "$run_dir/drill.out") || status=$?
 
@@ -208,7 +213,13 @@ run() {
       [ "${#evidence[@]}" -eq 1 ] && [ -f "${evidence[0]}" ] \
         || perf_die "the drill exited $status but left ${#evidence[@]} evidence file(s) matching $run_dir/drill/evidence/drill-*.json instead of one"
       "$PROJECT/scripts/perf-results.py" record "$SUITE" "$run_dir"
-      [ "$status" -eq 0 ] || perf_die "the drill recorded a failure (exit 1); see $run_dir/drill/reports/"
+      local report=("$run_dir"/drill/reports/drill-*.md)
+      if [ -f "${report[0]}" ]; then
+        echo "drill report: ${report[0]}"
+      else
+        echo "WARNING: the drill wrote no report under $run_dir/drill/reports/" >&2
+      fi
+      [ "$status" -eq 0 ] || perf_die "the drill recorded a failure (exit 1); see the drill report"
       ;;
     2) perf_die "the drill stopped on a usage error or an interrupt (exit 2); nothing recorded. See $run_dir/drill.out. Objects it wrote stay in the stack until 'make clean'." ;;
     *) perf_die "the drill exited $status; nothing recorded. See $run_dir/drill.out" ;;

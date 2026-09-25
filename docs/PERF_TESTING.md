@@ -87,10 +87,10 @@ objects and nothing is deduplicated across runs.
 
 ## The drill suite
 
-The drill writes blocks from many workers at an offered rate, reads each one
+The drill writes blobs from many workers at an offered rate, reads each one
 back after a short lag, and scores ingest per measurement window. The suite caps
-it with the drill's `--stop-ingest-at`, so a run ends after a fixed number of
-bytes instead of the profile's full hour.
+it with the drill's `--stop-ingest-at`, so a run stops ingesting after 50 GB
+by default instead of running the profile's full hour.
 
 ```bash
 make up                                         # with the exports from the loop above
@@ -115,13 +115,13 @@ as given:
 | Variable | Default | Meaning |
 |---|---|---|
 | `PROFILE` | `import` | `import`, `smoke` or `import-blocks` |
-| `STOP_INGEST_AT` | `60GB` | stop ingesting after this many bytes; GB values only |
+| `STOP_INGEST_AT` | `50GB` | stop ingesting after this many bytes; GB values only |
 | `RAMP` | `10s` | ramp-up before the first measured window |
 | `WINDOW` | `10s` | measurement window length |
 | `VERIFY_LAG_MIN`, `VERIFY_LAG_MAX` | `30s`, `60s` | when each written block is read back |
 | `RATE_TARGET` | the profile's (3 GB/s for import, 1 GB/s for the others) | offered ingest rate, e.g. `5GB` |
-| `WORKERS` | a ramp from 64 to 512 | fixed number of blocks in flight |
-| `DURATION` | the profile's (1 hour; 15 minutes for smoke) | upper bound on the run |
+| `WORKERS` | `16` | fixed number of blobs in flight (the drill ramps from 64 to 512, more than a laptop stack can serve) |
+| `DURATION` | `15m` | upper bound on the run, so a stack too slow to reach the cap still finishes in minutes |
 | `LABEL` | the profile name | run label |
 
 The drill never offers more than `RATE_TARGET`, so a stack faster than that
@@ -130,24 +130,29 @@ in the comparison header, raise `RATE_TARGET`. The drill's 2 GB/s floor and
 3 GB/s target do not stop an import run; the p5 metric below reads as the
 highest target this run would have met.
 
-The verification lag defaults to 5 to 15 minutes in the drill. A capped local
-run (60 GB takes about five minutes at 0.2 GB/s) would end before most reads
-fall due and read back almost nothing. With 30 to 60 seconds, read-back runs
-alongside ingest within the first minute, and only the blocks written in the
-last minute go unread.
+After the cap the drill keeps running until every blob it wrote has been read
+back, then ends; `DURATION` still bounds the run. With the drill's default
+verification lag of 5 to 15 minutes, a few minutes of ingest would see no
+reads at all, followed by up to a quarter of an hour of reads alone. With 30 to
+60 seconds, read-back runs alongside ingest within the first minute, as it
+does in a long run, and the run ends about a minute after the cap.
 
-The drill scores 60-second windows; the suite uses 10 seconds. A 60 GB run at
-0.2 GB/s then has about 30 windows instead of 5, enough for p5 to mean
-something, and each window still holds a dozen or more of the import profile's
-~128 MiB blobs. Bytes count in the window where their request completes, so a
-window much shorter than a blob upload measures completions rather than
-throughput. Short windows also show dips that 60-second windows average out,
-which makes p5 at 10 seconds stricter than the drill's own scoring; set
-`WINDOW=60s` to match it. Aim for at least 20 windows: at a faster stack or a
-lower cap, shorten `WINDOW` or raise `STOP_INGEST_AT`.
+**Windows are 10 seconds here and 60 seconds in full-size runs.** Rates
+(ingest, read-back and restore GB/s, writes a second) read the same at either
+length. p5 does not: 10-second windows show dips that 60-second windows
+average out, so p5 from a laptop run is stricter than p5 from a staging run of
+the same stack. Set `WINDOW=60s` to score the way staging does. The suite uses
+10 seconds because a 50 GB run at 0.2 GB/s ingests for about four minutes:
+60-second windows would give four of them, and p5 over fewer than 20 windows
+is simply the slowest one. At 10 seconds the run has about 25, and each still
+holds a dozen or more of the import profile's ~128 MiB blobs. Bytes count in
+the window where their request completes, so a window much shorter than a
+blob upload measures completions rather than throughput. Aim for at least 20
+windows: on a faster stack or with a lower cap, shorten `WINDOW` or raise
+`STOP_INGEST_AT`.
 
-Plan for 2 to 2.5x `STOP_INGEST_AT` of free disk, and run `make clean` between
-large runs. `run` checks the space free on the host and in Docker's disk (the
+Plan for 2 to 2.5x `STOP_INGEST_AT` of free disk (125 GB for the default
+50 GB), and run `make clean` between large runs. `run` checks the space free on the host and in Docker's disk (the
 `ingot-data` volume) and refuses to start with less than 2.5x, because
 ingot's spool never frees body bytes and piri frees its copy only minutes
 after the drill sweeps its buckets. On Docker Desktop the VM disk is a file on
@@ -155,11 +160,17 @@ the host disk, so both need the space.
 
 The drill's evidence always reads "not qualified" under the cap, so `run`
 goes by the exit code. 0 means the run completed with no failures and is
-recorded. 1 means the evidence records a failure (integrity, early cutoff,
-sweep, seal); the run is recorded so the comparison shows it, and the script
+recorded. 1 means the evidence records a failure: an integrity failure, a
+request the store failed (a transport error, 408, 429 or 5xx; the import
+profile's client does not retry), a cap spent inside the ramp, or a failed
+sweep or seal. The run is recorded so the comparison shows it, and the script
 exits non-zero. 2 means a usage error or an interrupt, and nothing is
 recorded. The objects an interrupted run wrote stay in the stack until
 `make clean`.
+
+At the end `run` prints the run's comparison table and the path of the
+drill's report, `drill/reports/drill-*.md`, the same report a full-size run
+produces.
 
 A drill run records `generated/perf-runs/drill/<utc-ts>-<label>/`:
 
@@ -183,11 +194,15 @@ metrics:
   the slowest window. It depends on the window length (shown in the comparison
   header), so compare it only between runs with the same `WINDOW` and cap.
 - blob_put/s: blob PUT requests per second, as in the drill's report.
-- read-back GB/s: bytes read back per second over all windows.
+- read-back GB/s: whole-blob read-back, bytes per second over all windows.
+- restore GB/s: ranged reads of the blocks inside blobs, bytes per second over
+  all windows. Read-back and restore together are the GB/s out.
 - bytes sent: every byte the drill PUT (blocks plus aggregates; the import
   profiles write no aggregates).
 - integrity failures: reads that returned wrong bytes or found a written
   object missing.
+- requests, transport errors, 408, 429 and 5xx responses: the availability
+  counts from the drill's report, over the whole run.
 
 Ingest metrics skip windows at the end of the run that ingested nothing. A
 stall in the middle of the run stays in.
