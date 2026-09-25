@@ -1,0 +1,17 @@
+# Every db/blob combination on one stack, so the golden output covers each
+# branch of the piri compose generator.
+version: 1
+piri:
+  nodes:
+    - storage:
+        db: sqlite
+        blob: filesystem
+    - storage:
+        db: sqlite
+        blob: s3
+    - storage:
+        db: postgres
+        blob: filesystem
+    - storage:
+        db: postgres
+        blob: s3
