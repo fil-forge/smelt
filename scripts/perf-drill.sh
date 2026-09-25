@@ -93,6 +93,8 @@ setup() {
   [ -n "$region" ] || perf_die "profile $AWS_CLI_PROFILE has no region"
   # SQ_ENDPOINT is host:port; SQ_INSECURE=true makes the drill use plain HTTP.
   [[ "$endpoint" = http://* ]] || perf_die "profile $AWS_CLI_PROFILE has endpoint_url '$endpoint'; expected http://host:port"
+  # A key for a stack that cannot store a blob is no use to the drill.
+  smoke_check
 
   mkdir -p "$PROVIDER_DIR"
   # umask applies only when a file is created, so never write over an old one.
@@ -134,6 +136,7 @@ run() {
   [ -f "$PROVIDER_DIR/.env" ] || perf_die "no $PROVIDER_DIR/.env; run '$0 setup' first"
   build_drill
   check_disk
+  smoke_check
 
   local run_dir
   run_dir="$(perf_run_dir "$SUITE" "$LABEL")"
@@ -143,13 +146,6 @@ run() {
   # directory, and no journal from an interrupted run to block the next one.
   mkdir -p "$run_dir/drill"
   ln -s ../../provider/.env "$run_dir/drill/.env"
-  # Ingot bucket names are global, so every run gets its own prefix. It is
-  # built from the timestamp alone: LABEL may hold characters that bucket
-  # names reject.
-  local ts bucket_prefix
-  ts="$(basename "$run_dir")"
-  ts="${ts%%-*}"
-  bucket_prefix="drill-$(echo "$ts" | tr '[:upper:]' '[:lower:]')-"
 
   local tenant
   tenant="$(aws configure get --profile "$AWS_CLI_PROFILE" tenant_id 2>/dev/null)" \
@@ -158,7 +154,7 @@ run() {
     --arg profile "$PROFILE" --arg stop_ingest_at "$STOP_INGEST_AT" --arg ramp "$RAMP" --arg window "$WINDOW" \
     --arg verify_lag_min "$VERIFY_LAG_MIN" --arg verify_lag_max "$VERIFY_LAG_MAX" \
     --argjson workers "$WORKERS" --arg duration "$DURATION" --arg rate_target "${RATE_TARGET:-}" \
-    --arg bucket_prefix "$bucket_prefix" --arg tenant "$tenant" \
+    --arg tenant "$tenant" \
     --argjson needed_gb "$DISK_NEEDED_GB" --argjson host_free_gb "$DISK_HOST_FREE_GB" \
     --argjson docker_free_gb "$DISK_DOCKER_FREE_GB" \
     --arg storage_qualification "$(perf_git_info "$SQ_DIR")" \
@@ -166,7 +162,7 @@ run() {
      {profile: $profile, stop_ingest_at: $stop_ingest_at, ramp: $ramp, window: $window,
       verify_lag_min: $verify_lag_min, verify_lag_max: $verify_lag_max,
       workers: $workers, duration: $duration, rate_target: ($rate_target|nullable),
-      bucket_prefix: $bucket_prefix, tenant: $tenant,
+      tenant: $tenant,
       disk: {needed_gb: $needed_gb, host_free_gb: $host_free_gb, docker_free_gb: $docker_free_gb},
       storage_qualification: ($storage_qualification|fromjson)}')"
   echo "run dir: $run_dir"
@@ -182,12 +178,13 @@ run() {
   # SQ_* variables in the environment win over .env, so a shell that still
   # exports them from a session against another store would send the drill
   # there. `env -u` drops them; without a notary token the drill also never
-  # registers the run with a notary. tee ignores SIGINT so that Ctrl-C reaches
-  # only the drill, which then writes its evidence and sweeps its buckets
-  # without losing its output pipe.
+  # registers the run with a notary, and without a bucket prefix it names the
+  # buckets after its run id, which ingot's global bucket names need. tee
+  # ignores SIGINT so that Ctrl-C reaches only the drill, which then writes its
+  # evidence and sweeps its buckets without losing its output pipe.
   local status=0
   env -u SQ_ENDPOINT -u SQ_ACCESS_KEY -u SQ_SECRET_KEY -u SQ_INSECURE -u SQ_REGION \
-      -u SQ_NOTARY_URL -u SQ_NOTARY_TOKEN SQ_BUCKET_PREFIX="$bucket_prefix" \
+      -u SQ_NOTARY_URL -u SQ_NOTARY_TOKEN -u SQ_BUCKET_PREFIX \
     "$DRILL_BIN" --provider "$run_dir/drill" --profile "$PROFILE" \
       --stop-ingest-at "$STOP_INGEST_AT" --ramp "$RAMP" --window "$WINDOW" \
       --verify-lag-min "$VERIFY_LAG_MIN" --verify-lag-max "$VERIFY_LAG_MAX" \
@@ -204,14 +201,19 @@ run() {
   mv "$run_dir/metadata.json.tmp" "$run_dir/metadata.json"
 
   # The cap downgrades the evidence to "not qualified" on every run, so the
-  # exit code is the only verdict: 0 completed with no failures, 1 the
-  # evidence records a failure (integrity, early cutoff, sweep, seal), 2 a
-  # usage error or an interrupt.
+  # exit code is the verdict (storage-qualification MANUAL.md): 0 completed
+  # with no failures, 1 a failure, 2 a usage error or an interrupt. A failure
+  # before the run starts, such as a bucket the store refuses, is 1 with no
+  # evidence.
+  local evidence=("$run_dir"/drill/evidence/drill-*.json)
+  [ -f "${evidence[0]}" ] || evidence=()
+  if [ "$status" -eq 1 ] && [ "${#evidence[@]}" -eq 0 ]; then
+    perf_die "the drill failed before it wrote any evidence; nothing recorded. See $run_dir/drill.out"
+  fi
   case "$status" in
     0|1)
-      local evidence=("$run_dir"/drill/evidence/drill-*.json)
-      [ "${#evidence[@]}" -eq 1 ] && [ -f "${evidence[0]}" ] \
-        || perf_die "the drill exited $status but left ${#evidence[@]} evidence file(s) matching $run_dir/drill/evidence/drill-*.json instead of one"
+      [ "${#evidence[@]}" -eq 1 ] \
+        || perf_die "the drill exited $status but left ${#evidence[@]} evidence files matching $run_dir/drill/evidence/drill-*.json instead of one"
       "$PROJECT/scripts/perf-results.py" record "$SUITE" "$run_dir"
       local report=("$run_dir"/drill/reports/drill-*.md)
       if [ -f "${report[0]}" ]; then
@@ -232,14 +234,58 @@ run() {
 build_drill() {
   [ -d "$SQ_DIR/cmd/drill" ] || perf_die "storage-qualification checkout not found at $SQ_DIR (set STORAGE_QUALIFICATION_DIR)"
   # GOWORK=off: a go.work above the checkout (the workspace flow keeps one at
-  # the fil-forge/ parent) would refuse -mod=mod.
-  (cd "$SQ_DIR" && GOWORK=off GOFLAGS=-mod=mod go build -o bin/drill ./cmd/drill) \
+  # the fil-forge/ parent) does not list storage-qualification.
+  (cd "$SQ_DIR" && GOWORK=off go build -o bin/drill ./cmd/drill) \
     || perf_die "cannot build the drill in $SQ_DIR"
   local help
   help="$("$DRILL_BIN" --help 2>&1 || true)"
   # Go prints flags with a single dash; the pattern matches either form.
   grep -q -e '-stop-ingest-at' <<<"$help" \
     || perf_die "bin/drill has no --stop-ingest-at flag; update $SQ_DIR to a revision that has it"
+}
+
+# smoke_check: upload one small object through ingot with the drill's key,
+# download it and compare, so a stack that cannot store a blob fails here in
+# seconds rather than as a drill run whose every request fails. An upload
+# goes ingot -> piri -> indexer, so this catches a broken piri or a stale
+# delegation proof as well as a bad key.
+smoke_check() {
+  local aws=(aws --profile "$AWS_CLI_PROFILE") tenant bucket key tmp
+  tenant="$(aws configure get --profile "$AWS_CLI_PROFILE" tenant_id 2>/dev/null)" \
+    || perf_die "profile $AWS_CLI_PROFILE has no tenant_id; run '$0 setup' first"
+  # Ingot bucket names are global, so the bucket carries the tenant. It is
+  # kept between checks; each check writes its own key.
+  bucket="drill-smoke-$tenant"
+  key="smoke-$(date -u +%Y%m%dT%H%M%SZ)"
+  tmp="$(mktemp -d)"
+  # A 4 MiB object is one PUT, as the drill's blobs are below 16 MiB.
+  head -c 4194304 /dev/urandom > "$tmp/up"
+  if ! "${aws[@]}" s3api head-bucket --bucket "$bucket" >/dev/null 2>&1; then
+    "${aws[@]}" s3api create-bucket --bucket "$bucket" >/dev/null 2>"$tmp/err" \
+      || smoke_fail "creating bucket $bucket" "$tmp"
+  fi
+  "${aws[@]}" s3 cp --only-show-errors "$tmp/up" "s3://$bucket/$key" 2>"$tmp/err" \
+    || smoke_fail "uploading s3://$bucket/$key" "$tmp"
+  "${aws[@]}" s3 cp --only-show-errors "s3://$bucket/$key" "$tmp/down" 2>"$tmp/err" \
+    || smoke_fail "downloading s3://$bucket/$key" "$tmp"
+  cmp -s "$tmp/up" "$tmp/down" \
+    || { rm -rf "$tmp"; perf_die "smoke check: s3://$bucket/$key came back with different bytes"; }
+  "${aws[@]}" s3 rm --only-show-errors "s3://$bucket/$key" >/dev/null 2>&1 || true
+  rm -rf "$tmp"
+  echo "smoke check: uploaded and downloaded 4 MiB through ingot"
+}
+
+# smoke_fail <step> <tmp-dir>: report a failed smoke check step with the AWS
+# CLI's error and where to look next.
+smoke_fail() {
+  local step="$1" tmp="$2" err
+  err="$(cat "$tmp/err")"
+  rm -rf "$tmp"
+  perf_die "smoke check failed $step:
+$err
+The drill would fail the same way. Check the stack's logs: docker compose logs ingot piri-0
+If piri reports a signature mismatch, the keys and proofs in generated/ are likely out of
+sync; 'make regen', then 'make clean && make up' and '$0 setup' regenerates both."
 }
 
 # check_disk: refuse to start unless the host and Docker's disk both have
