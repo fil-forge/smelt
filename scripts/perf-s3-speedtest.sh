@@ -51,10 +51,8 @@ setup() {
   perf_require aws jq docker python3
   [ -d "$S3_SPEEDTESTS_DIR/scripts" ] || perf_die "s3-speedtests checkout not found at $S3_SPEEDTESTS_DIR (set S3_SPEEDTESTS_DIR)"
 
-  # `make up` returns before the services are healthy; a head-bucket against
-  # a starting ingot fails like a missing bucket would.
-  wait_healthy hilt
-  wait_healthy ingot
+  perf_wait_healthy hilt
+  perf_wait_healthy ingot
   (cd "$PROJECT" && TENANT="$TENANT" PROFILE="$PROFILE" ./scripts/s3-key.sh)
   local region bucket
   region="$(aws configure get --profile "$PROFILE" region)"
@@ -179,18 +177,6 @@ check_snapshot_manifest() {
   [ -f "$snap_dir/smelt.yml" ] || perf_die "no smelt.yml in snapshot $SNAPSHOT ($snap_dir)"
   cmp -s "$override" "$snap_dir/smelt.yml" \
     || perf_die "SMELT_MANIFEST ($SMELT_MANIFEST) differs from the manifest of snapshot $SNAPSHOT; unset it or pick a snapshot with the same topology"
-}
-
-# wait_healthy <compose-service>: poll until docker reports the container healthy.
-wait_healthy() {
-  local svc="$1" i
-  for i in $(seq 1 120); do
-    if (cd "$PROJECT" && docker compose ps --format '{{.Health}}' "$svc" 2>/dev/null | grep -q healthy); then
-      return
-    fi
-    sleep 5
-  done
-  perf_die "$svc did not become healthy in 10 minutes"
 }
 
 case "${1:-}" in
