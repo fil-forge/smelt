@@ -291,7 +291,7 @@ live; not safe when two pkg/stack-using test suites run concurrently
 ### Preserve a known-good stack
 
 ```bash
-make up                             # cold boot; wait for healthy
+make up                             # cold boot; returns once healthy
 ./smelt snapshot save good
 ```
 

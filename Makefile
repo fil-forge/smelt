@@ -54,14 +54,14 @@ help:
 	@echo "Forge Compose - Local Development Environment"
 	@echo ""
 	@echo "Quick Start:"
-	@echo "  make up        Start the network (initializes if needed)"
+	@echo "  make up        Start the network and wait until it is healthy"
 	@echo "  make down      Stop the network (keeps data)"
 	@echo "  make restart   Restart all services"
 	@echo ""
 	@echo "Lifecycle:"
 	@echo "  make generate  Generate compose files and keys from smelt.yml"
 	@echo "  make init      Initialize keys, proofs, and Docker network"
-	@echo "  make up        Start all services"
+	@echo "  make up        Start all services and wait until they are healthy"
 	@echo "  make down      Stop all services (preserves data)"
 	@echo "  make restart   Stop and start all services"
 	@echo "  make clean     Stop + delete volumes (DESTROYS ALL DATA)"
@@ -101,8 +101,9 @@ help:
 	@echo "                     sibling checkouts (selected via the active go.work"
 	@echo "                     use-list). 'SMELT_WORKSPACE=1 make up' compiles them"
 	@echo "                     and mounts them over the published images."
-	@echo "  make redeploy      Rebuild the workspace binaries and recreate their"
-	@echo "                     containers (SMELT_WORKSPACE=1; SVC=ingot to limit)."
+	@echo "  make redeploy      Rebuild the workspace binaries, recreate their"
+	@echo "                     containers and wait until they are healthy"
+	@echo "                     (SMELT_WORKSPACE=1; SVC=ingot to limit)."
 	@echo ""
 	@echo "Destructive commands (clean, nuke, fresh) require confirmation."
 	@echo ""
@@ -169,7 +170,8 @@ manifest-switch:
 init: generate
 	@./scripts/init.sh
 
-# Start all services (runs init first if needed).
+# Start all services (runs init first if needed) and wait until every service
+# with a health check reports healthy.
 #
 # Pass SNAPSHOT=<name-or-path> to load a snapshot before starting — keys,
 # proofs, blockchain state, docker volumes, and a session manifest at
@@ -197,6 +199,9 @@ up: ensure-state
 	@echo ""
 	@echo "Services starting. Run 'make status' to check health."
 	@echo "Run 'make logs' to follow logs."
+	@echo ""
+	@echo "Waiting for services to become healthy..."
+	@./scripts/wait-healthy.sh
 
 # Stop all services (keeps volumes for quick restart)
 down: generated/compose/piri.yml ensure-state
@@ -270,6 +275,9 @@ fresh: generated/compose/piri.yml check-docker
 	$(COMPOSE) build
 	$(COMPOSE) up -d --remove-orphans
 	@echo ""
+	@echo "Waiting for services to become healthy..."
+	@./scripts/wait-healthy.sh
+	@echo ""
 	@echo "Fresh deployment complete!"
 	@echo ""
 	@echo "Next steps:"
@@ -336,13 +344,20 @@ shell-hilt: ensure-state
 	$(COMPOSE) exec hilt bash
 
 # Rebuild the workspace binaries and recreate the containers that run them,
-# leaving the rest of the stack (chain state, init services, volumes) alone.
-# SVC=ingot (comma-separated list allowed) limits both the build and the
-# recreate to those services. Containers are recreated rather than restarted:
+# then wait until the recreated containers report healthy. SVC=ingot
+# (comma-separated list allowed) limits both the build and the recreate to
+# those services. Containers are recreated rather than restarted:
 # the binary is a file bind mount resolved when the container is created, and
 # the build installs a new file (new inode) under the same path. Only the
 # current go.work selection is recreated; after dropping a module from the
 # use-list, `make up` is what recreates its container without the mount.
+#
+# Dependencies are started too (no --no-deps): after `make clean` or
+# `make down` nothing else is running, and a workspace service started alone
+# crash-loops on its missing dependencies (e.g. delegator on dynamodb-local).
+# --force-recreate applies to the named services only; compose recreates a
+# dependency only when its config changed, so a running stack keeps its
+# chain state and volumes.
 redeploy: generated/compose/piri.yml ensure-state
 	@if [ "$(SMELT_WORKSPACE)" != "1" ]; then \
 		echo "ERROR: redeploy needs SMELT_WORKSPACE=1 (binaries come from the go.work checkouts)"; \
@@ -355,7 +370,9 @@ redeploy: generated/compose/piri.yml ensure-state
 	@services=$$(go run ./cmd/smelt workspace services $(if $(SVC),--only $(SVC))) || exit 1; \
 	if [ -z "$$services" ]; then echo "ERROR: no workspace services to redeploy"; exit 1; fi; \
 	echo "Recreating: $$services"; \
-	$(COMPOSE) up -d --no-deps --force-recreate $$services
+	$(COMPOSE) up -d --force-recreate $$services && \
+	echo "Waiting for services to become healthy..." && \
+	./scripts/wait-healthy.sh $$services
 
 # Run upload (sprue) under Delve for remote debugging.
 # See compose.debug.yml for the overlay; attach to localhost:2345.
