@@ -74,7 +74,7 @@ services:
   # POSTGRES_DB is enough. Separate from `piri-postgres` (which is generated
   # from smelt.yml when piri nodes use db: postgres).
   postgres:
-    image: postgres:16-alpine
+    image: ${POSTGRES_IMAGE:-postgres:16-alpine}
     ports:
       - "${SMELT_UPLOAD_POSTGRES_PORT:-15061:5432}"
     environment:

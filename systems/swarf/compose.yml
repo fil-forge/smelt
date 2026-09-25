@@ -47,7 +47,7 @@ services:
   # Postgres for swarf's revocation store. Swarf runs goose migrations on
   # startup, so the `swarf` database created by POSTGRES_DB is enough.
   swarf-postgres:
-    image: postgres:16-alpine
+    image: ${POSTGRES_IMAGE:-postgres:16-alpine}
     ports:
       - "${SMELT_SWARF_POSTGRES_PORT:-15141:5432}"
     environment:

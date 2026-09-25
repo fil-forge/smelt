@@ -79,7 +79,7 @@ services:
   # and a restarted one is sealed until ingot-openbao-init runs again (which
   # `make up` does, since one-shot services re-run on every up).
   ingot-openbao:
-    image: openbao/openbao:2.6
+    image: ${OPENBAO_IMAGE:-openbao/openbao:2.6}
     command: ["server"]
     ports:
       - "${SMELT_INGOT_OPENBAO_PORT:-15132:8200}"
@@ -107,7 +107,7 @@ services:
   # the ingot policy (encrypt/decrypt/rewrap on that key only), and ingot's
   # scoped token exist. See openbao/init.sh.
   ingot-openbao-init:
-    image: openbao/openbao:2.6
+    image: ${OPENBAO_IMAGE:-openbao/openbao:2.6}
     user: "0:0"  # the image runs as `openbao`; the init volume is root-owned
     entrypoint: ["sh", "/init.sh"]
     environment:
@@ -128,7 +128,7 @@ services:
   # migrations under the `ingot` schema on startup; the `ingot` database
   # created by POSTGRES_DB is enough.
   ingot-postgres:
-    image: postgres:16-alpine
+    image: ${POSTGRES_IMAGE:-postgres:16-alpine}
     ports:
       - "${SMELT_INGOT_POSTGRES_PORT:-15131:5432}"
     environment:
