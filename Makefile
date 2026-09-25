@@ -344,7 +344,6 @@ shell-hilt: ensure-state
 	$(COMPOSE) exec hilt bash
 
 # Rebuild the workspace binaries and recreate the containers that run them,
-# leaving the rest of the stack (chain state, init services, volumes) alone,
 # then wait until the recreated containers report healthy. SVC=ingot
 # (comma-separated list allowed) limits both the build and the recreate to
 # those services. Containers are recreated rather than restarted:
@@ -352,6 +351,13 @@ shell-hilt: ensure-state
 # the build installs a new file (new inode) under the same path. Only the
 # current go.work selection is recreated; after dropping a module from the
 # use-list, `make up` is what recreates its container without the mount.
+#
+# Dependencies are started too (no --no-deps): after `make clean` or
+# `make down` nothing else is running, and a workspace service started alone
+# crash-loops on its missing dependencies (e.g. delegator on dynamodb-local).
+# --force-recreate applies to the named services only; compose recreates a
+# dependency only when its config changed, so a running stack keeps its
+# chain state and volumes.
 redeploy: generated/compose/piri.yml ensure-state
 	@if [ "$(SMELT_WORKSPACE)" != "1" ]; then \
 		echo "ERROR: redeploy needs SMELT_WORKSPACE=1 (binaries come from the go.work checkouts)"; \
@@ -364,7 +370,7 @@ redeploy: generated/compose/piri.yml ensure-state
 	@services=$$(go run ./cmd/smelt workspace services $(if $(SVC),--only $(SVC))) || exit 1; \
 	if [ -z "$$services" ]; then echo "ERROR: no workspace services to redeploy"; exit 1; fi; \
 	echo "Recreating: $$services"; \
-	$(COMPOSE) up -d --no-deps --force-recreate $$services && \
+	$(COMPOSE) up -d --force-recreate $$services && \
 	echo "Waiting for services to become healthy..." && \
 	./scripts/wait-healthy.sh $$services
 
