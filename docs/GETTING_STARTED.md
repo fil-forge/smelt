@@ -225,7 +225,8 @@ This command:
 
 1. Runs `make init` if the `generated/keys/` directory is empty
 2. Starts all services via `docker compose up -d`
-3. Returns immediately (services start in background)
+3. Waits until every service with a health check reports healthy, and fails
+   after 10 minutes naming the services that did not
 
 ### What Happens During Startup
 
@@ -321,7 +322,8 @@ setting up IPNI's data directory. Exited (0) is the correct final state.
 
 **Indexer** (~30 seconds): Waits for IPNI to be healthy, then initializes its Redis connection and claim cache.
 
-If services remain unhealthy after 5 minutes, something is wrong. Check logs.
+`make up` gives up after 10 minutes and names the services that are still not
+healthy. Check their logs.
 
 ---
 
@@ -539,7 +541,7 @@ curl http://localhost:15090/health
 
 ## Common First-Time Issues
 
-### Services Unhealthy After 5 Minutes
+### `make up` Fails With Unhealthy Services
 
 First, check which service is unhealthy:
 

@@ -138,9 +138,9 @@ workspace, use `stack.WithServiceBinary("upload", "/path/to/sprue")`.
 ## Fast per-edit loop
 
 Once the stack is up with `SMELT_WORKSPACE=1`, you don't need to re-boot it for a one-line
-change. `make redeploy` rebuilds the workspace binaries and recreates only the containers that
-run them; the rest of the stack (chain state, one-shot init services, volumes) stays up, so you
-skip the slow contract-deploy + registration boot:
+change. `make redeploy` rebuilds the workspace binaries, recreates only the containers that
+run them and waits until they report healthy; the rest of the stack (chain state, one-shot
+init services, volumes) stays up, so you skip the slow contract-deploy + registration boot:
 
 ```bash
 SMELT_WORKSPACE=1 make redeploy            # every service in the go.work use-list

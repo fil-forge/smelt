@@ -19,22 +19,6 @@ perf_project_dir() {
   cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd
 }
 
-# perf_wait_healthy <compose-service>: poll until docker reports the container
-# healthy. `make up` returns before the services are, and a request against a
-# starting ingot fails like a missing bucket or a bad key would.
-perf_wait_healthy() {
-  local svc="$1" project
-  project="$(perf_project_dir)"
-  for _ in $(seq 1 120); do
-    # An exact match: "unhealthy" contains "healthy".
-    if [ "$(cd "$project" && docker compose ps --format '{{.Health}}' "$svc" 2>/dev/null)" = healthy ]; then
-      return
-    fi
-    sleep 5
-  done
-  perf_die "$svc did not become healthy in 10 minutes"
-}
-
 # perf_run_dir <suite> <label>: create and print the run directory.
 perf_run_dir() {
   local suite="$1" label="$2"

@@ -79,8 +79,6 @@ setup() {
   perf_require aws jq docker go
   build_drill
 
-  perf_wait_healthy hilt
-  perf_wait_healthy ingot
   (cd "$PROJECT" && TENANT="$TENANT" PROFILE="$AWS_CLI_PROFILE" ./scripts/s3-key.sh)
 
   # `aws configure get` exits 1 for a missing setting; the checks below say which.
@@ -135,10 +133,6 @@ run() {
   done
   [ -f "$PROVIDER_DIR/.env" ] || perf_die "no $PROVIDER_DIR/.env; run '$0 setup' first"
   build_drill
-  # `make redeploy` recreates containers and returns before they are healthy;
-  # a drill started then would score the restart as the change's result.
-  local svc
-  for svc in "${SERVICES[@]}"; do perf_wait_healthy "$svc"; done
   check_disk
   smoke_check
 

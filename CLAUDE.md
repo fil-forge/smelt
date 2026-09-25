@@ -120,7 +120,7 @@ See [docs/MULTI_PIRI.md](docs/MULTI_PIRI.md) for the full manifest schema, share
 ### Starting and Stopping
 
 ```bash
-make up        # Start all services (runs init if needed, regenerates compose if stale)
+make up        # Start all services and wait until healthy (runs init if needed, regenerates compose if stale)
 make generate  # Regenerate compose + keys from smelt.yml (no container changes)
 make down      # Stop services (data preserved in volumes)
 make restart   # Stop then start
@@ -497,8 +497,8 @@ otherwise-published images — no Dockerfiles, no image rebuilds. **Full walkthr
 - Binaries are built for the Docker engine's architecture (arm64 on Apple silicon, amd64 on
   Linux), so the same command works on macOS, Linux desktops and CI. `SMELT_GOARCH` overrides.
 - **Fast per-edit loop:** `SMELT_WORKSPACE=1 make redeploy` (or `SVC=ingot` to limit it)
-  rebuilds the workspace binaries and recreates only the containers that run them; the rest of
-  the stack keeps running.
+  rebuilds the workspace binaries, recreates only the containers that run them and waits until
+  they are healthy; the rest of the stack keeps running.
 
 Module → service / container binary map (see `pkg/workspace`):
 

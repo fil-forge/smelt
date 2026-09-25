@@ -51,8 +51,6 @@ setup() {
   perf_require aws jq docker python3
   [ -d "$S3_SPEEDTESTS_DIR/scripts" ] || perf_die "s3-speedtests checkout not found at $S3_SPEEDTESTS_DIR (set S3_SPEEDTESTS_DIR)"
 
-  perf_wait_healthy hilt
-  perf_wait_healthy ingot
   (cd "$PROJECT" && TENANT="$TENANT" PROFILE="$PROFILE" ./scripts/s3-key.sh)
   local region bucket
   region="$(aws configure get --profile "$PROFILE" region)"

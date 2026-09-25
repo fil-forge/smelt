@@ -21,7 +21,7 @@ cd smelt
 make up
 ```
 
-The first run takes a minute or two while Docker pulls images and generates cryptographic keys. Subsequent starts are faster.
+The first run takes a few minutes while Docker pulls images, generates cryptographic keys and waits for every service to report healthy. Subsequent starts are faster.
 
 ### Verify Everything is Running
 
@@ -29,7 +29,7 @@ The first run takes a minute or two while Docker pulls images and generates cryp
 make status
 ```
 
-Wait until all services show `healthy`. This typically takes 30-60 seconds after `make up` completes.
+Every service with a health check shows `healthy`: `make up` returns only once they do.
 
 ### Your First Upload
 
@@ -143,7 +143,7 @@ flowchart TB
 
 | Command                       | What It Does                                                              |
 |-------------------------------|---------------------------------------------------------------------------|
-| `make up`                     | Start the network (runs init and regenerates compose if needed)           |
+| `make up`                     | Start the network and wait until it is healthy (runs init if needed)      |
 | `make up SNAPSHOT=<name>`     | Start the network from a saved snapshot (see below)                       |
 | `make generate`               | Regenerate compose files and keys from `smelt.yml` (no container changes) |
 | `make down`                   | Stop the network (data preserved)                                         |
