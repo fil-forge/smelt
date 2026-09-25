@@ -133,15 +133,25 @@ run() {
   local started
   started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-  local status=0
+  # Under pipefail `|| status=$?` would report tee's status whenever tee fails
+  # too, so each step's own status comes from PIPESTATUS.
+  local status=0 pipe_status tee_failed=()
+  set +e
   python3 "$S3_SPEEDTESTS_DIR/scripts/s3_upload_speedtest.py" \
     --targets "$run_dir/s3_targets.ini" --output-dir "$run_dir/speedtest" \
     --testfiles-dir "$TESTFILES_DIR" --file-set "$FILE_SET" --runs "$RUNS" \
-    2>&1 | tee "$run_dir/upload.out" || status=$?
+    2>&1 | tee "$run_dir/upload.out"
+  pipe_status=("${PIPESTATUS[@]}")
+  [ "${pipe_status[0]}" -eq 0 ] || status="${pipe_status[0]}"
+  [ "${pipe_status[1]}" -eq 0 ] || tee_failed+=(upload.out)
   python3 "$S3_SPEEDTESTS_DIR/scripts/s3_download_speedtest.py" \
     --targets "$run_dir/s3_targets.ini" --output-dir "$run_dir/speedtest" \
     --downloads-dir "$downloads" --file-set "$FILE_SET" --runs "$RUNS" \
-    2>&1 | tee "$run_dir/download.out" || status=$?
+    2>&1 | tee "$run_dir/download.out"
+  pipe_status=("${PIPESTATUS[@]}")
+  [ "${pipe_status[0]}" -eq 0 ] || status="${pipe_status[0]}"
+  [ "${pipe_status[1]}" -eq 0 ] || tee_failed+=(download.out)
+  set -e
 
   local ended
   ended="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -149,6 +159,8 @@ run() {
   trap - EXIT
   rm -rf "$downloads"
   perf_dump_logs "$run_dir" "$started" "$ended" "${SERVICES[@]}"
+  [ "${#tee_failed[@]}" -eq 0 ] \
+    || perf_die "tee failed writing ${tee_failed[*]} in $run_dir, so the speedtest output is incomplete (last failing step exited $status); nothing recorded"
 
   "$PROJECT/scripts/perf-results.py" record "$SUITE" "$run_dir"
   [ "$status" -eq 0 ] || perf_die "a speedtest step failed (exit $status); see $run_dir/*.out"
