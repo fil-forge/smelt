@@ -179,8 +179,11 @@ run() {
   # registers the run with a notary, and without a bucket prefix it names the
   # buckets after its run id, which ingot's global bucket names need. tee
   # ignores SIGINT so that Ctrl-C reaches only the drill, which then writes its
-  # evidence and sweeps its buckets without losing its output pipe.
-  local status=0
+  # evidence and sweeps its buckets without losing its output pipe. Under
+  # pipefail `|| status=$?` would report tee's status whenever tee fails too,
+  # so the drill's own status comes from PIPESTATUS.
+  local pipe_status
+  set +e
   env -u SQ_ENDPOINT -u SQ_ACCESS_KEY -u SQ_SECRET_KEY -u SQ_INSECURE -u SQ_REGION \
       -u SQ_NOTARY_URL -u SQ_NOTARY_TOKEN -u SQ_BUCKET_PREFIX \
     "$DRILL_BIN" --provider "$run_dir/drill" --profile "$PROFILE" \
@@ -188,7 +191,10 @@ run() {
       --verify-lag-min "$VERIFY_LAG_MIN" --verify-lag-max "$VERIFY_LAG_MAX" \
       --workers "$WORKERS" --duration "$DURATION" \
       ${optional_flags[@]+"${optional_flags[@]}"} \
-    2>&1 | (trap '' INT; exec tee "$run_dir/drill.out") || status=$?
+    2>&1 | (trap '' INT; exec tee "$run_dir/drill.out")
+  pipe_status=("${PIPESTATUS[@]}")
+  set -e
+  local status="${pipe_status[0]}"
 
   local ended
   ended="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -197,6 +203,8 @@ run() {
   perf_dump_logs "$run_dir" "$started" "$ended" "${SERVICES[@]}"
   jq --argjson code "$status" '.suite.drill_exit = $code' "$run_dir/metadata.json" > "$run_dir/metadata.json.tmp"
   mv "$run_dir/metadata.json.tmp" "$run_dir/metadata.json"
+  [ "${pipe_status[1]}" -eq 0 ] \
+    || perf_die "tee exited ${pipe_status[1]} writing $run_dir/drill.out, so the drill's output is incomplete (the drill exited $status); nothing recorded"
 
   # The cap downgrades the evidence to "not qualified" on every run, so the
   # exit code is the verdict (storage-qualification MANUAL.md): 0 completed
