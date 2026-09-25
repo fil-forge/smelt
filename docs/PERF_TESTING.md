@@ -8,10 +8,10 @@ not comparable to staging or production (client and services share one
 machine, and there is one piri node), so confirm a finding there before
 calling it fixed.
 
-| Suite | Measures | Harness | Script |
-|---|---|---|---|
-| [s3-speedtest](#s3-speedtest) | single-object upload and download times | [fil-one/s3-speedtests](https://github.com/fil-one/s3-speedtests) | `scripts/perf-s3-speedtest.sh` |
-| [drill](#storage-qualification-drill) | sustained ingest from many workers, each block read back shortly after it was written | [fil-one/storage-qualification](https://github.com/fil-one/storage-qualification) | `scripts/perf-drill.sh` |
+| Suite                                 | Measures                                                                              | Harness                                                                           | Script                         |
+| ------------------------------------- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ------------------------------ |
+| [s3-speedtest](#s3-speedtest)         | single-object upload and download times                                               | [fil-one/s3-speedtests](https://github.com/fil-one/s3-speedtests)                 | `scripts/perf-s3-speedtest.sh` |
+| [drill](#storage-qualification-drill) | sustained ingest from many workers, each block read back shortly after it was written | [fil-one/storage-qualification](https://github.com/fil-one/storage-qualification) | `scripts/perf-drill.sh`        |
 
 ## Prerequisites
 
@@ -22,14 +22,14 @@ calling it fixed.
   the harnesses are expected at `<root>/fil-one/s3-speedtests` and
   `<root>/fil-one/storage-qualification`. Set `S3_SPEEDTESTS_DIR` or
   `STORAGE_QUALIFICATION_DIR` for any other place.
-- AWS CLI v2.13+, `jq`, `python3`, and Go for the drill suite (it builds the
-  drill from the checkout on every run).
-- Free disk of about 2.5x the bytes a run writes. Ingot keeps every body blob
-  in its spool (`ingot-data` volume, fil-forge/ingot#48) and piri stores a
-  second copy, and nothing is deleted after a run. On Docker Desktop the VM
-  disk is a file on the host disk, so raise the VM disk limit and keep the
-  host disk free too. `make clean` reclaims the space by dropping every volume
-  (tenant, keys and objects); run `make up` and the suite's `setup` again
+- AWS CLI v2.13+, `jq`, `python3`
+- Free disk of about 2.5x the bytes a run writes. Ingot keeps every body blob in
+  its spool (`ingot-data` volume,
+  [fil-forge/ingot#48](https://github.com/fil-forge/ingot/issues/48)) and piri
+  stores a second copy, and nothing is deleted after a run. On Docker Desktop
+  the VM disk is a file on the host disk, so raise the VM disk limit and keep
+  the host disk free too. `make clean` reclaims the space by dropping every
+  volume (tenant, keys and objects); run `make up` and the suite's `setup` again
   afterwards.
 
 `make up` and `make redeploy` return only after the services they started
@@ -40,9 +40,11 @@ report healthy, so a run can start right after either one.
 Each run gets a directory `generated/perf-runs/<suite>/<utc-ts>-<label>/`
 with:
 
-- `metadata.json`: git SHA and dirty flag of smelt, ingot, sprue, piri, hilt
-  and libforge; which containers run workspace binaries; manifest and piri blob
-  backend; Docker server arch, CPUs and memory; the suite's settings.
+- `metadata.json`:
+  - git SHA and dirty flag of smelt, ingot, sprue, piri, hilt and libforge
+  - which containers run workspace binaries
+  - manifest and piri blob backend
+  - Docker server arch, CPUs and memory; the suite's settings.
 - `images.json`: image digests.
 - `docker-df-before.txt`, `docker-df-after.txt`: `docker system df` taken
   before and after the run.
@@ -75,6 +77,8 @@ LABEL=after ./scripts/perf-s3-speedtest.sh run
 ./scripts/perf-results.py compare s3-speedtest before after
 ```
 
+### setup
+
 `setup` mints a key for tenant `perf` (AWS CLI profile `smelt-perf`, the same
 way `make s3-key` does), creates the bucket and generates the test files in
 `generated/perf/testfiles`. Re-run it after `make down && make up`: hilt's dev
@@ -83,15 +87,17 @@ next free tenant (`perf-2`, ...) and creates that tenant's bucket
 (`perf-s3-speedtest-perf-2`), since ingot bucket names are global and the old
 one belongs to `perf`.
 
+### run
+
 `run` reads these settings from the environment:
 
-| Variable | Default | Meaning |
-|---|---|---|
-| `LABEL` | (required) | run label |
-| `FILE_SET` | `quick` | `quick` (1 MiB + 100 MiB), `standard` (~1.6 GiB of 1 MiB to 1 GiB files), `large` (25 GiB + 50 GiB) or `full` (standard + large) |
-| `RUNS` | `1` | repeats per file |
-| `SNAPSHOT` | (none) | snapshot to restore before the run, so every run starts from the same state |
-| `TESTFILES_DIR` | `generated/perf/testfiles` | where the payloads live |
+| Variable        | Default                    | Meaning                                                                                                                          |
+| --------------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `LABEL`         | (required)                 | run label                                                                                                                        |
+| `FILE_SET`      | `quick`                    | `quick` (1 MiB + 100 MiB), `standard` (~1.6 GiB of 1 MiB to 1 GiB files), `large` (25 GiB + 50 GiB) or `full` (standard + large) |
+| `RUNS`          | `1`                        | repeats per file                                                                                                                 |
+| `SNAPSHOT`      | (none)                     | snapshot to restore before the run, so every run starts from the same state                                                      |
+| `TESTFILES_DIR` | `generated/perf/testfiles` | where the payloads live                                                                                                          |
 
 The `large` set writes 75 GiB per run, so plan for about 200 GB of free disk
 per run and 400 GB for a before/after pair.
@@ -127,11 +133,14 @@ make up
 
 LABEL=before ./scripts/perf-drill.sh run
 # edit ingot / sprue / piri ...
+make clean                                      # delete object data
 make redeploy                                   # or SVC=ingot
 LABEL=after ./scripts/perf-drill.sh run
 
 ./scripts/perf-results.py compare drill before after
 ```
+
+### setup
 
 `setup` mints a key for tenant `drill` (AWS CLI profile `smelt-drill`, the
 same way `make s3-key` does) and writes it with ingot's endpoint and region to
@@ -139,32 +148,22 @@ same way `make s3-key` does) and writes it with ingot's endpoint and region to
 is printed. Re-run `setup` after `make down && make up`: hilt's dev vault is
 in memory, so the old key stops working and `setup` moves to tenant `drill-2`.
 
-Both `setup` and `run` run a smoke check: they upload a 4 MiB object through
-ingot with the drill's key, download it and compare the bytes. An
-upload goes through ingot, piri and the indexer, so a broken piri, a stale
-delegation proof or a bad key fails the check in seconds, with the AWS CLI's
-error and the services whose logs to read, instead of failing every request
-of a drill run. `setup` runs it before it writes the provider `.env`, so a key
-that cannot store a blob is never saved. `run` also checks free disk on the host and in Docker's disk
-(the `ingot-data` volume) and refuses to start with less than 2.5x
-`STOP_INGEST_AT` (125 GB for the default 50 GB). Piri frees its copy only
-minutes after the drill sweeps its buckets, so run `make clean` between large
-runs.
+### run
 
 `run` reads these settings from the environment and passes them to the drill
 as given:
 
-| Variable | Default | Meaning |
-|---|---|---|
-| `LABEL` | the profile name | run label |
-| `PROFILE` | `import` | `import`, `smoke` or `import-blocks` |
-| `STOP_INGEST_AT` | `50GB` | stop ingesting after this many bytes; GB values only |
-| `RAMP` | `10s` | ramp-up before the first measured window |
-| `WINDOW` | `10s` | measurement window length |
-| `VERIFY_LAG_MIN`, `VERIFY_LAG_MAX` | `30s`, `60s` | when each written block is read back |
-| `RATE_TARGET` | the profile's | offered ingest rate, e.g. `5GB` |
-| `WORKERS` | `16` | fixed number of blobs in flight (the drill ramps from 64 to 512, more than a laptop stack can serve) |
-| `DURATION` | `15m` | upper bound on the run, so a stack too slow to reach the cap still finishes in minutes |
+| Variable                           | Default          | Meaning                                                                                              |
+| ---------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------- |
+| `LABEL`                            | the profile name | run label                                                                                            |
+| `PROFILE`                          | `import`         | `import`, `smoke` or `import-blocks`                                                                 |
+| `STOP_INGEST_AT`                   | `50GB`           | stop ingesting after this many bytes; GB values only                                                 |
+| `RAMP`                             | `10s`            | ramp-up before the first measured window                                                             |
+| `WINDOW`                           | `10s`            | measurement window length                                                                            |
+| `VERIFY_LAG_MIN`, `VERIFY_LAG_MAX` | `30s`, `60s`     | when each written block is read back                                                                 |
+| `RATE_TARGET`                      | the profile's    | offered ingest rate, e.g. `5GB`                                                                      |
+| `WORKERS`                          | `16`             | fixed number of blobs in flight (the drill ramps from 64 to 512, more than a laptop stack can serve) |
+| `DURATION`                         | `15m`            | upper bound on the run, so a stack too slow to reach the cap still finishes in minutes               |
 
 While it runs, the drill prints a progress line per window: the phase (ramp,
 steady, read-back after the cap), bytes written and read back, the last
@@ -177,11 +176,11 @@ verdict from the drill's exit code, which the storage-qualification
 [MANUAL](https://github.com/fil-one/storage-qualification/blob/main/MANUAL.md)
 defines. `run` exits non-zero for anything but 0.
 
-| Drill exit code | Meaning | Recorded |
-|---|---|---|
-| 0 | completed with no failures | yes |
-| 1 | a failure | yes, so the comparison shows it; nothing when the drill failed before writing evidence |
-| 2 | a usage error or an interrupt | no; objects an interrupted run wrote stay in the stack until `make clean` |
+| Drill exit code | Meaning                       | Recorded                                                                               |
+| --------------- | ----------------------------- | -------------------------------------------------------------------------------------- |
+| 0               | completed with no failures    | yes                                                                                    |
+| 1               | a failure                     | yes, so the comparison shows it; nothing when the drill failed before writing evidence |
+| 2               | a usage error or an interrupt | no; objects an interrupted run wrote stay in the stack until `make clean`              |
 
 Besides the [common files](#what-a-run-records), a run records:
 
