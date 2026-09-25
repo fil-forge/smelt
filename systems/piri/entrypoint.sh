@@ -5,11 +5,13 @@ set -e
 # Paths
 KEY_FILE="/keys/piri.pem"
 WALLET_FILE="/keys/owner-wallet.hex"
-BASE_CONFIG="/config/piri-base-config.toml"
+BASE_CONFIG_SRC="/config/piri-base-config.toml"
+INDEXING_CONFIG="/config/piri-indexing.toml"
 OVERRIDES_CONFIG="/config/piri-overrides.toml"
 DATA_DIR="/data/piri"
 TEMP_DIR="/tmp/piri"
 CONFIG_FILE="${DATA_DIR}/piri-config.toml"
+BASE_CONFIG="${TEMP_DIR}/piri-base-config.toml"
 
 # Network settings (can be overridden via environment)
 LOTUS_ENDPOINT="${LOTUS_ENDPOINT:-ws://blockchain:8545}"
@@ -46,9 +48,31 @@ if [ "$BLOB_BACKEND" = "s3" ] && [ "$S3_ENDPOINT" != "piri-minio:9000" ]; then
     fi
 fi
 
+# Indexer claims and IPNI announce: on (default) or off, as on dev and
+# staging. Read at init only; an initialized node keeps its config.
+INDEXER="${PIRI_INDEXER:-on}"
+case "$INDEXER" in
+    on|off) ;;
+    *)
+        echo "ERROR: PIRI_INDEXER must be on or off, got '$INDEXER'"
+        exit 1
+        ;;
+esac
+
 echo "=== Piri Entrypoint ==="
 echo "  Database backend: $DB_BACKEND"
 echo "  Blob backend: $BLOB_BACKEND"
+echo "  Indexer claims and IPNI announce: $INDEXER"
+
+# config_has_indexer FILE: true when FILE's [ucan.services.indexer] table
+# sets a url.
+config_has_indexer() {
+    awk '
+        /^[[:space:]]*\[/ { t = ($0 ~ /^[[:space:]]*\[ucan\.services\.indexer\][[:space:]]*$/) }
+        t && /^[[:space:]]*url[[:space:]]*=/ { found = 1 }
+        END { exit !found }
+    ' "$1"
+}
 
 # Ensure directories exist
 mkdir -p "$DATA_DIR" "$TEMP_DIR"
@@ -70,8 +94,18 @@ echo "[2/4] Registering DID with allow list..."
 echo "[3/4] Initializing piri..."
 if [ -f "$CONFIG_FILE" ] && grep -q "proof_set" "$CONFIG_FILE" 2>/dev/null; then
     echo "  Config exists, skipping init"
+    if [ "$INDEXER" = "off" ] && config_has_indexer "$CONFIG_FILE"; then
+        echo "WARNING: PIRI_INDEXER=off applies at init only, and this node's config"
+        echo "  still sends claims to the indexer. Run 'make clean' to re-initialize."
+    fi
 else
     [ -f "$CONFIG_FILE" ] && rm -f "$CONFIG_FILE"
+
+    # Assemble the base config: the indexer tables are appended unless off.
+    cp "$BASE_CONFIG_SRC" "$BASE_CONFIG"
+    if [ "$INDEXER" = "on" ]; then
+        cat "$INDEXING_CONFIG" >> "$BASE_CONFIG"
+    fi
 
     cd "$DATA_DIR"
 
@@ -117,7 +151,7 @@ else
     fi
 
     # Execute the init command
-    eval $INIT_CMD
+    eval "$INIT_CMD"
 
     # Config created as piri-config.toml in DATA_DIR (current dir)
     echo "  Init complete"
@@ -128,9 +162,11 @@ if [ -f "$OVERRIDES_CONFIG" ]; then
     # Check if overrides already appended (look for marker comment)
     if ! grep -q "# --- piri-overrides.toml ---" "$CONFIG_FILE" 2>/dev/null; then
         echo "  Applying config overrides..."
-        echo "" >> "$CONFIG_FILE"
-        echo "# --- piri-overrides.toml ---" >> "$CONFIG_FILE"
-        cat "$OVERRIDES_CONFIG" >> "$CONFIG_FILE"
+        {
+            echo ""
+            echo "# --- piri-overrides.toml ---"
+            cat "$OVERRIDES_CONFIG"
+        } >> "$CONFIG_FILE"
     fi
 fi
 
