@@ -1,0 +1,18 @@
+# One piri node with postgres for the database and its blobs in an S3 store
+# outside the stack; no piri-minio runs. Replace the placeholder endpoint and
+# prefix, export the credentials, then:
+#
+#   export SMELT_PIRI_S3_ACCESS_KEY_ID=...
+#   export SMELT_PIRI_S3_SECRET_ACCESS_KEY=...
+#   SMELT_MANIFEST=manifests/piri-1-postgres-s3-external.yml make up
+#
+# piri uses buckets <bucket_prefix>piri-0-<store>. See docs/MULTI_PIRI.md.
+version: 1
+piri:
+  nodes:
+    - storage:
+        db: postgres
+        blob: s3
+        s3:
+          endpoint: s3.example-region.amazonaws.com
+          bucket_prefix: example-
