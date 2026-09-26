@@ -199,7 +199,8 @@ def drill_rows(run_dir: Path, meta: dict) -> list[dict]:
 DRILL_SETTINGS = (
     "profile", "stop_ingest_at", "ramp", "window", "verify_lag_min", "verify_lag_max",
     "workers", "duration", "rate_target", "keep_objects", "enforce_floor", "progress",
-    "accounts", "restore_scale", "config_note", "disk_factor",
+    "accounts", "restore_scale", "size_mean", "size_sigma", "size_min", "size_max",
+    "aggregate_size", "aggregate_every", "config_note", "disk_factor",
 )
 
 

@@ -26,9 +26,10 @@ calling it fixed.
 - Free disk of about 2.5x the bytes a run writes. Ingot keeps every body blob in
   its spool (`ingot-data` volume,
   [fil-forge/ingot#48](https://github.com/fil-forge/ingot/issues/48)) and piri
-  stores a second copy, and nothing is deleted after a run. On Docker Desktop
-  the VM disk is a file on the host disk, so raise the VM disk limit and keep
-  the host disk free too. `make clean` reclaims the space by dropping every
+  stores a second copy, and nothing is deleted after a run. When piri keeps its
+  blobs in S3 outside the stack, only the spool grows and about 1.25x is
+  enough. On Docker Desktop the VM disk is a file on the host disk, so raise the
+  VM disk limit and keep the host disk free too. `make clean` reclaims the space by dropping every
   volume (tenant, keys and objects); run `make up` and the suite's `setup` again
   afterwards.
 
@@ -191,6 +192,28 @@ as given:
 | `RATE_TARGET`                      | the profile's    | offered ingest rate, e.g. `5GB`                                                                      |
 | `WORKERS`                          | `16`             | fixed number of blobs in flight (the drill ramps from 64 to 512, more than a laptop stack can serve) |
 | `DURATION`                         | `15m`            | upper bound on the run, so a stack too slow to reach the cap still finishes in minutes               |
+| `KEEP_OBJECTS`                     | unset            | `1` passes `--keep-objects`: the drill skips its sweep, and the objects stay until `make clean`      |
+| `ENFORCE_FLOOR`                    | the profile's    | `true` or `false`: fail the run when a window falls below the floor                                  |
+| `PROGRESS`                         | once per window  | how often the drill prints a progress line, e.g. `30s`; `0` prints none                              |
+| `ACCOUNTS`, `RESTORE_SCALE`        | the profile's    | restore accounts, and the scale of the restore cohort sizes                                          |
+| `SIZE_MEAN`, `SIZE_SIGMA`, `SIZE_MIN`, `SIZE_MAX` | the profile's | block size distribution; the `import` profile refuses them, since its packing model sets the blob sizes |
+| `AGGREGATE_SIZE`, `AGGREGATE_EVERY` | the profile's   | aggregate size and blocks per aggregate; `import` has no aggregates                                  |
+| `CONFIG_NOTE`                      | unset            | one line the drill records in its evidence                                                           |
+| `DISK_FACTOR`                      | `2.5` or `1.25`  | free disk the run needs, as a multiple of `STOP_INGEST_AT`; see below                                |
+
+Every variable in the table reaches the drill only when set, so with none of
+the new ones set the command line is the one above. Before it starts, `run`
+checks that ingot's `/data` volume has `DISK_FACTOR` times `STOP_INGEST_AT`
+free, and under Docker Desktop the host filesystem too; elsewhere Docker's
+volumes are not under the checkout, so the host is not measured.
+`DISK_FACTOR` defaults to 1.25 when piri-0's blob backend is `s3` with an
+endpoint other than the stack's `piri-minio`, and to 2.5 otherwise.
+
+On a dedicated Linux host, set `INGOT_URL` to ingot's container address (for
+example `http://172.18.0.5:80`) before `setup`, so the drill reaches ingot
+directly instead of through Docker's userland proxy. Extra compose files chain
+through `COMPOSE_FILE` (`COMPOSE_FILE=compose.yml:extra.yml`) while
+`SMELT_WORKSPACE` is off; with it on, the Makefile names the files itself.
 
 While it runs, the drill prints a progress line per window: the phase (ramp,
 steady, read-back after the cap), bytes written and read back, the last
@@ -218,8 +241,11 @@ Besides the [common files](#what-a-run-records), a run records:
   provider file; each run gets its own journal in `state/`, so an interrupted
   run never blocks the next one.
 
-`metadata.json` also holds the storage-qualification SHA, the settings above,
-the tenant, the disk estimate and the drill's exit code. Each run appends one
+`metadata.json` also holds the storage-qualification SHA, the settings above
+(null when unset), the drill's full command line as `argv`, the tenant, the
+disk check (`disk`: the factor applied, piri-0's blob backend and S3 endpoint,
+and the free space measured, with `host_free_gb` null when the host was not
+measured) and the drill's exit code. Each run appends one
 row to `runs.jsonl`, with the drill's settings under `settings`, the Docker
 and system facts under `host`, and `manifest`, `piri` and `sprue` as in
 `metadata.json`. Rows written before these fields existed lack them, and
