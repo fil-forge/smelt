@@ -13,6 +13,7 @@ services:
             - ../../systems/piri/entrypoint.sh:/entrypoint.sh:ro
             - ../../systems/piri/register-did.sh:/scripts/register-did.sh:ro
             - ../../systems/piri/config/piri-base-config.toml:/config/piri-base-config.toml:ro
+            - ../../systems/piri/config/piri-indexing.toml:/config/piri-indexing.toml:ro
             - ../../systems/piri/config/piri-overrides.toml:/config/piri-overrides.toml:ro
         entrypoint:
             - /entrypoint.sh
@@ -24,6 +25,7 @@ services:
             - PUBLIC_URL=http://piri-0:3000
             - PIRI_DB_BACKEND=sqlite
             - PIRI_BLOB_BACKEND=filesystem
+            - PIRI_INDEXER
         depends_on:
             blockchain:
                 condition: service_healthy
@@ -61,6 +63,7 @@ services:
             - ../../systems/piri/entrypoint.sh:/entrypoint.sh:ro
             - ../../systems/piri/register-did.sh:/scripts/register-did.sh:ro
             - ../../systems/piri/config/piri-base-config.toml:/config/piri-base-config.toml:ro
+            - ../../systems/piri/config/piri-indexing.toml:/config/piri-indexing.toml:ro
             - ../../systems/piri/config/piri-overrides.toml:/config/piri-overrides.toml:ro
         entrypoint:
             - /entrypoint.sh
@@ -72,6 +75,7 @@ services:
             - PUBLIC_URL=http://piri-1:3000
             - PIRI_DB_BACKEND=sqlite
             - PIRI_BLOB_BACKEND=s3
+            - PIRI_INDEXER
             - PIRI_S3_ENDPOINT=piri-minio:9000
             - PIRI_S3_BUCKET_PREFIX=piri-1-
             - PIRI_S3_ACCESS_KEY_ID=minioadmin
@@ -119,6 +123,7 @@ services:
             - ../../systems/piri/entrypoint.sh:/entrypoint.sh:ro
             - ../../systems/piri/register-did.sh:/scripts/register-did.sh:ro
             - ../../systems/piri/config/piri-base-config.toml:/config/piri-base-config.toml:ro
+            - ../../systems/piri/config/piri-indexing.toml:/config/piri-indexing.toml:ro
             - ../../systems/piri/config/piri-overrides.toml:/config/piri-overrides.toml:ro
         entrypoint:
             - /entrypoint.sh
@@ -130,6 +135,7 @@ services:
             - PUBLIC_URL=http://piri-2:3000
             - PIRI_DB_BACKEND=postgres
             - PIRI_BLOB_BACKEND=filesystem
+            - PIRI_INDEXER
             - PIRI_DB_POSTGRES_URL=postgres://piri:piri@piri-postgres:5432/piri_2?sslmode=disable
         depends_on:
             blockchain:
@@ -173,6 +179,7 @@ services:
             - ../../systems/piri/entrypoint.sh:/entrypoint.sh:ro
             - ../../systems/piri/register-did.sh:/scripts/register-did.sh:ro
             - ../../systems/piri/config/piri-base-config.toml:/config/piri-base-config.toml:ro
+            - ../../systems/piri/config/piri-indexing.toml:/config/piri-indexing.toml:ro
             - ../../systems/piri/config/piri-overrides.toml:/config/piri-overrides.toml:ro
         entrypoint:
             - /entrypoint.sh
@@ -184,6 +191,7 @@ services:
             - PUBLIC_URL=http://piri-3:3000
             - PIRI_DB_BACKEND=postgres
             - PIRI_BLOB_BACKEND=s3
+            - PIRI_INDEXER
             - PIRI_DB_POSTGRES_URL=postgres://piri:piri@piri-postgres:5432/piri_3?sslmode=disable
             - PIRI_S3_ENDPOINT=piri-minio:9000
             - PIRI_S3_BUCKET_PREFIX=piri-3-
@@ -252,7 +260,7 @@ services:
         networks:
             - piri-storage-net
     piri-postgres:
-        image: postgres:16-alpine
+        image: ${POSTGRES_IMAGE:-postgres:16-alpine}
         ports:
             - ${SMELT_PIRI_POSTGRES_PORT:-15074:5432}
         volumes:
@@ -274,7 +282,7 @@ services:
         networks:
             - piri-storage-net
     piri-postgres-init:
-        image: postgres:16-alpine
+        image: ${POSTGRES_IMAGE:-postgres:16-alpine}
         volumes:
             - ../../systems/piri/postgres-init.sh:/postgres-init.sh:ro
         entrypoint:
