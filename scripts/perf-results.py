@@ -186,8 +186,22 @@ def drill_rows(run_dir: Path, meta: dict) -> list[dict]:
         "writes_per_second": facts.get("sustained_writes_median_per_second"),
         "read_back_gbps": gb(facts.get("sustained_read_median_bytes_per_second")),
         "restore_gbps": gb(facts.get("sustained_restore_median_bytes_per_second")),
+        # Every setting the wrapper records, null where a run predates it.
+        "settings": {key: suite.get(key) for key in DRILL_SETTINGS},
+        "host": {"name": meta.get("host"), **meta.get("docker", {}), **meta.get("system", {})},
+        "manifest": meta.get("manifest"),
+        "piri": meta.get("piri"),
+        "sprue": meta.get("sprue"),
     }
     return [row]
+
+
+DRILL_SETTINGS = (
+    "profile", "stop_ingest_at", "ramp", "window", "verify_lag_min", "verify_lag_max",
+    "workers", "duration", "rate_target", "keep_objects", "enforce_floor", "progress",
+    "accounts", "restore_scale", "size_mean", "size_sigma", "size_min", "size_max",
+    "aggregate_size", "aggregate_every", "config_note", "disk_factor",
+)
 
 
 def gb(value: float | None) -> float | None:
@@ -245,21 +259,31 @@ def common_fields(run_dir: Path, meta: dict) -> dict:
         "run_dir": str(run_dir.relative_to(PROJECT)) if run_dir.is_relative_to(PROJECT) else str(run_dir),
         "repos": meta.get("repos", {}),
         "workspace_services": meta.get("workspace_services", []),
+        "images": {
+            i.get("service"): {"ref": i.get("ref"), "digest": i.get("digest"), "revision": i.get("revision")}
+            for i in meta.get("images") or []
+        },
+        "extra": meta.get("extra"),
     }
 
 
 def print_run_headers(rows: list[dict], describe) -> list[str]:
     """Print one line per label (start time, suite settings, code versions)
-    and return the labels in column order."""
+    and return the labels in column order. A run on published images shows
+    the images' revisions, since the sibling checkouts did not run."""
     labels = list(dict.fromkeys(r["label"] for r in rows))
     print()
     for label in labels:
         r = next(r for r in rows if r["label"] == label)
-        repos = ", ".join(
-            f"{name}@{fmt_git(info)}" for name, info in sorted(r.get("repos", {}).items()) if info
-        )
+        repos = r.get("repos", {})
+        revisions = {svc: i["revision"] for svc, i in sorted((r.get("images") or {}).items()) if i.get("revision")}
+        if r.get("workspace_services") or not revisions:
+            code = ", ".join(f"{name}@{fmt_git(info)}" for name, info in sorted(repos.items()) if info)
+        else:
+            code = ", ".join([f"smelt@{fmt_git(repos.get('smelt'))}"]
+                             + [f"{svc}@{rev[:9]}" for svc, rev in revisions.items()])
         ws = ", ".join(r.get("workspace_services") or []) or "published images"
-        print(f"{label}: {r['started_at_utc']}  {describe(r)}  [{repos}]  workspace: {ws}")
+        print(f"{label}: {r['started_at_utc']}  {describe(r)}  [{code}]  workspace: {ws}")
     print("  (* = uncommitted changes)")
     print()
     return labels
@@ -268,7 +292,8 @@ def print_run_headers(rows: list[dict], describe) -> list[str]:
 def fmt_git(info: dict | None) -> str:
     if not info:
         return "?"
-    return f"{info['sha']}{'*' if info.get('dirty') else ''}"
+    # Nine characters: new runs record full SHAs, older ones short ones.
+    return f"{info['sha'][:9]}{'*' if info.get('dirty') else ''}"
 
 
 def print_grid(lines: list[list[str]]) -> None:

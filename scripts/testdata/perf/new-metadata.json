@@ -1,0 +1,18 @@
+{"label": "after", "started_at_utc": "2026-09-25T12:00:00Z", "host": "box",
+ "manifest": "/var/lib/forge-perf/run/smelt.yml", "piri_blob_backend": "s3",
+ "docker": {"server_arch": "arm64", "ncpu": "8", "mem_total_bytes": "33000000000", "version": "28.0.0", "storage_driver": "overlay2", "root_dir": "/var/lib/docker"},
+ "system": {"kernel": "6.8.0-1024-aws", "os": "Ubuntu 24.04.3 LTS"},
+ "piri": {"s3_endpoint": "s3.us-east-2.amazonaws.com", "indexer": "off"},
+ "sprue": {"indexer_endpoint": ""},
+ "repos": {"smelt": {"sha": "fedcba9876543210fedcba9876543210fedcba98", "dirty": false}, "ingot": {"sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "dirty": true}, "sprue": null, "piri": null, "hilt": null, "libforge": null},
+ "workspace_services": [],
+ "images": [
+   {"service": "ingot", "ref": "ghcr.io/fil-forge/ingot@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "revision": "0123456789abcdef0123456789abcdef01234567"},
+   {"service": "piri-postgres", "ref": "postgres:16-alpine", "digest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "revision": null},
+   {"service": "upload", "ref": "ghcr.io/fil-forge/sprue@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "revision": "89abcdef0123456789abcdef0123456789abcdef"}
+ ],
+ "extra": {"run_id": "main-20261001t120312z"},
+ "suite": {"profile": "import", "stop_ingest_at": "1GB", "ramp": "10s", "window": "10s", "verify_lag_min": "30s", "verify_lag_max": "60s",
+   "workers": 16, "duration": "15m", "rate_target": null, "tenant": "t",
+   "disk": {"needed_gb": 2.5, "host_free_gb": 100.0, "docker_free_gb": 100.0},
+   "storage_qualification": {"sha": "5cfeaf3aa1111111111111111111111111111111", "dirty": false}, "drill_exit": 0}}

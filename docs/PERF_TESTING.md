@@ -26,9 +26,10 @@ calling it fixed.
 - Free disk of about 2.5x the bytes a run writes. Ingot keeps every body blob in
   its spool (`ingot-data` volume,
   [fil-forge/ingot#48](https://github.com/fil-forge/ingot/issues/48)) and piri
-  stores a second copy, and nothing is deleted after a run. On Docker Desktop
-  the VM disk is a file on the host disk, so raise the VM disk limit and keep
-  the host disk free too. `make clean` reclaims the space by dropping every
+  stores a second copy, and nothing is deleted after a run. When piri keeps its
+  blobs in S3 outside the stack, only the spool grows and about 1.25x is
+  enough. On Docker Desktop the VM disk is a file on the host disk, so raise the
+  VM disk limit and keep the host disk free too. `make clean` reclaims the space by dropping every
   volume (tenant, keys and objects); run `make up` and the suite's `setup` again
   afterwards.
 
@@ -51,11 +52,27 @@ Each run gets a directory `generated/perf-runs/<suite>/<utc-ts>-<label>/`
 with:
 
 - `metadata.json`:
-  - git SHA and dirty flag of smelt, ingot, sprue, piri, hilt and libforge
+  - full git SHA and dirty flag of smelt, ingot, sprue, piri, hilt and
+    libforge (null for a checkout that is not there)
   - which containers run workspace binaries
   - manifest and piri blob backend
-  - Docker server arch, CPUs and memory; the suite's settings.
-- `images.json`: image digests.
+  - Docker server arch, CPUs, memory, version, storage driver and root
+    directory under `docker`; kernel (`uname -r`) and the OS Docker reports
+    under `system`
+  - `piri.s3_endpoint` and `piri.indexer` from piri-0's environment (`on`
+    unless `PIRI_INDEXER` says otherwise), and `sprue.indexer_endpoint` from
+    upload's; an empty string means the variable is set empty, null that it
+    is unset. Credentials are never read.
+  - `images`: the contents of `images.lock.json`
+  - `extra`: `PERF_EXTRA_METADATA`, verbatim
+  - the suite's settings.
+- `images.lock.json`: one entry per compose container, exited one-shots
+  included: `service`, `ref` (the image as compose named it), `digest`,
+  `revision` and `source` (the `org.opencontainers.image.revision` and
+  `.source` labels, null when the image has none), `created`, `arch` and
+  `repo_digests`. `digest` is the ref's own when the ref pins one, and the
+  first repo digest otherwise.
+- `images.json`: `docker compose images` output.
 - `docker-df-before.txt`, `docker-df-after.txt`: `docker system df` taken
   before and after the run.
 - `stats.csv`: `docker stats` samples (CPU, memory, network, block I/O) for
@@ -63,8 +80,15 @@ with:
 - `logs/<service>.log`: `docker compose logs` for the run window.
 
 Every run also appends its results to `generated/perf-runs/<suite>/runs.jsonl`,
-which `perf-results.py compare` reads. The suite sections below list what each
-suite adds.
+which `perf-results.py compare` reads. Each row carries `images` (ref, digest
+and revision per service) and `extra`. The comparison header shows the first
+nine characters of each SHA; for a run on published images it shows each
+image's revision in place of the sibling checkouts. The suite sections below
+list what each suite adds.
+
+`PERF_EXTRA_METADATA` attaches a caller's own facts to a run, such as a run ID
+or the machine it ran on. It must be a single JSON object; anything else stops
+the run before it creates a run directory. smelt attaches no meaning to it.
 
 ## s3-speedtest
 
@@ -178,6 +202,28 @@ as given:
 | `RATE_TARGET`                      | the profile's    | offered ingest rate, e.g. `5GB`                                                                      |
 | `WORKERS`                          | `16`             | fixed number of blobs in flight (the drill ramps from 64 to 512, more than a laptop stack can serve) |
 | `DURATION`                         | `15m`            | upper bound on the run, so a stack too slow to reach the cap still finishes in minutes               |
+| `KEEP_OBJECTS`                     | unset            | `1` passes `--keep-objects`: the drill skips its sweep, and the objects stay until `make clean`      |
+| `ENFORCE_FLOOR`                    | the profile's    | `true` or `false`: fail the run when a window falls below the floor                                  |
+| `PROGRESS`                         | once per window  | how often the drill prints a progress line, e.g. `30s`; `0` prints none                              |
+| `ACCOUNTS`, `RESTORE_SCALE`        | the profile's    | restore accounts, and the scale of the restore cohort sizes                                          |
+| `SIZE_MEAN`, `SIZE_SIGMA`, `SIZE_MIN`, `SIZE_MAX` | the profile's | block size distribution; the `import` profile refuses them, since its packing model sets the blob sizes |
+| `AGGREGATE_SIZE`, `AGGREGATE_EVERY` | the profile's   | aggregate size and blocks per aggregate; `import` has no aggregates                                  |
+| `CONFIG_NOTE`                      | unset            | one line the drill records in its evidence                                                           |
+| `DISK_FACTOR`                      | `2.5` or `1.25`  | free disk the run needs, as a multiple of `STOP_INGEST_AT`; see below                                |
+
+Every variable in the table reaches the drill only when set, so with none of
+the new ones set the command line is the one above. Before it starts, `run`
+checks that ingot's `/data` volume has `DISK_FACTOR` times `STOP_INGEST_AT`
+free, and under Docker Desktop the host filesystem too; elsewhere Docker's
+volumes are not under the checkout, so the host is not measured.
+`DISK_FACTOR` defaults to 1.25 when piri-0's blob backend is `s3` with an
+endpoint other than the stack's `piri-minio`, and to 2.5 otherwise.
+
+On a dedicated Linux host, set `INGOT_URL` to ingot's container address (for
+example `http://172.18.0.5:80`) before `setup`, so the drill reaches ingot
+directly instead of through Docker's userland proxy. Extra compose files chain
+through `COMPOSE_FILE` (`COMPOSE_FILE=compose.yml:extra.yml`) while
+`SMELT_WORKSPACE` is off; with it on, the Makefile names the files itself.
 
 While it runs, the drill prints a progress line per window: the phase (ramp,
 steady, read-back after the cap), bytes written and read back, the last
@@ -205,9 +251,15 @@ Besides the [common files](#what-a-run-records), a run records:
   provider file; each run gets its own journal in `state/`, so an interrupted
   run never blocks the next one.
 
-`metadata.json` also holds the storage-qualification SHA, the settings above,
-the tenant, the disk estimate and the drill's exit code. Each run appends one
-row to `runs.jsonl`.
+`metadata.json` also holds the storage-qualification SHA, the settings above
+(null when unset), the drill's full command line as `argv`, the tenant, the
+disk check (`disk`: the factor applied, piri-0's blob backend and S3 endpoint,
+and the free space measured, with `host_free_gb` null when the host was not
+measured) and the drill's exit code. Each run appends one
+row to `runs.jsonl`, with the drill's settings under `settings`, the Docker
+and system facts under `host`, and `manifest`, `piri` and `sprue` as in
+`metadata.json`. Rows written before these fields existed lack them, and
+`compare` reads both kinds.
 
 ### Reading drill results
 

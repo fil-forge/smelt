@@ -1,0 +1,3 @@
+{"drill": {"profile": "import", "facts": {"window_seconds": 10, "rate_target_bytes_per_second": 6000000000, "sustained_windows": 20, "ingest_sent_bytes": 1000000000, "sustained_ingest_median_bytes_per_second": 400000000, "sustained_ingest_p5_bytes_per_second": 300000000, "sustained_writes_median_per_second": 3.1, "sustained_read_median_bytes_per_second": 200000000, "sustained_restore_median_bytes_per_second": 100000000},
+  "windows": [{}, {}], "bytes_read_back": 1000000000, "integrity_failures": 0,
+  "availability": {"requests": 100, "transport_errors": 0, "status_408": 0, "status_429": 0, "status_5xx": 0}}}

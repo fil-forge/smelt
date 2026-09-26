@@ -18,6 +18,8 @@
 #   SNAPSHOT           run: `make down && make up SNAPSHOT=...` first, then re-run setup
 #                      (hilt's dev vault is in memory, so a restore loses the access key).
 #                      With SMELT_MANIFEST also set, the two manifests must match.
+#   PERF_EXTRA_METADATA  a JSON object recorded verbatim as `extra` in metadata.json
+#                      and runs.jsonl; anything else stops the run before it starts
 #
 # Output: generated/perf-runs/s3-speedtest/<utc-ts>-<label>/ plus one row per
 # (operation, file size) appended to generated/perf-runs/s3-speedtest/runs.jsonl.
@@ -90,6 +92,7 @@ EOF
 run() {
   perf_require aws jq docker python3 go
   [ -n "${LABEL:-}" ] || perf_die "LABEL is required, e.g. LABEL=before $0 run"
+  perf_check_extra
   [ -f "$TARGETS_TEMPLATE" ] || perf_die "no $TARGETS_TEMPLATE; run '$0 setup' first"
   [ -d "$S3_SPEEDTESTS_DIR/scripts" ] || perf_die "s3-speedtests checkout not found at $S3_SPEEDTESTS_DIR (set S3_SPEEDTESTS_DIR)"
   # setup generated the file set it was given; this run's FILE_SET may be a
@@ -108,10 +111,10 @@ run() {
     setup
   fi
 
-  local run_dir bucket
+  local run_dir bucket run_prefix
   bucket="$(perf_bucket)"
   run_dir="$(perf_run_dir "$SUITE" "$LABEL")"
-  local run_prefix="perf/$(basename "$run_dir")"
+  run_prefix="perf/$(basename "$run_dir")"
   sed "s|^prefix = .*|prefix = $run_prefix|" "$TARGETS_TEMPLATE" > "$run_dir/s3_targets.ini"
 
   local chunksize concurrency

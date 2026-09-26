@@ -1,0 +1,6 @@
+[
+  {"Image": "sha256:1111111111111111111111111111111111111111111111111111111111111111", "Config": {"Image": "ghcr.io/fil-forge/ingot:main", "Labels": {"com.docker.compose.service": "ingot"}}},
+  {"Image": "sha256:2222222222222222222222222222222222222222222222222222222222222222", "Config": {"Image": "ghcr.io/fil-forge/piri@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "Labels": {"com.docker.compose.service": "piri-0"}}},
+  {"Image": "sha256:3333333333333333333333333333333333333333333333333333333333333333", "Config": {"Image": "postgres:16-alpine", "Labels": {"com.docker.compose.service": "upload-init"}}},
+  {"Image": "sha256:9999999999999999999999999999999999999999999999999999999999999999", "Config": {"Image": "redis:7-alpine", "Labels": {"com.docker.compose.service": "gone"}}}
+]
