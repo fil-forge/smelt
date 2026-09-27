@@ -36,6 +36,16 @@ S3_ACCESS_KEY_ID="${PIRI_S3_ACCESS_KEY_ID:-minioadmin}"
 S3_SECRET_ACCESS_KEY="${PIRI_S3_SECRET_ACCESS_KEY:-minioadmin}"
 S3_INSECURE="${PIRI_S3_INSECURE:-true}"
 
+# An endpoint outside the stack needs its own credentials. Refuse to start
+# rather than send the stack MinIO's root login to it.
+if [ "$BLOB_BACKEND" = "s3" ] && [ "$S3_ENDPOINT" != "piri-minio:9000" ]; then
+    if [ -z "${PIRI_S3_ACCESS_KEY_ID:-}" ] || [ -z "${PIRI_S3_SECRET_ACCESS_KEY:-}" ]; then
+        echo "ERROR: S3 endpoint $S3_ENDPOINT is outside the stack but PIRI_S3_ACCESS_KEY_ID or PIRI_S3_SECRET_ACCESS_KEY is empty." >&2
+        echo "       Set SMELT_PIRI_S3_ACCESS_KEY_ID and SMELT_PIRI_S3_SECRET_ACCESS_KEY in the shell that runs compose." >&2
+        exit 1
+    fi
+fi
+
 echo "=== Piri Entrypoint ==="
 echo "  Database backend: $DB_BACKEND"
 echo "  Blob backend: $BLOB_BACKEND"
