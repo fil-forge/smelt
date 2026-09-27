@@ -40,18 +40,75 @@ perf_git_info() {
   top="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)" || { echo null; return; }
   if [ "$top" != "$(cd "$dir" && pwd -P)" ]; then echo null; return; fi
   local sha dirty=false
-  sha="$(git -C "$dir" rev-parse --short HEAD)"
+  sha="$(git -C "$dir" rev-parse HEAD)"
   # Untracked files count: a workspace build compiles them all the same.
   [ -z "$(git -C "$dir" status --porcelain)" ] || dirty=true
   jq -cn --arg sha "$sha" --argjson dirty "$dirty" '{sha: $sha, dirty: $dirty}'
 }
 
+# perf_check_extra: stop unless PERF_EXTRA_METADATA is unset, empty or exactly
+# one JSON object. Suites call it before they create a run directory.
+perf_check_extra() {
+  [ -n "${PERF_EXTRA_METADATA:-}" ] || return 0
+  perf_require jq
+  jq -e -s 'length == 1 and (.[0] | type == "object")' <<<"$PERF_EXTRA_METADATA" >/dev/null 2>&1 \
+    || perf_die "PERF_EXTRA_METADATA must be a single JSON object"
+}
+
+# perf_images <run-dir>: write images.lock.json, one entry per compose
+# container, exited one-shots included: service, ref (the image as compose
+# named it), digest, revision and source labels, created time, arch and repo
+# digests. digest is the ref's own when the ref pins one, else the first repo
+# digest; revision is null for an image without the OCI label.
+perf_images() {
+  local run_dir="$1" project cids services raw ids
+  project="$(perf_project_dir)"
+  cids="$(cd "$project" && docker compose ps -a -q 2>/dev/null)" || cids=""
+  services='[]'
+  if [ -n "$cids" ]; then
+    # shellcheck disable=SC2086
+    services="$(docker inspect $cids 2>/dev/null | jq -c '[.[] | {
+      service: .Config.Labels["com.docker.compose.service"],
+      ref: .Config.Image, image_id: .Image}] | sort_by(.service, .ref)')" || services='[]'
+  fi
+  ids="$(jq -r '[.[].image_id | select(. != null)] | unique | .[]' <<<"$services")"
+  raw='[]'
+  if [ -n "$ids" ]; then
+    # docker image inspect exits 1 when any image is gone but still prints the
+    # others; an entry without a match keeps only what the container said.
+    # shellcheck disable=SC2086
+    raw="$(docker image inspect $ids 2>/dev/null || true)"
+    [ -n "$raw" ] || raw='[]'
+  fi
+  jq -n --argjson s "$services" --argjson i "$raw" '
+    ([$i[] | {image_id: .Id, repo_digests: .RepoDigests,
+              revision: .Config.Labels["org.opencontainers.image.revision"],
+              source: .Config.Labels["org.opencontainers.image.source"],
+              created: .Created, arch: .Architecture}] | INDEX(.image_id)) as $ids
+    | [$s[] | . + ($ids[.image_id] // {})
+       | .digest = (((.ref // "") | capture("@(?<d>sha256:[0-9a-f]{64})").d)
+                    // ((.repo_digests // [])[0] // "" | split("@")[1]))
+       | del(.image_id)]' > "$run_dir/images.lock.json"
+}
+
+# perf_container_env <service> <variable>: the variable's value in the running
+# service's container as a JSON string, "" when it is set empty, or null when
+# it is unset or the service is down. Only non-secret variables go through it.
+perf_container_env() {
+  local value
+  value="$(cd "$(perf_project_dir)" && docker compose exec -T "$1" printenv "$2" 2>/dev/null)" \
+    && jq -cn --arg v "$value" '$v' || echo null
+}
+
 # perf_metadata <run-dir> <label> <suite-json>: write metadata.json.
 # suite-json is a JSON object with the suite's own settings (file set, runs,
 # aws profile settings, ...); it lands under the "suite" key.
+# PERF_EXTRA_METADATA, a JSON object, lands verbatim under "extra"; smelt
+# attaches no meaning to it.
 perf_metadata() {
   perf_require git jq docker
   local run_dir="$1" label="$2" suite_json="$3"
+  perf_check_extra
   local project sibling repos manifest manifest_file arch workspace_services
   project="$(perf_project_dir)"
   sibling="$(dirname "$project")"
@@ -82,6 +139,7 @@ perf_metadata() {
   arch="$(docker version --format '{{.Server.Arch}}' 2>/dev/null || echo unknown)"
 
   (cd "$project" && docker compose images --format json 2>/dev/null || echo '[]') > "$run_dir/images.json"
+  perf_images "$run_dir"
   docker system df > "$run_dir/docker-df-before.txt" 2>/dev/null || true
 
   jq -n \
@@ -97,10 +155,25 @@ perf_metadata() {
     --argjson repos "$repos" \
     --argjson workspace_services "$workspace_services" \
     --argjson suite "$suite_json" \
-    '{label: $label, started_at_utc: $started, host: $host,
+    --arg storage_driver "$(docker info --format '{{.Driver}}' 2>/dev/null || true)" \
+    --arg root_dir "$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || true)" \
+    --arg kernel "$(uname -r)" \
+    --arg os "$(docker info --format '{{.OperatingSystem}}' 2>/dev/null || true)" \
+    --argjson piri_s3_endpoint "$(perf_container_env piri-0 PIRI_S3_ENDPOINT)" \
+    --argjson piri_indexer "$(perf_container_env piri-0 PIRI_INDEXER)" \
+    --argjson sprue_indexer_endpoint "$(perf_container_env upload SPRUE_INDEXER_ENDPOINT)" \
+    --slurpfile images "$run_dir/images.lock.json" \
+    --argjson extra "${PERF_EXTRA_METADATA:-null}" \
+    'def nullable: if . == "" then null else . end;
+     {label: $label, started_at_utc: $started, host: $host,
       manifest: $manifest, piri_blob_backend: $blob,
-      docker: {server_arch: $arch, ncpu: $ncpu, mem_total_bytes: $mem, version: $docker_version},
-      repos: $repos, workspace_services: $workspace_services, suite: $suite}' \
+      docker: {server_arch: $arch, ncpu: $ncpu, mem_total_bytes: $mem, version: $docker_version,
+               storage_driver: ($storage_driver|nullable), root_dir: ($root_dir|nullable)},
+      system: {kernel: $kernel, os: ($os|nullable)},
+      piri: {s3_endpoint: $piri_s3_endpoint, indexer: (($piri_indexer // "")|nullable // "on")},
+      sprue: {indexer_endpoint: $sprue_indexer_endpoint},
+      repos: $repos, workspace_services: $workspace_services, images: $images[0],
+      extra: $extra, suite: $suite}' \
     > "$run_dir/metadata.json"
 }
 

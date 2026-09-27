@@ -25,6 +25,9 @@
 #                   is a ramp from 64 to 512)
 #   DURATION        upper bound on the run (default 15m; the profile's is 1h)
 #   LABEL           run label (default: the profile name)
+#   PERF_EXTRA_METADATA  a JSON object recorded verbatim as `extra` in
+#                   metadata.json and runs.jsonl; anything else stops the run
+#                   before it starts
 #
 # A run needs about 2.5x STOP_INGEST_AT of free disk, on the host and in
 # Docker's disk, and refuses to start with less; `make clean` reclaims it.
@@ -125,6 +128,7 @@ run() {
   [[ "$STOP_INGEST_AT" =~ ^[0-9]+(\.[0-9]+)?GB$ ]] \
     || perf_die "STOP_INGEST_AT must be a number of GB such as 50GB or 7.5GB, got '$STOP_INGEST_AT'"
   [[ "$WORKERS" =~ ^[1-9][0-9]*$ ]] || perf_die "WORKERS must be a positive integer, got '$WORKERS'"
+  perf_check_extra
   # The drill would reject a bad duration too, but only after the run
   # directory exists.
   local knob

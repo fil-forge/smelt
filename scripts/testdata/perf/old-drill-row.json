@@ -1,0 +1,7 @@
+{"label": "before", "started_at_utc": "2026-09-01T12:00:00Z", "run_dir": "generated/perf-runs/drill/20260901T120000Z-before",
+ "repos": {"ingot": {"sha": "1a2b3c4", "dirty": false}, "smelt": {"sha": "5d6e7f8", "dirty": true}, "piri": null},
+ "workspace_services": [], "profile": "import", "stop_ingest_at": "1GB", "window_seconds": 10, "offered_gbps": 6.0,
+ "drill_exit": 0, "storage_qualification": {"sha": "5cfeaf3", "dirty": false}, "windows": 2, "steady_windows": 20,
+ "bytes_sent": 1000000000, "bytes_read_back": 1000000000, "integrity_failures": 0, "requests": 100,
+ "transport_errors": 0, "status_408": 0, "status_429": 0, "status_5xx": 0, "ingest_gbps_median": 0.4,
+ "ingest_gbps_p5": 0.3, "writes_per_second": 3.1, "read_back_gbps": 0.2, "restore_gbps": 0.1}
