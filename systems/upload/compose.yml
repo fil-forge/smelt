@@ -18,6 +18,11 @@ services:
     # falls back to the config.yaml value.
     environment:
       - SPRUE_SERVER_PUBLIC_URL
+      # Export both empty to run without an indexer, as dev and staging do
+      # (sprue clears a config.yaml value on an empty variable). Unset, the
+      # config.yaml values apply.
+      - SPRUE_INDEXER_ENDPOINT
+      - SPRUE_INDEXER_DID
       # OTLP/HTTP collector for sprue's traces; tracing is off when empty.
       # With systems/telemetry running: OTEL_ENDPOINT=http://otel-collector:4318
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_ENDPOINT:-}

@@ -91,6 +91,7 @@ func TestEmbeddedFilesExist(t *testing.T) {
 		".env",
 		"systems/blockchain/state/deployed-addresses.json",
 		"systems/piri/config/piri-base-config.toml",
+		"systems/piri/config/piri-indexing.toml",
 		"systems/piri/config/piri-overrides.toml",
 		// Bind-mount sources for one-shot/init containers: a missing embed
 		// makes docker create an empty directory in their place and the

@@ -35,6 +35,16 @@ calling it fixed.
 `make up` and `make redeploy` return only after the services they started
 report healthy, so a run can start right after either one.
 
+Dev and staging run without an indexer: piri sends no content claims to it and
+no IPNI announcements, and sprue has no indexer client. To match them, start
+the stack with `PIRI_INDEXER=off SPRUE_INDEXER_ENDPOINT= SPRUE_INDEXER_DID=
+make up`; the two empty exports clear the indexer in sprue's `config.yaml`. The
+indexer, IPNI and Redis containers keep running and receive no traffic. piri
+reads `PIRI_INDEXER` only when it initializes, so a stack that already started
+with the indexer on, or one loaded from a snapshot, keeps it until `make
+clean`; piri's log prints a warning in that case. Runs with the indexer on and
+off measure different systems, so compare runs of one setting only.
+
 ## What a run records
 
 Each run gets a directory `generated/perf-runs/<suite>/<utc-ts>-<label>/`
