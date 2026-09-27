@@ -38,7 +38,7 @@ services:
   # Postgres for the PLC operation log. The server runs kysely migrations on
   # startup, so the empty `plc` database created by POSTGRES_DB is enough.
   plc-postgres:
-    image: postgres:16-alpine
+    image: ${POSTGRES_IMAGE:-postgres:16-alpine}
     ports:
       - "${SMELT_PLC_POSTGRES_PORT:-15121:5432}"
     environment:

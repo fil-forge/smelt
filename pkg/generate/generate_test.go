@@ -185,6 +185,30 @@ func TestGeneratePiriComposeMultiNode(t *testing.T) {
 	}
 }
 
+func TestGeneratePiriComposePostgresImageOverride(t *testing.T) {
+	nodes := []manifest.ResolvedPiriNode{
+		{Name: "piri-0", Index: 0, Storage: manifest.StorageSpec{DB: "postgres", Blob: "filesystem"}},
+	}
+
+	data, err := GeneratePiriCompose(nodes)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var compose ComposeFile
+	if err := yaml.Unmarshal(data, &compose); err != nil {
+		t.Fatalf("unmarshal generated compose: %v", err)
+	}
+
+	// Unset, POSTGRES_IMAGE falls back to the tag used before it existed.
+	const want = "${POSTGRES_IMAGE:-postgres:16-alpine}"
+	for _, name := range []string{"piri-postgres", "piri-postgres-init"} {
+		if got := compose.Services[name].Image; got != want {
+			t.Errorf("%s image = %q, want %q", name, got, want)
+		}
+	}
+}
+
 func TestGeneratePiriComposeSerializedStartup(t *testing.T) {
 	nodes := []manifest.ResolvedPiriNode{
 		{Name: "piri-0", Index: 0, Storage: manifest.StorageSpec{DB: "sqlite", Blob: "filesystem"}},
