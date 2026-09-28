@@ -87,6 +87,10 @@ func buildPiriService(node manifest.ResolvedPiriNode) ComposeService {
 		// entrypoint reads on (default) or off; off leaves out the indexer
 		// claims and IPNI announce, as on dev and staging.
 		"PIRI_INDEXER",
+		// The OTLP/HTTP collector for piri's traces, the same one ingot,
+		// hilt and sprue use. The entrypoint writes it into piri's
+		// [[telemetry.traces]]; empty leaves piri's config as it was.
+		"OTEL_ENDPOINT=${OTEL_ENDPOINT:-${OTEL_EXPORTER_OTLP_ENDPOINT:-}}",
 	}
 
 	if node.Storage.DB == manifest.DBPostgres {

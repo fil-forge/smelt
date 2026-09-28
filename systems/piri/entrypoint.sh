@@ -59,10 +59,49 @@ case "$INDEXER" in
         ;;
 esac
 
+# Trace export: an OTLP/HTTP collector URL, or empty for none. piri takes
+# collectors only from [[telemetry.traces]], as host:port plus an insecure
+# flag for plain HTTP; it posts to /v1/traces on that host. compose fills
+# OTEL_ENDPOINT from OTEL_EXPORTER_OTLP_ENDPOINT when only that one is set, so
+# errors name both. They never echo the value: it may carry credentials.
+TRACES_URL="${OTEL_ENDPOINT:-}"
+TRACES_VAR="OTEL_ENDPOINT (or OTEL_EXPORTER_OTLP_ENDPOINT in the shell that ran compose)"
+TRACES_MARKER="# --- smelt trace export ---"
+TRACES_HOST=""
+TRACES_INSECURE=false
+case "$TRACES_URL" in
+    "") ;;
+    http://*) TRACES_HOST="${TRACES_URL#http://}"; TRACES_INSECURE=true ;;
+    https://*) TRACES_HOST="${TRACES_URL#https://}" ;;
+    *)
+        echo "ERROR: $TRACES_VAR must be an http:// or https:// URL"
+        exit 1
+        ;;
+esac
+if [ -n "$TRACES_URL" ]; then
+    case "$TRACES_HOST" in
+        */?*) echo "WARNING: piri ignores the path in $TRACES_VAR and posts to /v1/traces" ;;
+    esac
+    TRACES_HOST="${TRACES_HOST%%/*}"
+    if [ -z "$TRACES_HOST" ]; then
+        echo "ERROR: $TRACES_VAR names no host"
+        exit 1
+    fi
+    # piri's endpoint is a bare host:port with no place for credentials, and
+    # the host is logged below and written into the config.
+    case "$TRACES_HOST" in
+        *@*)
+            echo "ERROR: $TRACES_VAR must not carry credentials; piri cannot send them"
+            exit 1
+            ;;
+    esac
+fi
+
 echo "=== Piri Entrypoint ==="
 echo "  Database backend: $DB_BACKEND"
 echo "  Blob backend: $BLOB_BACKEND"
 echo "  Indexer claims and IPNI announce: $INDEXER"
+echo "  Trace export: ${TRACES_HOST:-off}"
 
 # config_has_indexer FILE: true when FILE's [ucan.services.indexer] table
 # sets a url.
@@ -168,6 +207,32 @@ if [ -f "$OVERRIDES_CONFIG" ]; then
             cat "$OVERRIDES_CONFIG"
         } >> "$CONFIG_FILE"
     fi
+fi
+
+# Trace collector: rewritten on every boot, so it follows OTEL_ENDPOINT on an
+# initialized node or one loaded from a snapshot. The block always ends the
+# file. A config without the marker is never rewritten, so with OTEL_ENDPOINT
+# empty it stays byte for byte what init and the overrides produced.
+if grep -qxF "$TRACES_MARKER" "$CONFIG_FILE" 2>/dev/null; then
+    # Drop the marker, everything after it and the blank line before it.
+    awk -v m="$TRACES_MARKER" '
+        $0 == m { exit }
+        { lines[n++] = $0 }
+        END {
+            if (n && lines[n-1] == "") n--
+            for (i = 0; i < n; i++) print lines[i]
+        }
+    ' "$CONFIG_FILE" > "$CONFIG_FILE.tmp"
+    mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
+fi
+if [ -n "$TRACES_HOST" ]; then
+    {
+        echo ""
+        echo "$TRACES_MARKER"
+        echo "[[telemetry.traces]]"
+        echo "endpoint = \"$TRACES_HOST\""
+        echo "insecure = $TRACES_INSECURE"
+    } >> "$CONFIG_FILE"
 fi
 
 # Step 4: Start piri server
