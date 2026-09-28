@@ -130,6 +130,15 @@ class PerfLibTest(unittest.TestCase):
         self.assertIsInstance(meta["host"], str)
         self.assertEqual(meta["piri"], {"s3_endpoint": None, "indexer": "on"})
         self.assertEqual(meta["sprue"], {"indexer_endpoint": None})
+        self.assertEqual(meta["tracing"], {"on": False, "ratio": None})
+
+    def test_metadata_records_tracing_without_endpoint(self):
+        meta = self.metadata(STUB_OTEL_ENDPOINT="http://user:secret-token@otel-collector:4318", STUB_OTEL_TRACES_SAMPLER_ARG="0.1")
+        self.assertEqual(meta["tracing"], {"on": True, "ratio": "0.1"})
+        self.assertNotIn("secret-token", (self.run_dir / "metadata.json").read_text())
+        # Set empty is off, and an empty ratio is the default.
+        meta = self.metadata(STUB_OTEL_ENDPOINT="", STUB_OTEL_TRACES_SAMPLER_ARG="")
+        self.assertEqual(meta["tracing"], {"on": False, "ratio": None})
 
     def test_extra_lands_verbatim(self):
         extra = {"run_id": "main-20261001t120312z", "client_path": "container-ip", "nested": {"n": 1}}
