@@ -116,6 +116,7 @@ services:
       - INGOT_REGION_KEK=region-kek
     volumes:
       - ./openbao/init.sh:/init.sh:ro
+      - ../common/openbao/bootstrap.sh:/openbao-bootstrap.sh:ro
       - ingot-openbao-init:/init
     depends_on:
       ingot-openbao:

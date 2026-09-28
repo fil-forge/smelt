@@ -28,8 +28,9 @@ services:
       - HILT_VAULT_TYPE=openbao
       - HILT_VAULT_OPENBAO_ADDRESS=http://hilt-vault:8200
       - HILT_VAULT_OPENBAO_AUTH_METHOD=token
-      # Dev-mode root token (local dev only, like the partner key above)
-      - HILT_VAULT_OPENBAO_TOKEN=${HILT_VAULT_TOKEN:-dev-root-token}
+      # Scoped token hilt-vault-init provisions (local dev only, like the
+      # partner key above)
+      - HILT_VAULT_OPENBAO_TOKEN=${HILT_VAULT_TOKEN:-dev-hilt-vault-token}
       - HILT_PLC_DIRECTORY=http://plc:3000
       - HILT_UPLOAD_SERVICE_ID=did:web:upload
       - HILT_UPLOAD_SERVICE_URL=http://upload:80
@@ -55,8 +56,9 @@ services:
         condition: service_healthy
       hilt-postgres:
         condition: service_healthy
-      hilt-vault:
-        condition: service_healthy
+      # The vault is unsealed and hilt's token exists once the init job has run.
+      hilt-vault-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:80/health"]
       start_interval: 1s
@@ -101,26 +103,54 @@ services:
     networks:
       - forge-network
 
-  # OpenBao in dev mode for hilt's tenant/access-key private keys (the same
-  # server production runs). Dev mode auto-unseals and mounts KV v2 at
-  # `secret` (hilt's default mount). Storage is in-memory: keys survive hilt
-  # restarts but not a hilt-vault container restart. The image's default
-  # command is `server -dev`; the entrypoint reads the BAO_DEV_* vars below.
+  # OpenBao for hilt's tenant/access-key private keys (the same server
+  # production runs). A non-dev server with raft storage on hilt-vault-data,
+  # so the keys survive down/up and snapshot restores alongside the tenant
+  # and access-key rows in hilt-postgres. The healthcheck only means
+  # "listening": a fresh server is uninitialized and a restarted one is sealed
+  # until hilt-vault-init runs again (which `make up` does, since one-shot
+  # services re-run on every up).
   hilt-vault:
     image: ${OPENBAO_IMAGE:-openbao/openbao:2.6}
+    command: ["server"]
     ports:
       - "${SMELT_HILT_VAULT_PORT:-15112:8200}"
     environment:
-      - BAO_DEV_ROOT_TOKEN_ID=${HILT_VAULT_TOKEN:-dev-root-token}
-      - BAO_DEV_LISTEN_ADDRESS=0.0.0.0:8200
+      # For `docker compose exec hilt-vault bao ...` (the CLI defaults to https)
+      - BAO_ADDR=http://127.0.0.1:8200
+    volumes:
+      - ./openbao/config.hcl:/openbao/config/config.hcl:ro
+      - hilt-vault-data:/openbao/file
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8200/v1/sys/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8200/v1/sys/health?sealedcode=200&uninitcode=200"]
       start_interval: 1s
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
     restart: unless-stopped
+    networks:
+      - forge-network
+
+  # One-shot initializer for hilt-vault: `operator init` on first boot (one
+  # unseal share + root token kept on the hilt-vault-init volume, dev-only
+  # custody), unseal on every boot, then make sure KV v2 at `secret`, the hilt
+  # policy, and hilt's scoped token exist. See openbao/init.sh.
+  hilt-vault-init:
+    image: ${OPENBAO_IMAGE:-openbao/openbao:2.6}
+    user: "0:0"  # the image runs as `openbao`; the init volume is root-owned
+    entrypoint: ["sh", "/init.sh"]
+    environment:
+      - BAO_ADDR=http://hilt-vault:8200
+      - HILT_VAULT_TOKEN=${HILT_VAULT_TOKEN:-dev-hilt-vault-token}
+    volumes:
+      - ./openbao/init.sh:/init.sh:ro
+      - ../common/openbao/bootstrap.sh:/openbao-bootstrap.sh:ro
+      - hilt-vault-init:/init
+    depends_on:
+      hilt-vault:
+        condition: service_healthy
+    restart: "no"
     networks:
       - forge-network
 
@@ -151,3 +181,5 @@ services:
 
 volumes:
   hilt-postgres-data:
+  hilt-vault-data:  # raft storage: tenant and access-key private keys
+  hilt-vault-init:  # unseal share + root token (dev-only custody)

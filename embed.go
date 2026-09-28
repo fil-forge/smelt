@@ -9,6 +9,7 @@ import "embed"
 //go:embed compose.yml .env
 
 //go:embed systems/common/compose.yml
+//go:embed systems/common/openbao/*
 
 //go:embed systems/blockchain/compose.yml
 //go:embed systems/blockchain/state/deployed-addresses.json
@@ -22,6 +23,7 @@ import "embed"
 
 //go:embed systems/hilt/compose.yml
 //go:embed systems/hilt/register-provider.sh
+//go:embed systems/hilt/openbao/*
 
 //go:embed systems/ingot/compose.yml
 //go:embed systems/ingot/config/*

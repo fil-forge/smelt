@@ -15,7 +15,8 @@ guppy-style edge client.
   (`openbao/openbao:2.6`, server mode, raft storage on `ingot-openbao-data`).
 - **ingot-openbao-init** — one-shot: initializes and unseals `ingot-openbao`,
   then provisions the transit engine, the region KEK, and ingot's token
-  (`openbao/init.sh`).
+  (`openbao/init.sh`, with the shared bootstrap in
+  `../common/openbao/bootstrap.sh`).
 
 ## Ports
 

@@ -12,10 +12,11 @@
 # returns it once); this script never prints it. The profile also carries a
 # custom `tenant_id` key naming the tenant it belongs to.
 #
-# After `make down && make up` hilt has forgotten the tenant's signing key
-# (hilt-vault is in-memory), so the script moves on to the next free tenant id
-# (dev-2, dev-3, ...) and the previously saved key stops working; rerun
-# `make s3-key` to get a working profile again.
+# hilt-vault keeps the tenant's signing key on a volume, so a saved profile
+# keeps working across `make down && make up`. If the vault has lost the key
+# (a stack restored from a snapshot saved before the vault persisted), the
+# script moves on to the next free tenant id (dev-2, dev-3, ...) and the
+# previously saved key stops working; rerun `make s3-key` for a working profile.
 #
 # Needs: a running stack, docker, curl, jq, and AWS CLI v2 (2.13+, for the per-profile
 # endpoint_url setting).
@@ -95,10 +96,10 @@ mint_key() {
 }
 
 # Hilt keeps tenant records in postgres but the tenant's signing key in
-# hilt-vault, which runs OpenBao in dev mode: in memory, gone after
-# `make down && make up`. The tenant then still exists (PUT says 200) but
-# every access-key request fails with 500, and so does DELETE, which needs
-# the same key to sign the did:plc tombstone. Nothing can revive that
+# hilt-vault. If the vault has lost the key (a stack restored from a snapshot
+# saved before the vault persisted), the tenant still exists (PUT says 200)
+# but every access-key request fails with 500, and so does DELETE, which
+# needs the same key to sign the did:plc tombstone. Nothing can revive that
 # tenant, so fall back to the next free id (dev-2, dev-3, ...).
 tenant="$TENANT"
 status=
@@ -107,7 +108,7 @@ for attempt in $(seq 2 9); do
   status="$(mint_key "$tenant")"
   if [ "$status" = "200" ] || [ "$status" = "201" ]; then break; fi
   if [ "$status" = "500" ] && [ "$state" = "exists" ]; then
-    echo "tenant $tenant exists but hilt cannot sign for it (hilt-vault lost its key on restart); trying $TENANT-$attempt" >&2
+    echo "tenant $tenant exists but hilt cannot sign for it (hilt-vault has lost its key); trying $TENANT-$attempt" >&2
     tenant="$TENANT-$attempt"
     status=
     continue
