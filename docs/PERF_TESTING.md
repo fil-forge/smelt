@@ -115,8 +115,9 @@ LABEL=after ./scripts/perf-s3-speedtest.sh run
 
 `setup` mints a key for tenant `perf` (AWS CLI profile `smelt-perf`, the same
 way `make s3-key` does), creates the bucket and generates the test files in
-`generated/perf/testfiles`. Re-run it after `make down && make up`: hilt's dev
-vault is in memory, so the old key stops working. `setup` then moves to the
+`generated/perf/testfiles`. The key survives `make down && make up`; re-run
+`setup` after `make clean` or a snapshot restore. If hilt has the tenant but
+not its key (a snapshot saved before the vault persisted), `setup` moves to the
 next free tenant (`perf-2`, ...) and creates that tenant's bucket
 (`perf-s3-speedtest-perf-2`), since ingot bucket names are global and the old
 one belongs to `perf`.
@@ -137,7 +138,8 @@ The `large` set writes 75 GiB per run, so plan for about 200 GB of free disk
 per run and 400 GB for a before/after pair.
 
 `SNAPSHOT` runs `make down && make up SNAPSHOT=...` and then `setup` again,
-because the restore loses hilt's access key the same way a restart does. An
+because the restore returns hilt to the snapshot's state, which holds only the
+keys that existed when it was saved. An
 exported `SMELT_MANIFEST` takes precedence over the snapshot's own manifest,
 so the script refuses to restore when the two differ.
 
@@ -180,8 +182,9 @@ LABEL=after ./scripts/perf-drill.sh run
 `setup` mints a key for tenant `drill` (AWS CLI profile `smelt-drill`, the
 same way `make s3-key` does) and writes it with ingot's endpoint and region to
 `generated/perf-runs/drill/provider/.env`, readable only by you. Neither key
-is printed. Re-run `setup` after `make down && make up`: hilt's dev vault is
-in memory, so the old key stops working and `setup` moves to tenant `drill-2`.
+is printed. The key survives `make down && make up`. If hilt has the tenant but
+not its key (a snapshot saved before the vault persisted), `setup` moves to
+tenant `drill-2`.
 Re-run it after `make clean` too, which deletes the tenant along with its key;
 `setup` then creates tenant `drill` again. Without it, `run` stops at its
 smoke check with `InvalidAccessKeyId`.
