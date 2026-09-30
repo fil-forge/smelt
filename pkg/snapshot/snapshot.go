@@ -433,10 +433,6 @@ func Load(ctx context.Context, opts LoadOpts) error {
 		}
 	}
 
-	for _, w := range desc.CompatibilityWarnings() {
-		fmt.Fprintf(os.Stderr, "\nWARNING: %s\n\n", w)
-	}
-
 	fmt.Printf("Restoring %d volume(s)...\n", len(desc.Volumes))
 	proj := projectName(projectDir)
 	volsSrc := filepath.Join(snapDir, subdirVolumes)
