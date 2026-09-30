@@ -240,9 +240,10 @@ aws --profile smelt s3 cp README.md s3://my-bucket/
 
 `scripts/s3-key.sh` creates the hilt tenant if needed, mints an access key with every S3
 permission, and writes the profile with the stack's region, ingot's endpoint and path-style
-addressing. `TENANT=` / `PROFILE=` override the defaults. Rerun it after `make down && make up`:
-hilt-vault is in-memory, so the tenant's signing key is gone and the script moves on to the
-next free tenant id (`dev-2`, ...) with a fresh key.
+addressing. `TENANT=` / `PROFILE=` override the defaults. hilt-vault keeps the tenant's
+signing key on a volume, so the profile keeps working across `make down && make up`. A stack
+whose vault has lost the key (one restored from a snapshot saved before the vault persisted)
+makes the script move on to the next free tenant id (`dev-2`, ...) with a fresh key.
 
 ### Regenerating Keys and Proofs
 
@@ -329,7 +330,7 @@ All host-side ports live in a dedicated `15XXX` range to avoid collision with co
 | piri-{N} | 15100 + N | HTTP/UCAN | Storage node(s); N defined by `smelt.yml` (default 1, max 9) |
 | hilt | 15110 | HTTP/UCAN | Tenant management (Tenant API + UCAN RPC) |
 | hilt-postgres | 15111 | PostgreSQL | Hilt tenant/provider store |
-| hilt-vault | 15112 | HTTP | Hilt key vault (OpenBao dev mode) |
+| hilt-vault | 15112 | HTTP | Hilt key vault (OpenBao, raft storage) |
 | plc | 15120 | HTTP | did:plc directory (reference implementation) |
 | plc-postgres | 15121 | PostgreSQL | did:plc directory store |
 | ingot | 15130 | S3/HTTP | S3 gateway over Forge |

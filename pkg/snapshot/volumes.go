@@ -37,6 +37,8 @@ func resolveVolumes(m *manifest.Manifest) ([]string, error) {
 		"guppy-data",          // systems/guppy — client's login/space state
 		"swarf-postgres-data", // systems/swarf — revocation records
 		"hilt-postgres-data",  // systems/hilt — tenant state
+		"hilt-vault-data",     // systems/hilt — tenant/access-key private keys (raft storage)
+		"hilt-vault-init",     // systems/hilt — unseal share for the above; restored together
 		"plc-postgres-data",   // systems/plc — DID PLC registry
 		"ingot-data",          // systems/ingot — node state
 		"ingot-postgres-data", // systems/ingot — registry

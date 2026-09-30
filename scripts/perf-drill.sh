@@ -380,7 +380,7 @@ smoke_fail() {
 $err
 The drill would fail the same way. Check the stack's logs: docker compose logs ingot piri-0
 InvalidAccessKeyId means hilt no longer has the key, as after 'make clean' or a
-restart; '$0 setup' mints a new one.
+snapshot restore; '$0 setup' mints a new one.
 If piri reports a signature mismatch, the keys and proofs in generated/ are likely out of
 sync; 'make regen', then 'make clean && make up' and '$0 setup' regenerates both."
 }
