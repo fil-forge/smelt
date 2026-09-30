@@ -138,6 +138,14 @@ still load). This keeps committed snapshots small — a postgres data dir
 is ~85M raw but ~12M compressed, and `snapshots/` is both checked into
 git and embedded into the Go module.
 
+A snapshot saved before hilt's vault persisted carries `hilt-postgres-data`
+but no `hilt-vault-data`. It still loads, but its tenants come back without
+their signing keys: hilt cannot mint access keys for them or delete them,
+and `make s3-key` moves on to the next free tenant id. The load prints a
+warning when it sees one. Re-save the snapshot from a running stack to carry
+the keys. The committed `3-piri-postgres-s3` snapshot holds no tenants, so
+it restores cleanly into a fresh vault.
+
 Tracked files at the project root (`smelt.yml`,
 `systems/blockchain/state/*.json`) are never modified by a load. Your
 git working tree stays clean.

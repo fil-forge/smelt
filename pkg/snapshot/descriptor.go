@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 )
 
@@ -46,6 +47,27 @@ type ImageInfo struct {
 	// registry, or the docker image Id ("sha256:…") for locally-built
 	// images that have no RepoDigest yet.
 	Digest string `json:"digest,omitempty"`
+}
+
+// CompatibilityWarnings reports state this snapshot restores incompletely
+// because it predates a volume the stack now persists. Each entry is a
+// complete message for the loader to print; an empty result means the
+// snapshot restores everything it claims to.
+func (d *Descriptor) CompatibilityWarnings() []string {
+	var warnings []string
+	// hilt keeps tenant records in postgres but their signing keys in
+	// hilt-vault. A snapshot that carries the records without the vault
+	// restores tenants into a fresh vault, so hilt cannot sign for them:
+	// minting an access key or deleting the tenant fails with 500, and
+	// nothing can recover the keys.
+	if slices.Contains(d.Volumes, "hilt-postgres-data") && !slices.Contains(d.Volumes, "hilt-vault-data") {
+		warnings = append(warnings,
+			"snapshot predates hilt-vault persistence (hilt-postgres-data without hilt-vault-data): "+
+				"tenants restored from it have no signing keys, so hilt cannot mint access keys for them "+
+				"or delete them; `make s3-key` moves on to the next free tenant id. "+
+				"Re-save the snapshot from a running stack to carry the keys.")
+	}
+	return warnings
 }
 
 func writeDescriptor(dir string, d *Descriptor) error {

@@ -116,6 +116,9 @@ func NewStack(ctx context.Context, t *testing.T, opts ...Option) (*Stack, error)
 		}
 		t.Logf("smeltery: booting from snapshot %s (%d piri node(s), %d volume(s))",
 			snapDir, len(resolvedNodes), len(snapDesc.Volumes))
+		for _, w := range snapDesc.CompatibilityWarnings() {
+			t.Logf("smeltery: WARNING: %s", w)
+		}
 	} else {
 		resolvedNodes = cfg.resolveNodes()
 		keysDir := filepath.Join(tempDir, "generated", "keys")
