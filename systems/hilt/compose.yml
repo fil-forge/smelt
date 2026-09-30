@@ -23,7 +23,14 @@ services:
       - HILT_STORAGE_POSTGRES_DSN=postgres://hilt:hilt@hilt-postgres:5432/hilt?sslmode=disable
       # OTLP/HTTP collector for hilt's traces; tracing is off when empty.
       # With systems/telemetry running: OTEL_ENDPOINT=http://otel-collector:4318
-      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_ENDPOINT:-}
+      # OTEL_EXPORTER_OTLP_ENDPOINT in the shell works too; OTEL_ENDPOINT wins.
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_ENDPOINT:-${OTEL_EXPORTER_OTLP_ENDPOINT:-}}
+      # Bare: taken from the shell when set, absent otherwise, and an empty
+      # value changes nothing. OTEL_TRACES_SAMPLER_ARG is the share of requests
+      # traced (default 1); OTEL_RESOURCE_ATTRIBUTES labels every span, e.g.
+      # with a run ID.
+      - OTEL_TRACES_SAMPLER_ARG
+      - OTEL_RESOURCE_ATTRIBUTES
       # OpenBao holds the tenant/access-key private keys (see hilt-vault below)
       - HILT_VAULT_TYPE=openbao
       - HILT_VAULT_OPENBAO_ADDRESS=http://hilt-vault:8200

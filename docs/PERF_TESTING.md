@@ -46,6 +46,18 @@ with the indexer on, or one loaded from a snapshot, keeps it until `make
 clean`; piri's log prints a warning in that case. Runs with the indexer on and
 off measure different systems, so compare runs of one setting only.
 
+To trace a run, start a collector on `forge-network` and start the stack with
+its OTLP/HTTP URL in `OTEL_ENDPOINT` (or `OTEL_EXPORTER_OTLP_ENDPOINT`), and
+usually a ratio in `OTEL_TRACES_SAMPLER_ARG`, for example
+`OTEL_ENDPOINT=http://otel-collector:4318 OTEL_TRACES_SAMPLER_ARG=0.1 make up`.
+Ingot, hilt, sprue and every piri node then export spans; ingot samples that
+share of S3 requests and the others follow. `OTEL_RESOURCE_ATTRIBUTES` labels
+the spans of ingot, hilt and sprue, such as with a run ID. piri's spans do not
+carry it, so a collector that must label every span, piri's included, adds the
+label itself. See [systems/telemetry](../systems/telemetry/README.md) for a
+ready-made collector. Tracing costs CPU in every service, so compare traced
+runs with traced runs only.
+
 ## What a run records
 
 Each run gets a directory `generated/perf-runs/<suite>/<utc-ts>-<label>/`
@@ -63,6 +75,10 @@ with:
     unless `PIRI_INDEXER` says otherwise), and `sprue.indexer_endpoint` from
     upload's; an empty string means the variable is set empty, null that it
     is unset. Credentials are never read.
+  - `tracing.on`, true when piri-0 exports traces (`OTEL_ENDPOINT` is set
+    and not empty), and `tracing.ratio`, ingot's `OTEL_TRACES_SAMPLER_ARG`
+    (null when unset or empty, which means every request is sampled). The
+    endpoint and the resource attributes are not recorded.
   - `images`: the contents of `images.lock.json`
   - `extra`: `PERF_EXTRA_METADATA`, verbatim
   - the suite's settings.

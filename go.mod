@@ -3,6 +3,7 @@ module github.com/fil-forge/smelt
 go 1.25.9
 
 require (
+	github.com/compose-spec/compose-go/v2 v2.12.1
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/fil-forge/libforge v0.0.0-20260727220215-5e299c46f62f
 	github.com/fil-forge/ucantone v0.0.0-20260706102443-79141c5cc52e
@@ -28,7 +29,6 @@ require (
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
-	github.com/compose-spec/compose-go/v2 v2.12.1 // indirect
 	github.com/containerd/console v1.0.5 // indirect
 	github.com/containerd/containerd/api v1.11.1 // indirect
 	github.com/containerd/containerd/v2 v2.2.5 // indirect
