@@ -190,3 +190,155 @@ func TestPiriEntrypointIndexerOffWarnsOnInitializedConfig(t *testing.T) {
 		})
 	}
 }
+
+// pinnedOverrides is the fixture pinOverrides writes.
+const pinnedOverrides = "# overrides fixture\n[server]\nport = 3000\n"
+
+// pinOverrides replaces the copied piri-overrides.toml with pinnedOverrides,
+// so the byte-for-byte expectations below do not follow edits to the repo's
+// file.
+func (r *entrypointRun) pinOverrides(t *testing.T) {
+	t.Helper()
+	writeFile(t, filepath.Join(r.root, "config/piri-overrides.toml"), pinnedOverrides, 0o644)
+}
+
+func (r *entrypointRun) config(t *testing.T) string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(r.root, "data/piri/piri-config.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
+}
+
+// untracedConfig is the config the stub init plus the pinned overrides
+// produce: what every node gets when OTEL_ENDPOINT is unset.
+const untracedConfig = "proof_set = 1\n\n# --- piri-overrides.toml ---\n" + pinnedOverrides
+
+func traceCollectors(t *testing.T, r *entrypointRun) []any {
+	t.Helper()
+	cfg := parseTOML(t, filepath.Join(r.root, "data/piri/piri-config.toml"))
+	tel, ok := cfg["telemetry"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	traces, _ := tel["traces"].([]any)
+	return traces
+}
+
+func TestPiriEntrypointTracesUnsetLeavesConfig(t *testing.T) {
+	for _, env := range [][]string{nil, {"OTEL_ENDPOINT="}} {
+		r := newEntrypointRoot(t)
+		r.pinOverrides(t)
+		r.run(t, env...)
+		if r.err != nil {
+			t.Fatalf("env %v: entrypoint failed: %v\n%s", env, r.err, r.output)
+		}
+		if got := r.config(t); got != untracedConfig {
+			t.Errorf("env %v: config\n got %q\nwant %q", env, got, untracedConfig)
+		}
+		if !strings.Contains(r.output, "Trace export: off") {
+			t.Errorf("env %v: missing trace export line:\n%s", env, r.output)
+		}
+	}
+}
+
+func TestPiriEntrypointTracesWritesCollector(t *testing.T) {
+	tests := []struct {
+		endpoint string
+		want     map[string]any
+		warn     bool
+	}{
+		{"http://otel-collector:4318", map[string]any{"endpoint": "otel-collector:4318", "insecure": true}, false},
+		{"http://otel-collector:4318/", map[string]any{"endpoint": "otel-collector:4318", "insecure": true}, false},
+		{"https://collector.example:443", map[string]any{"endpoint": "collector.example:443", "insecure": false}, false},
+		{"http://otel-collector:4318/otlp", map[string]any{"endpoint": "otel-collector:4318", "insecure": true}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.endpoint, func(t *testing.T) {
+			r := newEntrypointRoot(t)
+			r.pinOverrides(t)
+			r.run(t, "OTEL_ENDPOINT="+tt.endpoint)
+			if r.err != nil {
+				t.Fatalf("entrypoint failed: %v\n%s", r.err, r.output)
+			}
+			got := traceCollectors(t, r)
+			if len(got) != 1 || !reflect.DeepEqual(got[0], tt.want) {
+				t.Errorf("[[telemetry.traces]] = %v, want [%v]", got, tt.want)
+			}
+			// Everything before the trace block is the untraced config.
+			if cfg := r.config(t); !strings.HasPrefix(cfg, untracedConfig+"\n# --- smelt trace export ---\n") {
+				t.Errorf("config does not start with the untraced config and the marker:\n%s", cfg)
+			}
+			if warned := strings.Contains(r.output, "WARNING: piri ignores the path"); warned != tt.warn {
+				t.Errorf("path warning printed = %v, want %v\n%s", warned, tt.warn, r.output)
+			}
+		})
+	}
+}
+
+func TestPiriEntrypointTracesRejectsBadEndpoint(t *testing.T) {
+	for _, endpoint := range []string{
+		"otel-collector:4318",
+		"grpc://otel-collector:4317",
+		"http://",
+		"http://user:secret-token@otel-collector:4318",
+		"https://secret-token@collector.example:443/v1/traces",
+	} {
+		t.Run(endpoint, func(t *testing.T) {
+			r := newEntrypointRoot(t)
+			r.run(t, "OTEL_ENDPOINT="+endpoint)
+			if r.err == nil {
+				t.Fatalf("entrypoint accepted OTEL_ENDPOINT=%s\n%s", endpoint, r.output)
+			}
+			if !strings.Contains(r.output, "ERROR: OTEL_ENDPOINT (or OTEL_EXPORTER_OTLP_ENDPOINT in the shell that ran compose)") {
+				t.Errorf("missing error message naming both variables:\n%s", r.output)
+			}
+			// The value may carry credentials, so no part of it is echoed.
+			if strings.Contains(r.output, "secret-token") {
+				t.Errorf("output echoes the credentials:\n%s", r.output)
+			}
+			if _, err := os.Stat(filepath.Join(r.out, "base-config.toml")); err == nil {
+				t.Error("piri init ran despite the invalid value")
+			}
+		})
+	}
+}
+
+// Each boot rewrites the block: a restart keeps one collector, a new endpoint
+// replaces it, and a boot with OTEL_ENDPOINT empty restores the untraced
+// config byte for byte.
+func TestPiriEntrypointTracesFollowEachBoot(t *testing.T) {
+	r := newEntrypointRoot(t)
+	r.pinOverrides(t)
+	boots := []struct {
+		endpoint string
+		want     string // collector endpoint; "" for none
+	}{
+		{"http://otel-collector:4318", "otel-collector:4318"},
+		{"http://otel-collector:4318", "otel-collector:4318"},
+		{"http://other:4318", "other:4318"},
+		{"", ""},
+		{"", ""},
+		{"http://otel-collector:4318", "otel-collector:4318"},
+	}
+	for i, b := range boots {
+		r.run(t, "OTEL_ENDPOINT="+b.endpoint)
+		if r.err != nil {
+			t.Fatalf("boot %d: entrypoint failed: %v\n%s", i, r.err, r.output)
+		}
+		if i > 0 && !strings.Contains(r.output, "Config exists, skipping init") {
+			t.Fatalf("boot %d: init was not skipped:\n%s", i, r.output)
+		}
+		got := traceCollectors(t, r)
+		if b.want == "" {
+			if cfg := r.config(t); cfg != untracedConfig {
+				t.Errorf("boot %d: config\n got %q\nwant %q", i, cfg, untracedConfig)
+			}
+			continue
+		}
+		if len(got) != 1 || got[0].(map[string]any)["endpoint"] != b.want {
+			t.Errorf("boot %d: [[telemetry.traces]] = %v, want one collector at %s", i, got, b.want)
+		}
+	}
+}

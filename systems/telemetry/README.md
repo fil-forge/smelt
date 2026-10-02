@@ -5,7 +5,7 @@ Optional observability stack for Smelt local development. Provides metrics colle
 ## Quick Start
 
 ```bash
-# Start the stack, pointing ingot, hilt and sprue at the collector
+# Start the stack, pointing ingot, hilt, sprue and piri at the collector
 OTEL_ENDPOINT=http://otel-collector:4318 make up
 
 # Start the telemetry services on the same forge-network
@@ -60,11 +60,28 @@ Pre-configured dashboards are available in Grafana under the "Smelt" folder:
 
 ## Configuring Services
 
-Ingot, hilt and sprue export traces to `OTEL_ENDPOINT` when it is set (see
-the quick start). It is unset by default, so `make up` and the SDK test stacks
-export nothing. In Grafana, traces are under Explore → Tempo, services
-`ingot`, `hilt` and `sprue`; a request through ingot shows hilt's and sprue's
-spans inside ingot's trace.
+Ingot, hilt, sprue and every piri node export traces to `OTEL_ENDPOINT` when
+it is set (see the quick start). The standard `OTEL_EXPORTER_OTLP_ENDPOINT`
+works too; when both are set, `OTEL_ENDPOINT` wins. Both are unset by default,
+so `make up` and the SDK test stacks export nothing. In Grafana, traces are
+under Explore → Tempo, services `ingot`, `hilt`, `sprue` and `piri`; a request
+through ingot shows the other services' spans inside ingot's trace.
+
+Two more variables reach ingot, hilt and sprue from the shell that runs
+compose, and are left out of the containers when unset:
+
+- `OTEL_TRACES_SAMPLER_ARG` is the share of requests traced, from 0 to 1
+  (default 1). Ingot starts the trace for each S3 request, so its ratio
+  decides; the services it calls follow its decision.
+- `OTEL_RESOURCE_ATTRIBUTES` adds labels to every span, such as
+  `run_id=r42`.
+
+piri takes collectors only from its config file, so its entrypoint writes a
+`[[telemetry.traces]]` block with the collector's host and port on every boot
+and removes it on a boot with the variable unset; a node's config is then the
+same as one that never traced. piri samples only under a sampled caller and
+reads neither of the two variables above: its spans appear inside ingot's
+traces and carry no extra labels.
 
 To configure another service:
 

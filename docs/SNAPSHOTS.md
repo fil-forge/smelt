@@ -122,6 +122,8 @@ generated/snapshots/<name>/
     ├── guppy-data.tar.gz          # client login + spaces
     ├── swarf-postgres-data.tar.gz # revocation records
     ├── hilt-postgres-data.tar.gz  # tenant state
+    ├── hilt-vault-data.tar.gz     # tenant/access-key private keys (OpenBao raft storage)
+    ├── hilt-vault-init.tar.gz     # its unseal share (dev-only custody)
     ├── plc-postgres-data.tar.gz   # DID PLC registry
     ├── ingot-data.tar.gz          # ingot node state
     ├── ingot-postgres-data.tar.gz # ingot registry

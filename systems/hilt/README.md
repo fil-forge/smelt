@@ -19,8 +19,12 @@ the tenant as a customer with the upload service via `/customer/add`.
 - **hilt** - Tenant management service (`ghcr.io/fil-forge/hilt:main`)
 - **hilt-postgres** - PostgreSQL for hilt's tenant/provider/access-key stores
   (goose migrations run at hilt startup)
-- **hilt-vault** - OpenBao in dev mode for tenant/access-key private keys
-  (KV v2 at the `secret` mount)
+- **hilt-vault** - OpenBao for tenant/access-key private keys (server mode,
+  raft storage on `hilt-vault-data`, KV v2 at the `secret` mount)
+- **hilt-vault-init** - one-shot: initializes and unseals `hilt-vault`, then
+  provisions the KV mount, hilt's policy and hilt's scoped token
+  (`openbao/init.sh`, with the shared bootstrap in
+  `../common/openbao/bootstrap.sh`)
 
 ## Ports
 
@@ -41,11 +45,11 @@ All configuration is via `HILT_*` environment variables in `compose.yml`:
   only; never use a production key here.
 - Storage: postgres via the `hilt-postgres` sidecar (dev-only `hilt:hilt`
   credentials; data persists in the `hilt-postgres-data` volume).
-- Vault: OpenBao dev mode via `hilt-vault` (`HILT_VAULT_TYPE=openbao`),
-  token auth with the dev root token (`HILT_VAULT_TOKEN`, default
-  `dev-root-token` — local dev only). Keys survive hilt restarts, but
-  dev-mode OpenBao stores in memory, so a `hilt-vault` container restart
-  clears them.
+- Vault: OpenBao via `hilt-vault` (`HILT_VAULT_TYPE=openbao`), token auth
+  with a scoped token that `hilt-vault-init` provisions on every boot
+  (`HILT_VAULT_TOKEN`, default `dev-hilt-vault-token` — local dev only).
+  Keys persist in the `hilt-vault-data` volume, alongside the records in
+  `hilt-postgres-data`; `make clean` resets both.
 - PLC directory: the local reference server at `http://plc:3000`.
 - Upload service: `did:web:upload` at `http://upload:80`, presenting the
   `upload → hilt` `/customer/add` delegation from
@@ -78,6 +82,9 @@ Registration is idempotent — when the record already exists in postgres the
 ## Volumes
 
 - `hilt-postgres-data` - Hilt's tenant/provider/access-key records
+- `hilt-vault-data` - OpenBao raft storage: tenant and access-key private keys
+- `hilt-vault-init` - hilt-vault's unseal share and root token (dev-only
+  custody)
 
 ## Dependencies
 
@@ -85,7 +92,7 @@ Registration is idempotent — when the record already exists in postgres the
 - upload (service_healthy)
 - swarf (service_healthy)
 - hilt-postgres (service_healthy)
-- hilt-vault (service_healthy)
+- hilt-vault-init (service_completed_successfully)
 
 ## Requirements and Notes
 

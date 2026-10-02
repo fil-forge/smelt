@@ -46,6 +46,18 @@ with the indexer on, or one loaded from a snapshot, keeps it until `make
 clean`; piri's log prints a warning in that case. Runs with the indexer on and
 off measure different systems, so compare runs of one setting only.
 
+To trace a run, start a collector on `forge-network` and start the stack with
+its OTLP/HTTP URL in `OTEL_ENDPOINT` (or `OTEL_EXPORTER_OTLP_ENDPOINT`), and
+usually a ratio in `OTEL_TRACES_SAMPLER_ARG`, for example
+`OTEL_ENDPOINT=http://otel-collector:4318 OTEL_TRACES_SAMPLER_ARG=0.1 make up`.
+Ingot, hilt, sprue and every piri node then export spans; ingot samples that
+share of S3 requests and the others follow. `OTEL_RESOURCE_ATTRIBUTES` labels
+the spans of ingot, hilt and sprue, such as with a run ID. piri's spans do not
+carry it, so a collector that must label every span, piri's included, adds the
+label itself. See [systems/telemetry](../systems/telemetry/README.md) for a
+ready-made collector. Tracing costs CPU in every service, so compare traced
+runs with traced runs only.
+
 ## What a run records
 
 Each run gets a directory `generated/perf-runs/<suite>/<utc-ts>-<label>/`
@@ -63,6 +75,10 @@ with:
     unless `PIRI_INDEXER` says otherwise), and `sprue.indexer_endpoint` from
     upload's; an empty string means the variable is set empty, null that it
     is unset. Credentials are never read.
+  - `tracing.on`, true when piri-0 exports traces (`OTEL_ENDPOINT` is set
+    and not empty), and `tracing.ratio`, ingot's `OTEL_TRACES_SAMPLER_ARG`
+    (null when unset or empty, which means every request is sampled). The
+    endpoint and the resource attributes are not recorded.
   - `images`: the contents of `images.lock.json`
   - `extra`: `PERF_EXTRA_METADATA`, verbatim
   - the suite's settings.
@@ -115,8 +131,9 @@ LABEL=after ./scripts/perf-s3-speedtest.sh run
 
 `setup` mints a key for tenant `perf` (AWS CLI profile `smelt-perf`, the same
 way `make s3-key` does), creates the bucket and generates the test files in
-`generated/perf/testfiles`. Re-run it after `make down && make up`: hilt's dev
-vault is in memory, so the old key stops working. `setup` then moves to the
+`generated/perf/testfiles`. The key survives `make down && make up`; re-run
+`setup` after `make clean` or a snapshot restore. If hilt has the tenant but
+not its key (a snapshot saved before the vault persisted), `setup` moves to the
 next free tenant (`perf-2`, ...) and creates that tenant's bucket
 (`perf-s3-speedtest-perf-2`), since ingot bucket names are global and the old
 one belongs to `perf`.
@@ -137,7 +154,8 @@ The `large` set writes 75 GiB per run, so plan for about 200 GB of free disk
 per run and 400 GB for a before/after pair.
 
 `SNAPSHOT` runs `make down && make up SNAPSHOT=...` and then `setup` again,
-because the restore loses hilt's access key the same way a restart does. An
+because the restore returns hilt to the snapshot's state, which holds only the
+keys that existed when it was saved. An
 exported `SMELT_MANIFEST` takes precedence over the snapshot's own manifest,
 so the script refuses to restore when the two differ.
 
@@ -180,8 +198,9 @@ LABEL=after ./scripts/perf-drill.sh run
 `setup` mints a key for tenant `drill` (AWS CLI profile `smelt-drill`, the
 same way `make s3-key` does) and writes it with ingot's endpoint and region to
 `generated/perf-runs/drill/provider/.env`, readable only by you. Neither key
-is printed. Re-run `setup` after `make down && make up`: hilt's dev vault is
-in memory, so the old key stops working and `setup` moves to tenant `drill-2`.
+is printed. The key survives `make down && make up`. If hilt has the tenant but
+not its key (a snapshot saved before the vault persisted), `setup` moves to
+tenant `drill-2`.
 Re-run it after `make clean` too, which deletes the tenant along with its key;
 `setup` then creates tenant `drill` again. Without it, `run` stops at its
 smoke check with `InvalidAccessKeyId`.

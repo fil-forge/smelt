@@ -22,8 +22,9 @@ var thirdPartyImages = map[string]map[string]string{
 		"postgres": "${POSTGRES_IMAGE:-postgres:16-alpine}",
 	},
 	"systems/hilt/compose.yml": {
-		"hilt-vault":    "${OPENBAO_IMAGE:-openbao/openbao:2.6}",
-		"hilt-postgres": "${POSTGRES_IMAGE:-postgres:16-alpine}",
+		"hilt-vault":      "${OPENBAO_IMAGE:-openbao/openbao:2.6}",
+		"hilt-vault-init": "${OPENBAO_IMAGE:-openbao/openbao:2.6}",
+		"hilt-postgres":   "${POSTGRES_IMAGE:-postgres:16-alpine}",
 	},
 	"systems/swarf/compose.yml": {
 		"swarf-postgres": "${POSTGRES_IMAGE:-postgres:16-alpine}",

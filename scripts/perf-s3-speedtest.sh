@@ -16,7 +16,7 @@
 #   LABEL              run label, required for `run`
 #   RUNS               repeats per file (default 1)
 #   SNAPSHOT           run: `make down && make up SNAPSHOT=...` first, then re-run setup
-#                      (hilt's dev vault is in memory, so a restore loses the access key).
+#                      (the restore returns hilt to the snapshot's keys, so the access key goes).
 #                      With SMELT_MANIFEST also set, the two manifests must match.
 #   PERF_EXTRA_METADATA  a JSON object recorded verbatim as `extra` in metadata.json
 #                      and runs.jsonl; anything else stops the run before it starts
@@ -39,8 +39,9 @@ RUNS="${RUNS:-1}"
 TENANT=perf
 PROFILE=smelt-perf
 # The bucket is named after the tenant the profile ended up on (see
-# perf_bucket): ingot bucket names are global, and after a restart s3-key.sh
-# may move to perf-2, which cannot reuse the bucket perf created.
+# perf_bucket): ingot bucket names are global, and when hilt has lost the
+# tenant's key s3-key.sh moves to perf-2, which cannot reuse the bucket perf
+# created.
 BUCKET_PREFIX=perf-s3-speedtest
 TARGETS_TEMPLATE="$PROJECT/generated/perf/s3_targets.ini"
 # Containers whose CPU/memory and logs are captured around each run.
