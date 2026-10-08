@@ -23,14 +23,16 @@ calling it fixed.
   `<root>/fil-one/storage-qualification`. Set `S3_SPEEDTESTS_DIR` or
   `STORAGE_QUALIFICATION_DIR` for any other place.
 - AWS CLI v2.13+, `jq`, `python3`
-- Free disk of about 2.5x the bytes a run writes. Ingot keeps every body blob in
-  its spool (`ingot-data` volume,
-  [fil-forge/ingot#48](https://github.com/fil-forge/ingot/issues/48)) and piri
-  stores a second copy, and nothing is deleted after a run. When piri keeps its
-  blobs in S3 outside the stack, only the spool grows and about 1.25x is
-  enough. With `INGOT_LOCAL_BLOB_MAX_BYTES` set, ingot's share stops at about
-  the budget, but the disk check still assumes it keeps everything; set
-  `DISK_FACTOR` to match. On Docker Desktop the VM disk is a file on the host disk, so raise the
+- Free disk of about 2.5x the bytes a run writes. Without a local blob budget,
+  ingot keeps every body it accepted (`ingot-data` volume) until its object is
+  deleted, and piri stores a second copy that it frees only minutes after the
+  drill's sweep. When piri keeps its blobs in S3 outside the stack, only
+  ingot's copy grows and about 1.25x is enough. With
+  `INGOT_LOCAL_BLOB_MAX_BYTES` set, ingot's share stops at about the budget,
+  but the disk check still assumes it keeps everything: set `DISK_FACTOR` to
+  about 1.25 × (piri's share + budget ÷ `STOP_INGEST_AT`), where piri's share
+  is 1 with its blobs on Docker's disk and 0 with them in S3 outside the
+  stack. On Docker Desktop the VM disk is a file on the host disk, so raise the
   VM disk limit and keep the host disk free too. `make clean` reclaims the space by dropping every
   volume (tenant, keys and objects); run `make up` and the suite's `setup` again
   afterwards.
@@ -87,7 +89,9 @@ with:
     ([fil-forge/ingot#218](https://github.com/fil-forge/ingot/pull/218))
     ignores it. With a budget, ingot evicts cached bodies, so read-back and
     restore may read from piri instead of ingot's disk; compare runs with the
-    same budget.
+    same budget. `make redeploy` recreates ingot from the current shell, so
+    export the variable for the session rather than setting it on `make up`
+    alone, or the next redeploy drops it.
   - `images`: the contents of `images.lock.json`
   - `extra`: `PERF_EXTRA_METADATA`, verbatim
   - the suite's settings.
