@@ -79,6 +79,10 @@ with:
     and not empty), and `tracing.ratio`, ingot's `OTEL_TRACES_SAMPLER_ARG`
     (null when unset or empty, which means every request is sampled). The
     endpoint and the resource attributes are not recorded.
+  - `ingot.local_blob_max_bytes`, ingot's `INGOT_LOCAL_BLOB_MAX_BYTES` (null
+    when unset or empty, which means no budget). With a budget, ingot evicts
+    cached bodies, so read-back and restore may read from piri instead of
+    ingot's disk; compare runs with the same budget.
   - `images`: the contents of `images.lock.json`
   - `extra`: `PERF_EXTRA_METADATA`, verbatim
   - the suite's settings.

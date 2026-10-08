@@ -164,6 +164,7 @@ perf_metadata() {
     --argjson sprue_indexer_endpoint "$(perf_container_env upload SPRUE_INDEXER_ENDPOINT)" \
     --argjson piri_traces_endpoint "$(perf_container_env piri-0 OTEL_ENDPOINT)" \
     --argjson ingot_sampler_arg "$(perf_container_env ingot OTEL_TRACES_SAMPLER_ARG)" \
+    --argjson ingot_local_blob_max_bytes "$(perf_container_env ingot INGOT_LOCAL_BLOB_MAX_BYTES)" \
     --slurpfile images "$run_dir/images.lock.json" \
     --argjson extra "${PERF_EXTRA_METADATA:-null}" \
     'def nullable: if . == "" then null else . end;
@@ -175,6 +176,7 @@ perf_metadata() {
       piri: {s3_endpoint: $piri_s3_endpoint, indexer: (($piri_indexer // "")|nullable // "on")},
       sprue: {indexer_endpoint: $sprue_indexer_endpoint},
       tracing: {on: (($piri_traces_endpoint // "") != ""), ratio: ($ingot_sampler_arg|nullable)},
+      ingot: {local_blob_max_bytes: ($ingot_local_blob_max_bytes|nullable)},
       repos: $repos, workspace_services: $workspace_services, images: $images[0],
       extra: $extra, suite: $suite}' \
     > "$run_dir/metadata.json"

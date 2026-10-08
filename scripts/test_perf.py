@@ -131,6 +131,14 @@ class PerfLibTest(unittest.TestCase):
         self.assertEqual(meta["piri"], {"s3_endpoint": None, "indexer": "on"})
         self.assertEqual(meta["sprue"], {"indexer_endpoint": None})
         self.assertEqual(meta["tracing"], {"on": False, "ratio": None})
+        self.assertEqual(meta["ingot"], {"local_blob_max_bytes": None})
+
+    def test_metadata_records_ingots_local_blob_budget(self):
+        meta = self.metadata(STUB_INGOT_LOCAL_BLOB_MAX_BYTES="200000000000")
+        self.assertEqual(meta["ingot"], {"local_blob_max_bytes": "200000000000"})
+        # Set empty is no budget, as ingot reads it.
+        meta = self.metadata(STUB_INGOT_LOCAL_BLOB_MAX_BYTES="")
+        self.assertEqual(meta["ingot"], {"local_blob_max_bytes": None})
 
     def test_metadata_records_tracing_without_endpoint(self):
         meta = self.metadata(STUB_OTEL_ENDPOINT="http://user:secret-token@otel-collector:4318", STUB_OTEL_TRACES_SAMPLER_ARG="0.1")
