@@ -420,6 +420,7 @@ class PerfResultsTest(unittest.TestCase):
         self.assertEqual(row["manifest"], "/var/lib/forge-perf/run/smelt.yml")
         self.assertEqual(row["piri"]["s3_endpoint"], "s3.us-east-2.amazonaws.com")
         self.assertEqual(row["sprue"], {"indexer_endpoint": ""})
+        self.assertEqual(row["ingot"], {"local_blob_max_bytes": "200000000000"})
         self.assertEqual(row["images"]["ingot"]["revision"], "0123456789abcdef0123456789abcdef01234567")
         self.assertEqual(row["extra"], {"run_id": "main-20261001t120312z"})
         # Every key an old row had is still there.

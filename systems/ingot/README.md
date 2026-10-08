@@ -29,15 +29,18 @@ guppy-style edge client.
 ## Configuration
 
 - `config/config.yaml` - mounted at `/etc/ingot/config.yaml` (ingot's default
-  search path). `INGOT_*` env vars set any of ingot's config keys, with `_`
-  for `.`. Ingot builds before
+  search path). `INGOT_*` env vars in ingot's environment set any of its
+  config keys, with `_` for `.`; `compose.yml` passes on only the ones it
+  lists. Ingot builds before
   [fil-forge/ingot#228](https://github.com/fil-forge/ingot/pull/228) apply
   them only to keys the file sets or ingot gives a default.
 - `INGOT_LOCAL_BLOB_MAX_BYTES` - ingot's local blob budget in bytes
   (`local_blob_max_bytes`), passed through from the shell when set, e.g.
   `INGOT_LOCAL_BLOB_MAX_BYTES=200000000000 make up`. Unset or empty leaves the
-  file's 0: no budget. `config.yaml` sets the key so that older builds honour
-  the variable too.
+  file's 0: no budget. `config.yaml` sets the key so that builds from
+  [fil-forge/ingot#218](https://github.com/fil-forge/ingot/pull/218), which
+  added the budget, to #228 honour the variable too. Images that predate #218
+  ignore it.
 - Identity: `did:web:ingot` (`identity.service_id`) wrapping the key in
   `/keys/ingot.pem`. Ingot serves the DID document at
   `http://ingot:80/.well-known/did.json`; hilt, sprue and piri resolve it

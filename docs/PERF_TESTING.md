@@ -28,7 +28,9 @@ calling it fixed.
   [fil-forge/ingot#48](https://github.com/fil-forge/ingot/issues/48)) and piri
   stores a second copy, and nothing is deleted after a run. When piri keeps its
   blobs in S3 outside the stack, only the spool grows and about 1.25x is
-  enough. On Docker Desktop the VM disk is a file on the host disk, so raise the
+  enough. With `INGOT_LOCAL_BLOB_MAX_BYTES` set, ingot's share stops at about
+  the budget, but the disk check still assumes it keeps everything; set
+  `DISK_FACTOR` to match. On Docker Desktop the VM disk is a file on the host disk, so raise the
   VM disk limit and keep the host disk free too. `make clean` reclaims the space by dropping every
   volume (tenant, keys and objects); run `make up` and the suite's `setup` again
   afterwards.
@@ -79,10 +81,13 @@ with:
     and not empty), and `tracing.ratio`, ingot's `OTEL_TRACES_SAMPLER_ARG`
     (null when unset or empty, which means every request is sampled). The
     endpoint and the resource attributes are not recorded.
-  - `ingot.local_blob_max_bytes`, ingot's `INGOT_LOCAL_BLOB_MAX_BYTES` (null
-    when unset or empty, which means no budget). With a budget, ingot evicts
-    cached bodies, so read-back and restore may read from piri instead of
-    ingot's disk; compare runs with the same budget.
+  - `ingot.local_blob_max_bytes`, ingot's `INGOT_LOCAL_BLOB_MAX_BYTES` as a
+    string (null when unset or empty; null and `"0"` both mean no budget). It
+    is the container's variable: an ingot image from before the budget
+    ([fil-forge/ingot#218](https://github.com/fil-forge/ingot/pull/218))
+    ignores it. With a budget, ingot evicts cached bodies, so read-back and
+    restore may read from piri instead of ingot's disk; compare runs with the
+    same budget.
   - `images`: the contents of `images.lock.json`
   - `extra`: `PERF_EXTRA_METADATA`, verbatim
   - the suite's settings.
@@ -280,8 +285,8 @@ disk check (`disk`: the factor applied, piri-0's blob backend and S3 endpoint,
 and the free space measured, with `host_free_gb` null when the host was not
 measured) and the drill's exit code. Each run appends one
 row to `runs.jsonl`, with the drill's settings under `settings`, the Docker
-and system facts under `host`, and `manifest`, `piri` and `sprue` as in
-`metadata.json`. Rows written before these fields existed lack them, and
+and system facts under `host`, and `manifest`, `piri`, `sprue` and `ingot` as
+in `metadata.json`. Rows written before these fields existed lack them, and
 `compare` reads both kinds.
 
 ### Reading drill results
