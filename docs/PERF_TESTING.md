@@ -30,9 +30,9 @@ calling it fixed.
   ingot's copy grows and about 1.25x is enough. With
   `INGOT_LOCAL_BLOB_MAX_BYTES` set, ingot's share stops at about the budget,
   but the disk check still assumes it keeps everything: set `DISK_FACTOR` to
-  about 1.25 × (piri's share + budget ÷ `STOP_INGEST_AT`), where piri's share
-  is 1 with its blobs on Docker's disk and 0 with them in S3 outside the
-  stack. On Docker Desktop the VM disk is a file on the host disk, so raise the
+  about 1.25 × (piri's share + min(budget, `STOP_INGEST_AT`) ÷
+  `STOP_INGEST_AT`), where piri's share is 1 with its blobs on Docker's disk
+  and 0 with them in S3 outside the stack. On Docker Desktop the VM disk is a file on the host disk, so raise the
   VM disk limit and keep the host disk free too. `make clean` reclaims the space by dropping every
   volume (tenant, keys and objects); run `make up` and the suite's `setup` again
   afterwards.
