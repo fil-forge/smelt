@@ -27,17 +27,19 @@ calling it fixed.
   ingot keeps every body it accepted (`ingot-data` volume) until its object is
   deleted, and piri stores a second copy that it frees only minutes after the
   drill's sweep. When piri keeps its blobs in S3 outside the stack, only
-  ingot's copy grows and about 1.25x is enough. With
-  `INGOT_LOCAL_BLOB_MAX_BYTES` set, ingot's share stops at about the budget
-  plus the 10% headroom its README asks for, but the disk check still assumes
-  it keeps everything: set `DISK_FACTOR` to about 0.25 + 1.25 × piri's
-  share + min(1.1 × budget ÷ `STOP_INGEST_AT`, 1), with both in GB, where
-  piri's share is 1 with its blobs on Docker's disk and 0 with them in S3
-  outside the stack. The 0.25 is for Postgres, the catalog and logs, which grow with
-  the run, not the budget. On Docker Desktop the VM disk is a file on the host disk, so raise the
-  VM disk limit and keep the host disk free too. `make clean` reclaims the space by dropping every
-  volume (tenant, keys and objects); run `make up` and the suite's `setup` again
-  afterwards.
+  ingot's copy grows and about 1.25x is enough. With a positive
+  `INGOT_LOCAL_BLOB_MAX_BYTES`, ingot's share stops at about the budget plus
+  the 10% headroom its README asks for, but the disk check still assumes it
+  keeps everything: set `DISK_FACTOR` to about 0.25 + 1.25 × piri's share +
+  min(1.1 × budget ÷ `STOP_INGEST_AT`, 1), with both in GB, where piri's share
+  is 1 with its blobs on Docker's disk and 0 with them in S3 outside the
+  stack. The 0.25 is for Postgres, the catalog and logs, which grow with the
+  run, not the budget. Where 10% of the budget is less than the ingest rate ×
+  30 seconds, which ingot's README also asks the headroom to exceed, use the
+  budget plus that in place of 1.1 × budget. On Docker Desktop the VM disk is
+  a file on the host disk, so raise the VM disk limit and keep the host disk
+  free too. `make clean` reclaims the space by dropping every volume (tenant,
+  keys and objects); run `make up` and the suite's `setup` again afterwards.
 
 `make up` and `make redeploy` return only after the services they started
 report healthy, so a run can start right after either one.
