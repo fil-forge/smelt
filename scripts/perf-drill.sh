@@ -386,13 +386,16 @@ sync; 'make regen', then 'make clean && make up' and '$0 setup' regenerates both
 }
 
 # check_disk: refuse to start unless Docker's disk, and under Docker Desktop
-# the host, have DISK_FACTOR x STOP_INGEST_AT free. Ingot's spool keeps every
-# body byte for good (fil-forge/ingot#48). piri frees its copy only minutes
-# after the drill's sweep, so with piri's blobs on Docker's disk (a
+# the host, have DISK_FACTOR x STOP_INGEST_AT free. Without a local blob
+# budget, ingot keeps its copy of every body until the object is deleted, and
+# piri frees its copy only minutes after the drill's sweep, so with piri's
+# blobs on Docker's disk (a
 # filesystem backend or the stack's piri-minio) both copies of everything
 # ingested are there when the run ends, and the default factor is 2.5. With
 # piri's blobs in S3 outside the stack only the spool grows, and the default
-# is 1.25: one copy plus a quarter for Postgres, catalog and logs. Only Docker
+# is 1.25: one copy plus a quarter for Postgres, catalog and logs. A budget
+# (INGOT_LOCAL_BLOB_MAX_BYTES) bounds ingot's copy, which the defaults do not
+# assume; DISK_FACTOR then needs setting by hand. Only Docker
 # Desktop keeps Docker's disk in an image file on the host disk; elsewhere
 # Docker's volumes are not under the checkout, and the host is not measured.
 # Sets DISK_FACTOR, DISK_BACKEND, DISK_ENDPOINT, DISK_NEEDED_GB,
@@ -429,8 +432,9 @@ check_disk() {
   if ! awk -v host="$DISK_HOST_FREE_GB" -v docker="$DISK_DOCKER_FREE_GB" -v needed="$DISK_NEEDED_GB" \
       'BEGIN { exit !((host == "null" || host >= needed) && docker >= needed) }'; then
     perf_die "STOP_INGEST_AT=$STOP_INGEST_AT needs about $DISK_NEEDED_GB GB free (DISK_FACTOR=$DISK_FACTOR), but ${host_note}Docker's disk has $DISK_DOCKER_FREE_GB GB.
-Ingot's spool never frees body bytes (fil-forge/ingot#48) and piri frees its copy only minutes after the drill's sweep.
-Free space with 'make clean' (drops every volume; then 'make up' and '$0 setup'), raise the Docker Desktop disk limit, or lower STOP_INGEST_AT."
+Without a local blob budget ingot keeps every body until its object is deleted, and piri frees its copy only minutes after the drill's sweep.
+Free space with 'make clean' (drops every volume; then 'make up' and '$0 setup'), raise the Docker Desktop disk limit, or lower STOP_INGEST_AT.
+With INGOT_LOCAL_BLOB_MAX_BYTES set, a lower DISK_FACTOR may fit (docs/PERF_TESTING.md)."
   fi
   if [ "$DISK_HOST_FREE_GB" = null ]; then
     free_note="Docker has $DISK_DOCKER_FREE_GB GB free"
