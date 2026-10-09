@@ -62,7 +62,10 @@ Ingot, hilt, sprue and every piri node then export spans; ingot samples that
 share of S3 requests and the others follow. `OTEL_RESOURCE_ATTRIBUTES` labels
 the spans of ingot, hilt and sprue, such as with a run ID. piri's spans do not
 carry it, so a collector that must label every span, piri's included, adds the
-label itself. See [systems/telemetry](../systems/telemetry/README.md) for a
+label itself. `OTEL_METRIC_EXPORT_INTERVAL` sets how often the services
+export their metrics, in milliseconds (60000 by default); ingot's include its
+local blob usage, which a shorter interval samples more often. See
+[systems/telemetry](../systems/telemetry/README.md) for a
 ready-made collector. Tracing costs CPU in every service, so compare traced
 runs with traced runs only.
 
