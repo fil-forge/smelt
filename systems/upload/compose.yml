@@ -31,7 +31,8 @@ services:
       # value changes nothing. OTEL_TRACES_SAMPLER_ARG is the share of requests
       # traced (default 1); OTEL_RESOURCE_ATTRIBUTES labels every span, e.g.
       # with a run ID. OTEL_METRIC_EXPORT_INTERVAL is how often the service
-      # exports its metrics, in milliseconds (the SDK's default is 60000).
+      # exports its metrics, if it exports any, in milliseconds (the SDK's
+      # default is 60000).
       - OTEL_TRACES_SAMPLER_ARG
       - OTEL_RESOURCE_ATTRIBUTES
       - OTEL_METRIC_EXPORT_INTERVAL
