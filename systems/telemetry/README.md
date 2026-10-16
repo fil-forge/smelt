@@ -67,7 +67,7 @@ so `make up` and the SDK test stacks export nothing. In Grafana, traces are
 under Explore → Tempo, services `ingot`, `hilt`, `sprue` and `piri`; a request
 through ingot shows the other services' spans inside ingot's trace.
 
-Two more variables reach ingot, hilt and sprue from the shell that runs
+Three more variables reach ingot, hilt and sprue from the shell that runs
 compose, and are left out of the containers when unset:
 
 - `OTEL_TRACES_SAMPLER_ARG` is the share of requests traced, from 0 to 1
@@ -75,12 +75,15 @@ compose, and are left out of the containers when unset:
   decides; the services it calls follow its decision.
 - `OTEL_RESOURCE_ATTRIBUTES` adds labels to every span, such as
   `run_id=r42`.
+- `OTEL_METRIC_EXPORT_INTERVAL` is how often a service that exports metrics
+  sends them, in milliseconds (default 60000). Ingot's include its local blob
+  usage.
 
 piri takes collectors only from its config file, so its entrypoint writes a
 `[[telemetry.traces]]` block with the collector's host and port on every boot
 and removes it on a boot with the variable unset; a node's config is then the
 same as one that never traced. piri samples only under a sampled caller and
-reads neither of the two variables above: its spans appear inside ingot's
+reads none of the three variables above: its spans appear inside ingot's
 traces and carry no extra labels.
 
 To configure another service:

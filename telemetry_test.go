@@ -48,14 +48,15 @@ func otelEntries(t *testing.T, path, svc string) []string {
 }
 
 // Each traced service takes its collector from OTEL_ENDPOINT or, failing
-// that, OTEL_EXPORTER_OTLP_ENDPOINT, and takes the sampling ratio and
-// resource attributes bare, so an unset shell leaves them out of the
-// container.
+// that, OTEL_EXPORTER_OTLP_ENDPOINT, and takes the sampling ratio, resource
+// attributes and metric export interval bare, so an unset shell leaves them
+// out of the container.
 func TestTracedServicesOTELEnvironment(t *testing.T) {
 	want := []string{
 		"OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_ENDPOINT:-${OTEL_EXPORTER_OTLP_ENDPOINT:-}}",
 		"OTEL_TRACES_SAMPLER_ARG",
 		"OTEL_RESOURCE_ATTRIBUTES",
+		"OTEL_METRIC_EXPORT_INTERVAL",
 	}
 	for path, svc := range tracedServices {
 		got := otelEntries(t, path, svc)

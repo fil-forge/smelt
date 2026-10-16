@@ -4,7 +4,7 @@
  "system": {"kernel": "6.8.0-1024-aws", "os": "Ubuntu 24.04.3 LTS"},
  "piri": {"s3_endpoint": "s3.us-east-2.amazonaws.com", "indexer": "off"},
  "sprue": {"indexer_endpoint": ""},
- "ingot": {"local_blob_max_bytes": "200000000000"},
+ "ingot": {"local_blob_max_bytes": "200000000000", "metric_export_interval_ms": "5000"},
  "repos": {"smelt": {"sha": "fedcba9876543210fedcba9876543210fedcba98", "dirty": false}, "ingot": {"sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "dirty": true}, "sprue": null, "piri": null, "hilt": null, "libforge": null},
  "workspace_services": [],
  "images": [
