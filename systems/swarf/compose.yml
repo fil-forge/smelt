@@ -57,7 +57,7 @@ services:
     volumes:
       - swarf-postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U swarf -d swarf"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U swarf -d swarf"]
       start_interval: 1s
       interval: 5s
       timeout: 3s
