@@ -196,7 +196,7 @@ else
     echo "Generating hilt → ingot S3 proof..."
     echo "  Issuer: did:web:hilt (key: hilt.pem)"
     echo "  Audience: $INGOT_DID"
-    echo "  Commands: /s3/request/authorize, /s3/bucket/{create,delete,info,list}"
+    echo "  Commands: /s3/request/authorize, /s3/bucket/{create,delete,info,list,policy}"
 
     "$UCANTOOL" delegate \
         --issuer-private-key-file "$KEYS_DIR/hilt.pem" \
@@ -208,6 +208,7 @@ else
         --command "/s3/bucket/delete" \
         --command "/s3/bucket/info" \
         --command "/s3/bucket/list" \
+        --command "/s3/bucket/policy" \
         --container "base64+gzip" \
         > "$INGOT_PROOF_FILE"
 

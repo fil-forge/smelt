@@ -90,6 +90,7 @@ func generateProofs(tempDir string, nodes []manifest.ResolvedPiriNode) error {
 			s3bkt.Delete.Command,
 			s3bkt.Info.Command,
 			s3bkt.List.Command,
+			s3bkt.Policy.Command,
 		}); err != nil {
 		return err
 	}
