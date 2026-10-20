@@ -23,15 +23,23 @@ calling it fixed.
   `<root>/fil-one/storage-qualification`. Set `S3_SPEEDTESTS_DIR` or
   `STORAGE_QUALIFICATION_DIR` for any other place.
 - AWS CLI v2.13+, `jq`, `python3`
-- Free disk of about 2.5x the bytes a run writes. Ingot keeps every body blob in
-  its spool (`ingot-data` volume,
-  [fil-forge/ingot#48](https://github.com/fil-forge/ingot/issues/48)) and piri
-  stores a second copy, and nothing is deleted after a run. When piri keeps its
-  blobs in S3 outside the stack, only the spool grows and about 1.25x is
-  enough. On Docker Desktop the VM disk is a file on the host disk, so raise the
-  VM disk limit and keep the host disk free too. `make clean` reclaims the space by dropping every
-  volume (tenant, keys and objects); run `make up` and the suite's `setup` again
-  afterwards.
+- Free disk of about 2.5x the bytes a run writes. Without a local blob budget,
+  ingot keeps every body it accepted (`ingot-data` volume) until its object is
+  deleted, and piri stores a second copy that it frees only minutes after the
+  drill's sweep. When piri keeps its blobs in S3 outside the stack, only
+  ingot's copy grows and about 1.25x is enough. With a positive
+  `INGOT_LOCAL_BLOB_MAX_BYTES`, ingot's share stops at about the budget plus
+  the 10% headroom its README asks for, but the disk check still assumes it
+  keeps everything: set `DISK_FACTOR` to about 0.25 + 1.25 × piri's share +
+  min(1.1 × budget ÷ `STOP_INGEST_AT`, 1), with both in GB, where piri's share
+  is 1 with its blobs on Docker's disk and 0 with them in S3 outside the
+  stack. The 0.25 is for Postgres, the catalog and logs, which grow with the
+  run, not the budget. Where 10% of the budget is less than the ingest rate ×
+  30 seconds, which ingot's README also asks the headroom to exceed, use the
+  budget plus that in place of 1.1 × budget. On Docker Desktop the VM disk is
+  a file on the host disk, so raise the VM disk limit and keep the host disk
+  free too. `make clean` reclaims the space by dropping every volume (tenant,
+  keys and objects); run `make up` and the suite's `setup` again afterwards.
 
 `make up` and `make redeploy` return only after the services they started
 report healthy, so a run can start right after either one.
@@ -54,7 +62,10 @@ Ingot, hilt, sprue and every piri node then export spans; ingot samples that
 share of S3 requests and the others follow. `OTEL_RESOURCE_ATTRIBUTES` labels
 the spans of ingot, hilt and sprue, such as with a run ID. piri's spans do not
 carry it, so a collector that must label every span, piri's included, adds the
-label itself. See [systems/telemetry](../systems/telemetry/README.md) for a
+label itself. `OTEL_METRIC_EXPORT_INTERVAL` sets how often ingot exports
+its metrics, such as its local blob usage, in milliseconds (60000 by
+default); a shorter interval samples that usage more often. See
+[systems/telemetry](../systems/telemetry/README.md) for a
 ready-made collector. Tracing costs CPU in every service, so compare traced
 runs with traced runs only.
 
@@ -79,6 +90,19 @@ with:
     and not empty), and `tracing.ratio`, ingot's `OTEL_TRACES_SAMPLER_ARG`
     (null when unset or empty, which means every request is sampled). The
     endpoint and the resource attributes are not recorded.
+  - `ingot.local_blob_max_bytes`, ingot's `INGOT_LOCAL_BLOB_MAX_BYTES` as a
+    string (null when unset or empty; null and `"0"` both mean no budget). It
+    is the container's variable: an ingot image from before the budget
+    ([fil-forge/ingot#218](https://github.com/fil-forge/ingot/pull/218))
+    ignores it. With a budget, ingot evicts cached bodies, so read-back and
+    restore may read from piri instead of ingot's disk; compare runs with the
+    same budget. `make redeploy` recreates ingot from the current shell, so
+    export the variable for the session rather than setting it on `make up`
+    alone, or the next redeploy drops it.
+  - `ingot.metric_export_interval_ms`, ingot's `OTEL_METRIC_EXPORT_INTERVAL`
+    as a string (null when unset or empty, which means 60000). Ingot samples
+    its local blob usage once an interval, so compare those samples only
+    across runs with the same interval.
   - `images`: the contents of `images.lock.json`
   - `extra`: `PERF_EXTRA_METADATA`, verbatim
   - the suite's settings.
@@ -276,8 +300,8 @@ disk check (`disk`: the factor applied, piri-0's blob backend and S3 endpoint,
 and the free space measured, with `host_free_gb` null when the host was not
 measured) and the drill's exit code. Each run appends one
 row to `runs.jsonl`, with the drill's settings under `settings`, the Docker
-and system facts under `host`, and `manifest`, `piri` and `sprue` as in
-`metadata.json`. Rows written before these fields existed lack them, and
+and system facts under `host`, and `manifest`, `piri`, `sprue` and `ingot` as
+in `metadata.json`. Rows written before these fields existed lack them, and
 `compare` reads both kinds.
 
 ### Reading drill results

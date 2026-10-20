@@ -192,6 +192,7 @@ def drill_rows(run_dir: Path, meta: dict) -> list[dict]:
         "manifest": meta.get("manifest"),
         "piri": meta.get("piri"),
         "sprue": meta.get("sprue"),
+        "ingot": meta.get("ingot"),
     }
     return [row]
 
