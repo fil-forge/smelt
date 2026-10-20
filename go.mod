@@ -5,7 +5,7 @@ go 1.27.0
 require (
 	github.com/compose-spec/compose-go/v2 v2.15.0
 	github.com/docker/docker v28.5.2+incompatible
-	github.com/fil-forge/libforge v0.0.0-20260928131613-0060aa6cb75a
+	github.com/fil-forge/libforge v0.0.0-20261020103720-b6aeeaf7c926
 	github.com/fil-forge/ucantone v0.0.0-20260924160040-c31dec73d9b3
 	github.com/google/uuid v1.6.0
 	github.com/lib/pq v0.0.0-20150723085316-0dad96c0b94f
@@ -23,7 +23,7 @@ require (
 	github.com/DefangLabs/secret-detector v0.0.0-20250811234530-d4b4214cd679 // indirect
 	github.com/Microsoft/go-winio v0.6.3-0.20251027160822-ad3df93bed29 // indirect
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d // indirect
-	github.com/alanshaw/dag-json-gen v0.0.9 // indirect
+	github.com/alanshaw/dag-json-gen v0.0.11 // indirect
 	github.com/buger/goterm v1.0.4 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect

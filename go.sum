@@ -16,8 +16,8 @@ github.com/ProtonMail/go-crypto v1.3.0 h1:ILq8+Sf5If5DCpHQp4PbZdS1J7HDFRXz/+xKBi
 github.com/ProtonMail/go-crypto v1.3.0/go.mod h1:9whxjD8Rbs29b4XWbB8irEcE8KHMqaR2e7GWU1R+/PE=
 github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d h1:licZJFw2RwpHMqeKTCYkitsPqHNxTmd4SNR5r94FGM8=
 github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d/go.mod h1:asat636LX7Bqt5lYEZ27JNDcqxfjdBQuJ/MM4CN/Lzo=
-github.com/alanshaw/dag-json-gen v0.0.9 h1:q59Ra1mQB6HnFGI1ilFxsZvF1CqGN0XDlUWq16EJ6pw=
-github.com/alanshaw/dag-json-gen v0.0.9/go.mod h1:v1YBZcS4B355MqxtyQr+fGNbEhm0CzHd+gOqOO/MZ+I=
+github.com/alanshaw/dag-json-gen v0.0.11 h1:QJRnj9LeHlHtMnrJ1rY2czINHIfun7jmzA/MbWU5drs=
+github.com/alanshaw/dag-json-gen v0.0.11/go.mod h1:v1YBZcS4B355MqxtyQr+fGNbEhm0CzHd+gOqOO/MZ+I=
 github.com/anchore/go-struct-converter v0.1.0 h1:2rDRssAl6mgKBSLNiVCMADgZRhoqtw9dedlWa0OhD30=
 github.com/anchore/go-struct-converter v0.1.0/go.mod h1:rYqSE9HbjzpHTI74vwPvae4ZVYZd1lue2ta6xHPdblA=
 github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 h1:DklsrG3dyBCFEj5IhUbnKptjxatkF07cF2ak3yi77so=
@@ -116,8 +116,8 @@ github.com/eiannone/keyboard v0.0.0-20220611211555-0d226195f203 h1:XBBHcIb256gUJ
 github.com/eiannone/keyboard v0.0.0-20220611211555-0d226195f203/go.mod h1:E1jcSv8FaEny+OP/5k9UxZVw9YFWGj7eI4KR/iOBqCg=
 github.com/felixge/httpsnoop v1.1.0 h1:3YtUj32ZZkqZtt3sZZsClsymw/QDuVfpNhoA31zeORc=
 github.com/felixge/httpsnoop v1.1.0/go.mod h1:Zqxgdd+1Rkcz8euOqdr7lqgCRJztwr5hp9vDSi5UZCE=
-github.com/fil-forge/libforge v0.0.0-20260928131613-0060aa6cb75a h1:+ud/xe1Prm9QpTn9DcXWoxYBo9f6nFFZR1gzlHesDac=
-github.com/fil-forge/libforge v0.0.0-20260928131613-0060aa6cb75a/go.mod h1:sHUJ6GoVlCwuwvt2auh+ZEhr4Ywi0y+MV7yqDpWV1lc=
+github.com/fil-forge/libforge v0.0.0-20261020103720-b6aeeaf7c926 h1:i6Zr11ukpOvJx80T06okJidomSv7DJCj5mSGdOy8ltk=
+github.com/fil-forge/libforge v0.0.0-20261020103720-b6aeeaf7c926/go.mod h1:ZtPwUgXm7gqQSmjmIcfMy5AwWpFIR02WMZvbgNOwi/4=
 github.com/fil-forge/ucantone v0.0.0-20260924160040-c31dec73d9b3 h1:Ta5ODMWR9mM4zMfRp/K1unAKvnt7f5dhehRA+YHiv7w=
 github.com/fil-forge/ucantone v0.0.0-20260924160040-c31dec73d9b3/go.mod h1:aX35jlUs3hnWAhigjO8z9kMPiYnkW3XOW8iVoJyz7cg=
 github.com/filecoin-project/go-data-segment v0.0.1 h1:1wmDxOG4ubWQm3ZC1XI5nCon5qgSq7Ra3Rb6Dbu10Gs=
