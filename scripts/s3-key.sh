@@ -26,13 +26,23 @@ TENANT="${TENANT:-dev}"
 PROFILE="${PROFILE:-smelt}"
 # Hilt requires key names to be unique per tenant, so each run mints a new one.
 KEY_NAME="${KEY_NAME:-$PROFILE-$(date -u +%Y%m%dT%H%M%SZ)}"
+# Every permission hilt recognizes (its pkg/s3perm map). Hilt gives each S3
+# operation the gateway serves its own permission, so a key missing one is
+# refused that operation: tagging, versioning and GetObjectAttributes included.
 PERMISSIONS='[
   "s3:GetObject", "s3:GetObjectVersion", "s3:GetObjectRetention", "s3:GetObjectLegalHold",
+  "s3:GetObjectTagging", "s3:GetObjectAttributes",
   "s3:ListBucket", "s3:ListBucketVersions",
-  "s3:PutObject", "s3:PutObjectRetention", "s3:PutObjectLegalHold",
-  "s3:DeleteObject", "s3:DeleteObjectVersion",
+  "s3:PutObject", "s3:PutObjectRetention", "s3:PutObjectLegalHold", "s3:PutObjectTagging",
+  "s3:DeleteObject", "s3:DeleteObjectVersion", "s3:DeleteObjectTagging",
   "s3:CreateBucket", "s3:ListAllMyBuckets", "s3:DeleteBucket",
-  "s3:AbortMultipartUpload", "s3:ListMultipartUploadParts", "s3:ListBucketMultipartUploads"
+  "s3:AbortMultipartUpload", "s3:ListMultipartUploadParts", "s3:ListBucketMultipartUploads",
+  "s3:GetBucketPolicy", "s3:PutBucketPolicy", "s3:DeleteBucketPolicy", "s3:GetBucketPolicyStatus",
+  "s3:GetEncryptionConfiguration", "s3:PutEncryptionConfiguration",
+  "s3:GetBucketLocation", "s3:GetBucketAcl", "s3:GetBucketCORS",
+  "s3:GetBucketTagging", "s3:PutBucketTagging",
+  "s3:GetBucketVersioning", "s3:PutBucketVersioning",
+  "s3:GetBucketObjectLockConfiguration", "s3:PutBucketObjectLockConfiguration"
 ]'
 
 die() { echo "ERROR: $*" >&2; exit 1; }
