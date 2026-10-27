@@ -131,7 +131,7 @@ class PerfLibTest(unittest.TestCase):
         self.assertEqual(meta["piri"], {"s3_endpoint": None, "indexer": "on"})
         self.assertEqual(meta["sprue"], {"indexer_endpoint": None})
         self.assertEqual(meta["tracing"], {"on": False, "ratio": None})
-        self.assertEqual(meta["ingot"], {"local_blob_max_bytes": None, "metric_export_interval_ms": None})
+        self.assertEqual(meta["ingot"], {"local_blob_max_bytes": None, "metric_export_interval_ms": None, "catalog_plane_retain": None})
 
     def test_metadata_records_ingots_local_blob_budget(self):
         meta = self.metadata(STUB_INGOT_LOCAL_BLOB_MAX_BYTES="200000000000")
@@ -139,6 +139,12 @@ class PerfLibTest(unittest.TestCase):
         # Set empty is no budget, as ingot reads it.
         meta = self.metadata(STUB_INGOT_LOCAL_BLOB_MAX_BYTES="")
         self.assertIsNone(meta["ingot"]["local_blob_max_bytes"])
+
+    def test_metadata_records_ingots_catalog_retention(self):
+        meta = self.metadata(STUB_INGOT_CATALOG_PLANE_RETAIN="1000000")
+        self.assertEqual(meta["ingot"]["catalog_plane_retain"], "1000000")
+        meta = self.metadata(STUB_INGOT_CATALOG_PLANE_RETAIN="")
+        self.assertIsNone(meta["ingot"]["catalog_plane_retain"])
 
     def test_metadata_records_ingots_metric_export_interval(self):
         meta = self.metadata(STUB_OTEL_METRIC_EXPORT_INTERVAL="5000")

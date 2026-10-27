@@ -43,6 +43,11 @@ services:
       # local_blob_max_bytes), which the sweeper evicts cached bodies to
       # stay under. Absent or empty leaves config.yaml's 0: no budget.
       - INGOT_LOCAL_BLOB_MAX_BYTES
+      # Bare, like the ones above: how many shipped catalog segments each
+      # bucket keeps on ingot's disk (its catalog_plane.retain). Absent or
+      # empty leaves ingot's default. A benchmark that walks the live catalog
+      # at the end of a run sets it high, so no segment retires.
+      - INGOT_CATALOG_PLANE_RETAIN
       # Token for the region-KEK transit calls (config/config.yaml sets the
       # rest of the regionkey block). Provisioned by ingot-openbao-init on
       # every boot; local-dev value, like the partner key in systems/hilt.

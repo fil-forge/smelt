@@ -41,6 +41,12 @@ guppy-style edge client.
   [fil-forge/ingot#218](https://github.com/fil-forge/ingot/pull/218), which
   added the budget, to #228 honour the variable too. Images that predate #218
   ignore it.
+- `INGOT_CATALOG_PLANE_RETAIN` - how many shipped catalog segments each bucket
+  keeps on ingot's disk (`catalog_plane.retain`), passed through from the
+  shell when set. Unset or empty leaves ingot's default. A benchmark that
+  measures the live catalog over the local segments at the end of a run
+  (`ingot catalog usage`) sets it above any run's segment count, so none
+  retires.
 - Identity: `did:web:ingot` (`identity.service_id`) wrapping the key in
   `/keys/ingot.pem`. Ingot serves the DID document at
   `http://ingot:80/.well-known/did.json`; hilt, sprue and piri resolve it

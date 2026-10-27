@@ -103,6 +103,12 @@ with:
     as a string (null when unset or empty, which means 60000). Ingot samples
     its local blob usage once an interval, so compare those samples only
     across runs with the same interval.
+  - `ingot.catalog_plane_retain`, ingot's `INGOT_CATALOG_PLANE_RETAIN` as a
+    string (null when unset or empty, which leaves ingot's default): how many
+    shipped catalog segments each bucket keeps on disk. A run that measures
+    the live catalog over the local segments at its end (`ingot catalog
+    usage`) sets it high, so none retires. Like the budget, export it for the
+    session so `make redeploy` keeps it.
   - `images`: the contents of `images.lock.json`
   - `extra`: `PERF_EXTRA_METADATA`, verbatim
   - the suite's settings.
