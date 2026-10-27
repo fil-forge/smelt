@@ -41,7 +41,7 @@ systems/blockchain/upgrade-contracts.sh
 make clean && make up
 ```
 
-To move to a newer fork commit, set `FILECOIN_SERVICES_REF` and run the script again; it upgrades whatever the committed baseline holds and leaves a proxy that already runs the built version alone. To build a commit that is not pushed, point `FILECOIN_SERVICES_REPO` at a local checkout. Saved snapshots carry the old contracts; recapture them after an upgrade.
+To move to a newer fork commit, set `FILECOIN_SERVICES_REF` and run the script again; it upgrades whatever the committed baseline holds and leaves a proxy that already runs the built version alone. Moving FWSS from one dispatcher release to a later one takes that release's josuke migration, which the script does not run; it stops with an error before touching the baseline. To build a commit that is not pushed, point `FILECOIN_SERVICES_REPO` at a local checkout. Saved snapshots carry the old contracts; recapture them after an upgrade.
 
 ## Dependencies
 

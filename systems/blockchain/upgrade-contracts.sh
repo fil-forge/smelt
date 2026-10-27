@@ -12,7 +12,9 @@
 #   modules josuke.json lists. StateView stays where it is: it reads FWSS
 #   storage through extsload, which the dispatcher still routes.
 #
-# A proxy already on the version being built is left as it is.
+# A proxy already on the version being built is left as it is. Moving FWSS
+# between two dispatcher releases takes the release's josuke migration, which
+# this script does not run, so it stops with an error instead.
 #
 #   systems/blockchain/upgrade-contracts.sh
 #
@@ -103,8 +105,18 @@ upgrade_inside() {
   local pinned_hash
   pinned_hash=$(sed -n 's/^bytes32 constant FWSS_DISPATCHER_CODE_HASH = \(0x[0-9a-fA-F]*\);/\1/p' \
     "$sc/src/FWSSDispatcherTransition.sol")
+  # The dispatcher's code is the same in every release, so the modules decide
+  # the version. Moving between dispatcher releases takes the release's josuke
+  # migration, which this script does not run; stop before the state is dumped.
   if [ "$(cast keccak "$(cast code "$(implementation "$FWSS")")")" = "$pinned_hash" ]; then
-    echo "FWSS already runs the ERC-8167 dispatcher; later releases arrive as josuke migrations" >&2
+    local running built
+    running=$(cast call "$FWSS" 'VERSION()(string)' | tr -d '"')
+    built=$(source_version "$sc/src/modules/FWSSMetadataModule.sol")
+    if [ "$running" != "$built" ]; then
+      echo "FWSS runs $running on the ERC-8167 dispatcher; moving to $built needs that release's josuke migration, which this script does not apply" >&2
+      exit 1
+    fi
+    echo "FWSS already runs $running" >&2
     echo '{}'
     return
   fi
