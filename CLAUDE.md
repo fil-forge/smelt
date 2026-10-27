@@ -40,6 +40,7 @@ smelt/
 ├── .env                     # Service image defaults (configurable)
 ├── smelt.yml                # Piri node manifest (count + per-node storage)
 ├── compose.yml              # Root compose file - includes all systems
+├── compose.pg-standby.yml   # Opt-in overlay: synchronous standby for ingot-postgres
 ├── Makefile                 # Primary developer interface
 ├── cmd/smelt/               # Go CLI: `smelt generate` reads smelt.yml
 ├── pkg/
@@ -244,6 +245,21 @@ addressing. `TENANT=` / `PROFILE=` override the defaults. hilt-vault keeps the t
 signing key on a volume, so the profile keeps working across `make down && make up`. A stack
 whose vault has lost the key (one restored from a snapshot saved before the vault persisted)
 makes the script move on to the next free tenant id (`dev-2`, ...) with a fresh key.
+
+### Synchronous Standby for Ingot's Postgres
+
+```bash
+export INGOT_PG_STANDBY=1 INGOT_PG_STANDBY_RTT=0.5ms   # round trip; default 0ms
+make up
+docker compose exec ingot-postgres psql -U ingot -d ingot -c "SELECT application_name, state, sync_state, flush_lag FROM pg_stat_replication"
+```
+
+`INGOT_PG_STANDBY=1` makes the Makefile chain `compose.pg-standby.yml` into `$(COMPOSE)`: ingot-postgres
+becomes the primary of a synchronous pair with `ingot-postgres-standby` (cloned by `pg_basebackup`,
+physical slot `ingot_standby`), and `ingot-postgres-netem` adds the round trip with `tc netem` in the
+standby's network namespace. A nonzero round trip needs a kernel with netem (`sch_netem`). Export the
+variables for the session, as with `SMELT_WORKSPACE`: a `make up` without them recreates ingot-postgres as
+a plain server. See `systems/ingot/README.md` for the details and `docs/PERF_TESTING.md` for measuring it.
 
 ### Regenerating Keys and Proofs
 

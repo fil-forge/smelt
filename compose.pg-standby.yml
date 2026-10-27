@@ -1,0 +1,114 @@
+# Synchronous streaming standby for ingot-postgres (opt-in overlay)
+#
+# `make up INGOT_PG_STANDBY=1` chains this file after compose.yml (see the
+# Makefile's COMPOSE). It turns ingot-postgres into the primary of a
+# synchronous pair: every commit waits until ingot-postgres-standby has
+# flushed its WAL, as with a standby on a second machine at the same site.
+# INGOT_PG_STANDBY_RTT (default 0ms) is the round trip added between the
+# two, e.g. 0.5ms for a LAN; anything but zero needs a kernel with netem.
+# Without INGOT_PG_STANDBY=1 nothing here applies and the stack is unchanged.
+#
+# Paths are relative to the project directory (this file's), as compose
+# resolves them for every file after the first. See systems/ingot/README.md.
+
+services:
+  ingot-postgres:
+    # A wrapper around the image's entrypoint: an empty data directory is
+    # initialized with the image's plain arguments first, because the
+    # image's temporary init server would otherwise wait forever for a
+    # standby that cannot reach it. See postgres-standby/primary.sh.
+    entrypoint: ["sh", "/standby/primary.sh"]
+    command:
+      - postgres
+      # pg_hba.conf as the image writes it, plus replication connections
+      # from the forge-network. A file outside the volume, so a plain
+      # `make up` afterwards runs with the volume's own pg_hba.conf.
+      - -c
+      - hba_file=/standby/pg_hba.conf
+      # Commit waits for the standby's flush. Both are command-line
+      # settings, never written to the volume, so they go away with this
+      # file.
+      - -c
+      - synchronous_standby_names=ingot_standby
+      - -c
+      - synchronous_commit=on
+      # Bounds the WAL the standby's slot keeps while it is away, so the
+      # disk does too. A standby that falls further behind loses its slot
+      # and is cloned again on its next start.
+      - -c
+      - max_slot_wal_keep_size=1GB
+    environment:
+      # Not read by postgres. scripts/perf-lib.sh records it for each run:
+      # ingot-postgres is a service every compose call knows, with or
+      # without this file.
+      - INGOT_PG_STANDBY_RTT=${INGOT_PG_STANDBY_RTT:-0ms}
+    volumes:
+      - ./systems/ingot/postgres-standby:/standby:ro
+
+  # Owns the standby's network namespace and delays everything sent from it
+  # by INGOT_PG_STANDBY_RTT with tc netem. netem shapes only what an
+  # interface sends, so the whole round trip goes on the standby's side:
+  # each commit's flush acknowledgement arrives that much later. It runs
+  # before the standby starts, so the clone and every byte streamed after it
+  # cross the delay.
+  ingot-postgres-netem:
+    image: ${NETSHOOT_IMAGE:-nicolaka/netshoot:v0.16}
+    entrypoint: ["sh", "/standby/netem.sh"]
+    cap_add:
+      - NET_ADMIN
+    environment:
+      - INGOT_PG_STANDBY_RTT=${INGOT_PG_STANDBY_RTT:-0ms}
+    volumes:
+      - ./systems/ingot/postgres-standby:/standby:ro
+    healthcheck:
+      # Written once the delay is in place (or found to be zero).
+      test: ["CMD", "test", "-f", "/tmp/netem-ready"]
+      start_interval: 1s
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - forge-network
+
+  # Hot standby cloned from ingot-postgres with pg_basebackup on first boot,
+  # streaming through the physical replication slot ingot_standby. Its
+  # application_name, ingot_standby, is the one the primary waits for. See
+  # postgres-standby/standby.sh.
+  ingot-postgres-standby:
+    image: ${POSTGRES_IMAGE:-postgres:16-alpine}
+    user: postgres
+    entrypoint: ["sh", "/standby/standby.sh"]
+    network_mode: service:ingot-postgres-netem
+    environment:
+      # The primary's superuser: replication needs no role of its own here,
+      # and creating one would be a commit that waits for this standby.
+      - PGPASSWORD=ingot
+    volumes:
+      - ingot-postgres-standby-data:/var/lib/postgresql/data
+      - ./systems/ingot/postgres-standby:/standby:ro
+    depends_on:
+      ingot-postgres:
+        condition: service_healthy
+      ingot-postgres-netem:
+        condition: service_healthy
+    healthcheck:
+      # Healthy once the WAL receiver streams, which is when the primary's
+      # commits start completing.
+      test: ["CMD-SHELL", "[ \"$$(psql -U ingot -d ingot -Atc 'SELECT status FROM pg_stat_wal_receiver')\" = streaming ]"]
+      start_interval: 1s
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+
+  ingot:
+    depends_on:
+      # Until the standby streams, every commit on the primary waits.
+      ingot-postgres-standby:
+        condition: service_healthy
+
+volumes:
+  ingot-postgres-standby-data:

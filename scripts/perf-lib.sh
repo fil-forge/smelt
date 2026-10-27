@@ -166,6 +166,7 @@ perf_metadata() {
     --argjson ingot_sampler_arg "$(perf_container_env ingot OTEL_TRACES_SAMPLER_ARG)" \
     --argjson ingot_local_blob_max_bytes "$(perf_container_env ingot INGOT_LOCAL_BLOB_MAX_BYTES)" \
     --argjson ingot_metric_interval "$(perf_container_env ingot OTEL_METRIC_EXPORT_INTERVAL)" \
+    --argjson ingot_pg_standby_rtt "$(perf_container_env ingot-postgres INGOT_PG_STANDBY_RTT)" \
     --slurpfile images "$run_dir/images.lock.json" \
     --argjson extra "${PERF_EXTRA_METADATA:-null}" \
     'def nullable: if . == "" then null else . end;
@@ -178,7 +179,8 @@ perf_metadata() {
       sprue: {indexer_endpoint: $sprue_indexer_endpoint},
       tracing: {on: (($piri_traces_endpoint // "") != ""), ratio: ($ingot_sampler_arg|nullable)},
       ingot: {local_blob_max_bytes: ($ingot_local_blob_max_bytes|nullable),
-              metric_export_interval_ms: ($ingot_metric_interval|nullable)},
+              metric_export_interval_ms: ($ingot_metric_interval|nullable),
+              postgres_standby_rtt: $ingot_pg_standby_rtt},
       repos: $repos, workspace_services: $workspace_services, images: $images[0],
       extra: $extra, suite: $suite}' \
     > "$run_dir/metadata.json"

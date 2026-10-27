@@ -34,7 +34,22 @@ WORKSPACE_OVERRIDE := generated/compose/workspace.override.yml
 # recipe's functions up front and caches directory listings, so $(wildcard)
 # would still report the file absent. Deferring `test -f` to the shell at
 # recipe-execution time always reflects what workspace-build just reconciled.
+#
+# Set INGOT_PG_STANDBY=1 to add a synchronous streaming standby to
+# ingot-postgres (compose.pg-standby.yml, chained last), with
+# INGOT_PG_STANDBY_RTT (e.g. 0.5ms, default 0ms) of round trip between the
+# two. Unlike the override it is known when the Makefile is read, so make
+# picks the files itself. Export both for the whole session: a `make up` or
+# `make redeploy` without them recreates ingot-postgres as a plain server,
+# whose commits no longer wait for a standby. See systems/ingot/README.md.
+INGOT_PG_STANDBY ?= 0
+PG_STANDBY_OVERLAY := compose.pg-standby.yml
+
+ifeq ($(INGOT_PG_STANDBY),1)
+COMPOSE = $(DOCKER) compose -f compose.yml $$(test -f $(WORKSPACE_OVERRIDE) && echo "-f $(WORKSPACE_OVERRIDE)") -f $(PG_STANDBY_OVERLAY)
+else
 COMPOSE = $(DOCKER) compose $$(test -f $(WORKSPACE_OVERRIDE) && echo "-f compose.yml -f $(WORKSPACE_OVERRIDE)")
+endif
 
 # workspace-build reconciles the override to the current SMELT_WORKSPACE value:
 # build the selected sibling binaries + write the override when enabled, else
@@ -104,6 +119,10 @@ help:
 	@echo "  make redeploy      Rebuild the workspace binaries, recreate their"
 	@echo "                     containers and wait until they are healthy"
 	@echo "                     (SMELT_WORKSPACE=1; SVC=ingot to limit)."
+	@echo "  INGOT_PG_STANDBY=1 Give ingot-postgres a synchronous streaming standby;"
+	@echo "                     INGOT_PG_STANDBY_RTT=0.5ms adds that round trip"
+	@echo "                     between them (default 0ms). Export both for the"
+	@echo "                     session. See systems/ingot/README.md."
 	@echo ""
 	@echo "Destructive commands (clean, nuke, fresh) require confirmation."
 	@echo ""
