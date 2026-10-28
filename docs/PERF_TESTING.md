@@ -69,6 +69,18 @@ default); a shorter interval samples that usage more often. See
 ready-made collector. Tracing costs CPU in every service, so compare traced
 runs with traced runs only.
 
+To measure what a synchronous standby for ingot's database costs, start the
+stack with `INGOT_PG_STANDBY=1` and a round trip in `INGOT_PG_STANDBY_RTT`,
+and compare against runs without it ([systems/ingot](../systems/ingot/README.md#synchronous-standby-opt-in)).
+Export both for the session, like `SMELT_WORKSPACE`: a `make up` or `make
+redeploy` without them recreates ingot-postgres without the standby. With
+tracing on, ingot's `bucket.commit` span wraps each bucket commit, and
+`pg_stat_replication` on ingot-postgres shows the standby's `flush_lag`
+during the run. The drill writes every object into one bucket, so its
+commits take that bucket's lock one at a time; a `bucket.tx` span less its
+`bucket.lock` child is how long one write held the lock, and with the
+standby that includes a round trip for each Postgres commit made under it.
+
 ## What a run records
 
 Each run gets a directory `generated/perf-runs/<suite>/<utc-ts>-<label>/`
@@ -103,6 +115,10 @@ with:
     as a string (null when unset or empty, which means 60000). Ingot samples
     its local blob usage once an interval, so compare those samples only
     across runs with the same interval.
+  - `ingot.postgres_standby_rtt`, the `INGOT_PG_STANDBY_RTT` the stack
+    started with when it runs the synchronous standby (`"0ms"` when none was
+    given), and null without the standby. It comes from ingot-postgres's
+    environment, where the standby overlay sets it.
   - `images`: the contents of `images.lock.json`
   - `extra`: `PERF_EXTRA_METADATA`, verbatim
   - the suite's settings.

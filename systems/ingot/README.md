@@ -18,6 +18,9 @@ guppy-style edge client.
   (`openbao/init.sh`, with the shared bootstrap in
   `../common/openbao/bootstrap.sh`).
 
+`INGOT_PG_STANDBY=1` adds a synchronous standby for ingot-postgres; see
+[Synchronous standby](#synchronous-standby-opt-in).
+
 ## Ports
 
 | Host Port | Container Port | Service | Description |
@@ -101,6 +104,93 @@ Follow-on (not yet wired): replace the stored unseal share with
 `seal "transit"` against a central OpenBao, so the appliance authenticates
 to central at boot, unwraps its barrier key, and unseals.
 
+## Synchronous standby (opt-in)
+
+`INGOT_PG_STANDBY=1` gives ingot-postgres a synchronous streaming standby,
+so every commit waits until the standby has flushed it, as with a standby on
+a second machine at the same site. `INGOT_PG_STANDBY_RTT` adds a round trip
+between the two. The Makefile then chains
+[`compose.pg-standby.yml`](../../compose.pg-standby.yml) after `compose.yml`
+in every compose call; without the variable the stack is unchanged.
+
+```bash
+# Export both for the session: a `make up` or `make redeploy` without them
+# recreates ingot-postgres as a plain server, whose commits no longer wait.
+export INGOT_PG_STANDBY=1 INGOT_PG_STANDBY_RTT=0.5ms
+make up
+```
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `INGOT_PG_STANDBY` | `0` | `1` adds the standby |
+| `INGOT_PG_STANDBY_RTT` | `0ms` | round trip added between primary and standby, as a `tc netem` delay: `500us`, `0.5ms`, `2ms` |
+| `NETSHOOT_IMAGE` | `nicolaka/netshoot:v0.16` | image of the container that applies the delay |
+
+What the overlay changes:
+
+- **ingot-postgres** becomes the primary: `synchronous_standby_names =
+  ingot_standby`, `synchronous_commit = on`, `max_slot_wal_keep_size = 1GB`,
+  and an `hba_file` (`postgres-standby/pg_hba.conf`) that also admits
+  replication connections. All are command-line settings, nothing is written
+  to `ingot-postgres-data`. On an empty volume `postgres-standby/primary.sh`
+  initializes the database with the image's plain arguments first: the
+  image's temporary init server would otherwise wait forever for a standby
+  that cannot reach it.
+- **ingot-postgres-standby** is a hot standby on `ingot-postgres-standby-data`
+  (`postgres-standby/standby.sh`). On first boot it clones the primary with
+  `pg_basebackup`, creating the physical replication slot `ingot_standby`, and
+  streams through that slot as `application_name` `ingot_standby`, the name
+  the primary waits for. It clones again when its data no longer matches the
+  primary: another cluster's data (the primary's volume was recreated or
+  restored from a snapshot while this one stayed) or a slot the primary no
+  longer has. It connects as the `ingot` superuser: a replication role of its
+  own would take a commit, which would wait for the standby. ingot starts once
+  the standby streams.
+- **ingot-postgres-netem** owns the standby's network namespace and adds
+  `INGOT_PG_STANDBY_RTT` to everything the standby sends
+  (`postgres-standby/netem.sh`). netem shapes only what an interface sends, so
+  the whole round trip goes on the standby's side, where it delays each flush
+  acknowledgement. It needs the kernel's netem qdisc (`sch_netem`), which
+  Docker Desktop and stock distribution kernels have. On a kernel without it a
+  nonzero round trip stops the stack from starting, and this container's log
+  says why; `0ms` adds no qdisc and works anywhere.
+
+Check that the standby streams and is synchronous:
+
+```bash
+docker compose exec ingot-postgres psql -U ingot -d ingot -c \
+  "SELECT application_name, state, sync_state, write_lag, flush_lag, replay_lag FROM pg_stat_replication"
+# ingot_standby | streaming | sync | ...
+```
+
+Check that a commit takes about one round trip longer: time single-row
+inserts in a scratch database, then the same with the session's
+`synchronous_commit` set to `local`, which skips the wait.
+
+```bash
+docker compose exec ingot-postgres createdb -U ingot standby_probe
+docker compose exec ingot-postgres psql -U ingot -d standby_probe -c "CREATE TABLE t (at timestamptz)"
+{ echo '\timing on'; for i in $(seq 200); do echo 'INSERT INTO t VALUES (now());'; done; } \
+  | docker compose exec -T ingot-postgres psql -U ingot -d standby_probe -qAt \
+  | awk '/^Time:/ { print $2 }' | sort -g | awk '{ v[NR] = $1 } END { print "median", v[int(NR / 2)], "ms" }'
+# Again with "SET synchronous_commit = local;" after '\timing on'.
+```
+
+Things to know:
+
+- If the standby stops, every commit on ingot-postgres waits for it and
+  ingot's writes hang, as on a real synchronous pair. Postgres does not fall
+  back to asynchronous replication on its own. `make up` starts it again.
+- Switching the overlay off keeps the slot on the primary, and a plain server
+  has no `max_slot_wal_keep_size`, so its WAL then grows without bound. Run
+  `make clean`, or drop the slot:
+  `docker compose exec ingot-postgres psql -U ingot -d ingot -c "SELECT pg_drop_replication_slot('ingot_standby')"`.
+- A plain `docker compose logs` outside make answers "no such service" for
+  the overlay's services; give it the file too:
+  `COMPOSE_FILE=compose.yml:compose.pg-standby.yml docker compose logs ingot-postgres-standby`.
+- Snapshots do not capture `ingot-postgres-standby-data`; after a restore
+  the standby clones the restored primary.
+
 ## Keys and Proofs
 
 - `../../generated/keys/ingot.pem` - Ingot agent key (Ed25519), the key
@@ -125,6 +215,8 @@ audience is replaced).
 - `ingot-postgres-data` - registry/metadata
 - `ingot-openbao-data` - OpenBao raft storage (region KEK, transit state)
 - `ingot-openbao-init` - unseal share + root token (dev-only custody)
+- `ingot-postgres-standby-data` - the standby's copy of ingot-postgres, only
+  with `INGOT_PG_STANDBY=1`
 
 ## Dependencies
 

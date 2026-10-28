@@ -131,7 +131,8 @@ class PerfLibTest(unittest.TestCase):
         self.assertEqual(meta["piri"], {"s3_endpoint": None, "indexer": "on"})
         self.assertEqual(meta["sprue"], {"indexer_endpoint": None})
         self.assertEqual(meta["tracing"], {"on": False, "ratio": None})
-        self.assertEqual(meta["ingot"], {"local_blob_max_bytes": None, "metric_export_interval_ms": None})
+        self.assertEqual(meta["ingot"], {"local_blob_max_bytes": None, "metric_export_interval_ms": None,
+                                         "postgres_standby_rtt": None})
 
     def test_metadata_records_ingots_local_blob_budget(self):
         meta = self.metadata(STUB_INGOT_LOCAL_BLOB_MAX_BYTES="200000000000")
@@ -146,6 +147,15 @@ class PerfLibTest(unittest.TestCase):
         # Set empty is the SDK's default, as ingot reads it.
         meta = self.metadata(STUB_OTEL_METRIC_EXPORT_INTERVAL="")
         self.assertIsNone(meta["ingot"]["metric_export_interval_ms"])
+
+    def test_metadata_records_ingot_postgres_standby_round_trip(self):
+        # compose.pg-standby.yml sets it on ingot-postgres, 0ms when not given.
+        meta = self.metadata(STUB_INGOT_PG_STANDBY_RTT="0.5ms")
+        self.assertEqual(meta["ingot"]["postgres_standby_rtt"], "0.5ms")
+        meta = self.metadata(STUB_INGOT_PG_STANDBY_RTT="0ms")
+        self.assertEqual(meta["ingot"]["postgres_standby_rtt"], "0ms")
+        # Unset: no standby.
+        self.assertIsNone(self.metadata()["ingot"]["postgres_standby_rtt"])
 
     def test_metadata_records_tracing_without_endpoint(self):
         meta = self.metadata(STUB_OTEL_ENDPOINT="http://user:secret-token@otel-collector:4318", STUB_OTEL_TRACES_SAMPLER_ARG="0.1")
@@ -427,7 +437,8 @@ class PerfResultsTest(unittest.TestCase):
         self.assertEqual(row["manifest"], "/var/lib/forge-perf/run/smelt.yml")
         self.assertEqual(row["piri"]["s3_endpoint"], "s3.us-east-2.amazonaws.com")
         self.assertEqual(row["sprue"], {"indexer_endpoint": ""})
-        self.assertEqual(row["ingot"], {"local_blob_max_bytes": "200000000000", "metric_export_interval_ms": "5000"})
+        self.assertEqual(row["ingot"], {"local_blob_max_bytes": "200000000000", "metric_export_interval_ms": "5000",
+                                        "postgres_standby_rtt": "0.5ms"})
         self.assertEqual(row["images"]["ingot"]["revision"], "0123456789abcdef0123456789abcdef01234567")
         self.assertEqual(row["extra"], {"run_id": "main-20261001t120312z"})
         # Every key an old row had is still there.

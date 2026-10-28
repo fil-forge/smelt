@@ -39,6 +39,12 @@ var thirdPartyImages = map[string]map[string]string{
 	"systems/indexing/indexer/compose.yml": {
 		"redis": "${REDIS_IMAGE:-redis:7-alpine}",
 	},
+	// The opt-in standby overlay (INGOT_PG_STANDBY=1), not included by
+	// compose.yml, follows the same rule.
+	"compose.pg-standby.yml": {
+		"ingot-postgres-standby": "${POSTGRES_IMAGE:-postgres:16-alpine}",
+		"ingot-postgres-netem":   "${NETSHOOT_IMAGE:-nicolaka/netshoot:v0.16}",
+	},
 }
 
 type composeImages struct {
