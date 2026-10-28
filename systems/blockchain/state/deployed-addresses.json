@@ -15,17 +15,13 @@
     "PDPVerifier": "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853",
     "FilecoinPayV1": "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6",
     "ServiceProviderRegistry": "0x610178dA211FEF7D417bC0e6FeD39F05609AD788",
-    "SignatureVerificationLib": "0xc6e7DF5E7b4f2A278906862b61205850344D4e7d",
-    "FilecoinWarmStorageService": "0x0DCd1Bf9A1b36cE34237eEaFef220932846BCD82",
-    "FilecoinWarmStorageServiceStateView": "0x322813Fd9A801c5507c9de605d63CEA4f2CE6c44",
-    "Rails": "0x59b670e9fA9D0A427751Af201D676719a970857b",
-    "FWSSDispatcher": "0x4826533B4897376654Bb4d4AD88B7faFD0C98528"
+    "FilecoinWarmStorageService": "0xc5a5C42992dECbae36851359345FE25997F5C42d",
+    "FilecoinWarmStorageServiceStateView": "0xc5a5C42992dECbae36851359345FE25997F5C42d",
+    "FWSSDispatcher": "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e"
   },
   "config": {
     "challengeFinality": 3,
     "maxProvingPeriod": 25,
-    "challengeWindowSize": 5,
-    "serviceName": "Local Test Service",
-    "serviceDescription": "Local development environment for testing"
+    "challengeWindowSize": 5
   }
 }

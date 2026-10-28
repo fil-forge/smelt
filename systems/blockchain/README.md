@@ -32,16 +32,18 @@ The chain boots from the committed baseline in `state/`: `anvil-state.json` hold
 cast call --rpc-url http://localhost:15000 0xa513E6E4b8f2a923D98304ec87F64353C4D5C853 'VERSION()(string)'
 ```
 
-The image deploys PDPVerifier 3.1.0 and FWSS 1.1.0. `upgrade-contracts.sh` brings the baseline to the versions [fil-forge/filecoin-services](https://github.com/fil-forge/filecoin-services) deploys, currently PDPVerifier 3.5.0 and FWSS 1.5.0. It upgrades both proxies in place, as on Calibration and mainnet, so their addresses stay the same.
+The baseline holds PDPVerifier 3.5.0 and FWSS 1.5.0, deployed by the localdev image that [fil-forge/filecoin-services](https://github.com/fil-forge/filecoin-services) publishes. FWSS runs on the ERC-8167 dispatcher, recorded as `FWSSDispatcher`, and the proxy serves the StateView reads itself, so `FilecoinWarmStorageServiceStateView` is the proxy's address.
 
-FWSS 1.5.0 runs on the ERC-8167 dispatcher, which routes each function to a module. The script moves the FWSS proxy there from 1.4.0 with `FWSSDispatcherTransition`, as upstream's v1.5.0 rollout does, and records the dispatcher's address as `FWSSDispatcher` in `state/deployed-addresses.json`. The proxy serves the StateView reads itself; the StateView that piri's config names keeps working, because it reads FWSS storage through `extsload`, which the dispatcher still routes. Building the dispatcher needs the `evm` assembler, so the script builds `foundry-evm.Dockerfile` once, at the revision filecoin-services pins.
+To take a newer release, run the image in init mode, wait until it creates `/tmp/ready`, then stop it so it dumps its state, and copy the dump into `state/`:
 
 ```bash
-systems/blockchain/upgrade-contracts.sh
+docker run -d --name localdev-init -e MODE=init -v "$PWD/out:/output" ghcr.io/fil-forge/filecoin-localdev:main
+docker stop -t 120 localdev-init && docker rm localdev-init
+cp out/anvil-state.json out/deployed-addresses.json systems/blockchain/state/
 make clean && make up
 ```
 
-To move to a newer fork commit, set `FILECOIN_SERVICES_REF` and run the script again; it upgrades whatever the committed baseline holds and leaves a proxy that already runs the built version alone. Moving FWSS from one dispatcher release to a later one takes that release's josuke migration, which the script does not run; it stops with an error before touching the baseline. To build a commit that is not pushed, point `FILECOIN_SERVICES_REPO` at a local checkout. Saved snapshots carry the old contracts; recapture them after an upgrade.
+A fresh deploy can move contract addresses, so update the configs listed under "Contract Addresses" in `docs/EXTENDING.md`. Saved snapshots carry the old contracts; recapture them after a new baseline.
 
 ## Dependencies
 
