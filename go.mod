@@ -3,7 +3,7 @@ module github.com/fil-forge/smelt
 go 1.27.0
 
 require (
-	github.com/compose-spec/compose-go/v2 v2.15.0
+	github.com/compose-spec/compose-go/v2 v2.16.2
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/fil-forge/libforge v0.0.0-20261020103720-b6aeeaf7c926
 	github.com/fil-forge/ucantone v0.0.0-20260924160040-c31dec73d9b3
