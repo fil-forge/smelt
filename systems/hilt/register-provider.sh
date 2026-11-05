@@ -2,12 +2,12 @@
 # Register ingot as hilt's regional provider for us-west-1.
 #
 # Runs as the one-shot `hilt-init` compose service, gated on hilt's
-# healthcheck. Hilt requires a registered provider/region before any tenant
-# can be created (PUT /tenants/{id} fails with "unknown region" otherwise),
-# and it only accepts /s3/* invocations issued by the tenant's registered
-# provider — which is ingot, the service that invokes them. Registration is
-# idempotent: the provider record persists in hilt-postgres, so re-runs hit
-# the tolerated "already registered" path below.
+# healthcheck. Hilt resolves the provider serving a request from the region it
+# is signed for, and accepts /s3/* invocations only from that provider — which
+# is ingot, the service that invokes them. So an unregistered region makes every
+# S3 request fail, and registration has to happen before the stack takes any
+# traffic. Registration is idempotent: the provider record persists in
+# hilt-postgres, so re-runs hit the tolerated "already registered" path below.
 #
 # Registration also carries the storage nodes ingot operates: every piri-N
 # DID listed in /piri-nodes.did, the one-DID-per-line file `smelt generate`
