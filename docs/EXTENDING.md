@@ -201,6 +201,8 @@ Smart contract addresses are baked into `systems/blockchain/state/deployed-addre
 1. `systems/piri/config/piri-base-config.toml` — The `[pdp.contracts]` section
 2. `systems/delegator/config/delegator.yaml` — The `contract` section
 3. `systems/signing-service/compose.yml` — The `--service-contract-address` argument
+4. `systems/signing-service/config/signer.yaml` — `service_contract_address`
+5. `testdata/piri-base-config-indexer-on.toml` — The piri entrypoint test fixture
 
 The default addresses work with the pre-deployed state in `systems/blockchain/state/anvil-state.json`.
 
@@ -554,7 +556,7 @@ curl -s -X POST http://localhost:15000 \
 # Get contract storage slot
 curl -s -X POST http://localhost:15000 \
   -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","method":"eth_getStorageAt","params":["0x0DCd1Bf9A1b36cE34237eEaFef220932846BCD82","0x0","latest"],"id":1}' | jq
+  -d '{"jsonrpc":"2.0","method":"eth_getStorageAt","params":["0xc5a5C42992dECbae36851359345FE25997F5C42d","0x0","latest"],"id":1}' | jq
 ```
 
 ### Inspecting Container State
