@@ -85,10 +85,12 @@ trap 'rm -f "$body"' EXIT
 
 # ensure_tenant <id>: PUT the tenant; prints "created" or "exists". PUT is
 # idempotent on the tenant id (201 when created, 200 when it already exists).
+# It takes no body: a tenant is region-free, and each bucket binds to the
+# region it is created in.
 ensure_tenant() {
   local status
   status="$(curl -sS -o "$body" -w '%{http_code}' -X PUT "$HILT_URL/tenants/$1" \
-    "${auth[@]}" -d "{\"region\":\"$region\"}")" \
+    "${auth[@]}")" \
     || die "hilt unreachable at $HILT_URL"
   case "$status" in
     201) echo created ;;
