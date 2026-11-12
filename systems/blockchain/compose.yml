@@ -5,7 +5,9 @@
 
 services:
   blockchain:
-    image: ${BLOCKCHAIN_IMAGE:-ghcr.io/fil-forge/filecoin-localdev:main}
+    # Pinned to the image that produced state/anvil-state.json: a newer image
+    # may not load this state. Move the pin and the state together.
+    image: ${BLOCKCHAIN_IMAGE:-ghcr.io/fil-forge/filecoin-localdev:fc39541@sha256:5538f99ab97101642139d5bb001f98cbf88f8c13e6b515cae0760bb7a7ee3822}
     # Port mapping is env-var interpolated so pkg/stack can override to
     # `"8545"` (container-only, ephemeral host port) for parallel SDK
     # test stacks. `make up` leaves the var unset and gets the fixed

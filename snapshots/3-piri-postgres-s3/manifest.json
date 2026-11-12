@@ -75,7 +75,7 @@
   ],
   "images": {
     "blockchain": {
-      "tag": "ghcr.io/fil-forge/filecoin-localdev:main",
+      "tag": "ghcr.io/fil-forge/filecoin-localdev:fc39541@sha256:5538f99ab97101642139d5bb001f98cbf88f8c13e6b515cae0760bb7a7ee3822",
       "digest": "ghcr.io/fil-forge/filecoin-localdev@sha256:5538f99ab97101642139d5bb001f98cbf88f8c13e6b515cae0760bb7a7ee3822"
     },
     "delegator": {
