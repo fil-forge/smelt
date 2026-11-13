@@ -87,7 +87,7 @@ When any piri node declares `db: postgres` or `blob: s3` in `smelt.yml`, the gen
 
 **Role**: Local Filecoin-compatible EVM blockchain for PDP (Provable Data Possession) contracts.
 
-**Image**: `ghcr.io/fil-forge/filecoin-localdev:<tag>` (default pinned in `.env`).
+**Image**: `ghcr.io/fil-forge/filecoin-localdev:<commit>@<digest>`, pinned in `systems/blockchain/compose.yml` to the image that produced the committed chain state.
 
 **What it does**:
 - Runs Anvil (Foundry's local Ethereum node) with 3-second block times
