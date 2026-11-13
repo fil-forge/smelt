@@ -88,7 +88,7 @@ trap 'rm -f "$body"' EXIT
 ensure_tenant() {
   local status
   status="$(curl -sS -o "$body" -w '%{http_code}' -X PUT "$HILT_URL/tenants/$1" \
-    "${auth[@]}" -d "{\"region\":\"$region\"}")" \
+    "${auth[@]}")" \
     || die "hilt unreachable at $HILT_URL"
   case "$status" in
     201) echo created ;;
