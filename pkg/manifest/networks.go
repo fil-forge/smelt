@@ -212,9 +212,13 @@ func (m *Manifest) ResolveNetworks() ([]ResolvedHilt, []ResolvedIngot, error) {
 // distinct. TestReservedServicesCoverTheComposeFiles holds this list to what
 // systems/ actually declares.
 var reservedServices = []string{
-	// Written by generation, once per stack.
+	// Written by generation, once per stack. The piri three are emitted only
+	// for the storage backends that need them, and are reserved whatever the
+	// manifest asks for: a name that is a service on one backend and free on
+	// another would make the check depend on piri's storage settings.
 	"hilt-postgres", "hilt-postgres-init",
 	"ingot-postgres", "ingot-postgres-init",
+	"piri-postgres", "piri-postgres-init", "piri-minio",
 	// Declared under systems/.
 	"blockchain", "delegator", "dynamodb-local", "email", "grafana", "guppy",
 	"indexer", "ipni", "ipni-init", "minio", "otel-collector", "plc",

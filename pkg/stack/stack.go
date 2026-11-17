@@ -38,11 +38,16 @@ import (
 
 // Stack represents a running Forge network.
 type Stack struct {
-	t         *testing.T
-	compose   compose.ComposeStack
-	tempDir   string
-	cfg       *config
+	t       *testing.T
+	compose compose.ComposeStack
+	tempDir string
+	cfg     *config
+	// The topology this stack was started with. A snapshot brings its own,
+	// so the services are not always named hilt and ingot, and there is not
+	// always one of each.
 	piriNodes []manifest.ResolvedPiriNode
+	hilts     []manifest.ResolvedHilt
+	ingots    []manifest.ResolvedIngot
 }
 
 // NewStack creates and starts a complete Forge network.
@@ -209,6 +214,8 @@ func NewStack(ctx context.Context, t *testing.T, opts ...Option) (*Stack, error)
 		tempDir:   tempDir,
 		cfg:       cfg,
 		piriNodes: resolvedNodes,
+		hilts:     resolvedHilts,
+		ingots:    resolvedIngots,
 	}
 
 	// Register cleanup BEFORE compose.Up. If Up fails (e.g., a container
@@ -264,9 +271,19 @@ func NewStack(ctx context.Context, t *testing.T, opts ...Option) (*Stack, error)
 		WaitForService("delegator", wait.ForHTTP("/healthcheck").WithPort("80/tcp").WithStartupTimeout(2*time.Minute)).
 		WaitForService("email", wait.ForHTTP("/api/server").WithPort("80/tcp").WithStartupTimeout(2*time.Minute)).
 		WaitForService("plc", wait.ForHTTP("/_health").WithPort("3000/tcp").WithStartupTimeout(2*time.Minute)).
-		WaitForService("swarf", wait.ForHTTP("/health").WithPort("80/tcp").WithStartupTimeout(2*time.Minute)).
-		WaitForService("hilt", wait.ForHTTP("/health").WithPort("80/tcp").WithStartupTimeout(2*time.Minute)).
-		WaitForService("ingot", wait.ForHTTP("/health").WithPort("80/tcp").WithStartupTimeout(2*time.Minute))
+		WaitForService("swarf", wait.ForHTTP("/health").WithPort("80/tcp").WithStartupTimeout(2*time.Minute))
+
+	// Every network the topology resolved to, not just the leading pair: a
+	// snapshot may carry several, and one left unwaited could still be
+	// crash-looping when a test starts using the stack.
+	for _, h := range resolvedHilts {
+		waitStack = waitStack.WaitForService(h.Name,
+			wait.ForHTTP("/health").WithPort("80/tcp").WithStartupTimeout(2*time.Minute))
+	}
+	for _, g := range resolvedIngots {
+		waitStack = waitStack.WaitForService(g.Name,
+			wait.ForHTTP("/health").WithPort("80/tcp").WithStartupTimeout(2*time.Minute))
+	}
 
 	// Wait for all piri nodes
 	for _, node := range resolvedNodes {
@@ -430,28 +447,31 @@ func (s *Stack) EmailEndpoint() string {
 	return fmt.Sprintf("http://%s:%s", host, port.Port())
 }
 
-// IngotEndpoint returns the host S3 endpoint for the ingot gateway
-// (container port 80, the did:web convention). The host is normalized to
+// IngotEndpoint returns the host S3 endpoint for the leading ingot gateway
+// (container port 80, the did:web convention). A stack of several gateways
+// has this one serve the first region; the rest are reached by name.
+// The host is normalized to
 // 127.0.0.1 rather than
 // "localhost": the AWS SDK uses virtual-host-style addressing
 // (bucket.host) for a hostname endpoint but path-style for an IP, and
 // ingot's versitygw front end is path-style — a hostname endpoint yields
 // 405 MethodNotAllowed on CreateBucket.
 func (s *Stack) IngotEndpoint() string {
-	container, err := s.compose.ServiceContainer(context.Background(), "ingot")
+	name := s.ingots[0].Name
+	container, err := s.compose.ServiceContainer(context.Background(), name)
 	if err != nil {
-		s.t.Fatalf("getting ingot container: %v", err)
+		s.t.Fatalf("getting %s container: %v", name, err)
 	}
 	host, err := container.Host(context.Background())
 	if err != nil {
-		s.t.Fatalf("getting ingot host: %v", err)
+		s.t.Fatalf("getting %s host: %v", name, err)
 	}
 	if host == "localhost" {
 		host = "127.0.0.1"
 	}
 	port, err := container.MappedPort(context.Background(), "80/tcp")
 	if err != nil {
-		s.t.Fatalf("getting ingot port: %v", err)
+		s.t.Fatalf("getting %s port: %v", name, err)
 	}
 	return fmt.Sprintf("http://%s:%s", host, port.Port())
 }
@@ -473,21 +493,23 @@ func (s *Stack) SwarfEndpoint() string {
 	return fmt.Sprintf("http://%s:%s", host, port.Port())
 }
 
-// HiltEndpoint returns the HTTP endpoint for the hilt tenant-management
-// service — both its partner REST API and its UCAN RPC listener share
-// container port 80.
+// HiltEndpoint returns the HTTP endpoint for the leading hilt
+// tenant-management service — both its partner REST API and its UCAN RPC
+// listener share container port 80. A stack of several hilts has this one
+// hold the leading gateway's tenants; the rest are reached by name.
 func (s *Stack) HiltEndpoint() string {
-	container, err := s.compose.ServiceContainer(context.Background(), "hilt")
+	name := s.hilts[0].Name
+	container, err := s.compose.ServiceContainer(context.Background(), name)
 	if err != nil {
-		s.t.Fatalf("getting hilt container: %v", err)
+		s.t.Fatalf("getting %s container: %v", name, err)
 	}
 	host, err := container.Host(context.Background())
 	if err != nil {
-		s.t.Fatalf("getting hilt host: %v", err)
+		s.t.Fatalf("getting %s host: %v", name, err)
 	}
 	port, err := container.MappedPort(context.Background(), "80/tcp")
 	if err != nil {
-		s.t.Fatalf("getting hilt port: %v", err)
+		s.t.Fatalf("getting %s port: %v", name, err)
 	}
 	return fmt.Sprintf("http://%s:%s", host, port.Port())
 }

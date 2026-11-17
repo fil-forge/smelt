@@ -190,6 +190,20 @@ func TestResolveNetworksRejects(t *testing.T) {
 			"would both be the service",
 		},
 		{
+			// The piri compose emits these only for the storage backends
+			// that need them, and they are refused whatever this manifest
+			// asks for: a name free on one backend and taken on another
+			// would make the answer depend on piri's storage settings.
+			"an instance named after piri's database",
+			"version: 1\nhilt:\n  nodes:\n    - name: piri-postgres\n",
+			"would both be the service",
+		},
+		{
+			"an instance named after piri's blob store",
+			"version: 1\ningot:\n  nodes:\n    - name: piri-minio\n      region: us-east-9\n",
+			"would both be the service",
+		},
+		{
 			"an instance named after a service the stack already runs",
 			"version: 1\nhilt:\n  nodes:\n    - name: upload\n",
 			"would both be the service",
