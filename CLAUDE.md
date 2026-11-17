@@ -120,11 +120,11 @@ See [docs/MULTI_PIRI.md](docs/MULTI_PIRI.md) for the full manifest schema, share
 ### Starting and Stopping
 
 ```bash
-make up        # Start all services and wait until healthy (runs init if needed, regenerates compose if stale)
+make up        # Start all services and wait until healthy (runs init if needed, regenerates compose if stale, warns about old images)
 make generate  # Regenerate compose + keys from smelt.yml (no container changes)
 make down      # Stop services (data preserved in volumes)
 make restart   # Stop then start
-make fresh     # Delete everything and rebuild (destructive)
+make fresh     # Delete everything, pull the published images, and rebuild (destructive)
 make clean     # Stop and delete volumes only (keeps keys)
 ```
 
@@ -476,6 +476,8 @@ PIRI_IMAGE=myregistry/piri:test GUPPY_IMAGE=myregistry/guppy:test make up
 ```
 
 Available variables: `PIRI_IMAGE`, `GUPPY_IMAGE`, `DELEGATOR_IMAGE`, `INDEXER_IMAGE`, `IPNI_IMAGE`, `SIGNER_IMAGE`, `UPLOAD_IMAGE`, `HILT_IMAGE`, `INGOT_IMAGE`, `PLC_IMAGE`, `BLOCKCHAIN_IMAGE`. Defaults live in `.env`.
+
+Compose pulls a tag once and then serves what it cached, so a stack can run a `:main` from months ago with every container healthy — and `make fresh` keeps them, because `down --rmi local` spares every image with a tag of its own. `make up` warns when an image on a moving tag is more than 14 days old (`SMELT_IMAGE_AGE_WARN_DAYS`, `0` to silence), `make fresh` pulls, and `make pull` refreshes them at any time. See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md), "A service behaves like an older build".
 
 ## Developing Against Sibling Service Repos
 

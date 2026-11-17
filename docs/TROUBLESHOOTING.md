@@ -10,19 +10,49 @@ drift warnings).
 
 ## Table of Contents
 
-1. [Prerequisites Failing](#prerequisites-failing)
-2. [Service Health Issues](#service-health-issues)
-3. [Upload Errors](#upload-errors)
-4. [Retrieval Errors](#retrieval-errors)
-5. [Blockchain Issues](#blockchain-issues)
-6. [Container Issues](#container-issues)
-7. [Network Issues](#network-issues)
-8. [Key and Identity Issues](#key-and-identity-issues)
-9. [Nuclear Options](#nuclear-options)
-10. [Getting Help](#getting-help)
-11. [Quick Diagnostic Commands](#quick-diagnostic-commands)
+1. [A service behaves like an older build](#a-service-behaves-like-an-older-build)
+2. [Prerequisites Failing](#prerequisites-failing)
+3. [Service Health Issues](#service-health-issues)
+4. [Upload Errors](#upload-errors)
+5. [Retrieval Errors](#retrieval-errors)
+6. [Blockchain Issues](#blockchain-issues)
+7. [Container Issues](#container-issues)
+8. [Network Issues](#network-issues)
+9. [Key and Identity Issues](#key-and-identity-issues)
+10. [Nuclear Options](#nuclear-options)
+11. [Getting Help](#getting-help)
+12. [Quick Diagnostic Commands](#quick-diagnostic-commands)
 
 ---
+
+## A service behaves like an older build
+
+Compose pulls a tag once and keeps serving what it cached. A stack can run a
+`:main` from months ago with every container healthy, and the symptom is never
+"old image" — it arrives as a plausible error in the service's own vocabulary,
+so the search starts in the wrong repository.
+
+`make fresh` does not fix it. It removes containers, volumes, keys and locally
+built images, but `down --rmi local` keeps every image carrying a tag of its
+own, which is all the published ones.
+
+Check the image, not the container:
+
+```bash
+docker compose images <service>   # the CREATED column is the image's age
+make pull                         # refresh every moving tag
+```
+
+`make up` prints a warning when images on a moving tag (`main`, `main-dev`,
+`latest`) are more than 14 days old; a pinned tag names the build it wants, so
+its age says nothing. `SMELT_IMAGE_AGE_WARN_DAYS` changes the threshold and
+`0` turns it off.
+
+A worked example: the Fil One console could not create a bucket in a Forge
+region, failing with `MalformedPolicy: Invalid principal in policy`. The ingot
+image predated the change that serves bucket policies through versitygw and
+accepts user ARNs, so it refused every principal form the console could send.
+The console was correct throughout; only the image was old.
 
 ## Prerequisites Failing
 
