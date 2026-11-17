@@ -129,3 +129,21 @@ class Report(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class IsStale(unittest.TestCase):
+    """The boundary, which a whole-day comparison got wrong by up to a day."""
+
+    def test_just_past_the_threshold(self):
+        # Truncating this to whole days gives 14, which is not more than 14,
+        # so the warning used to wait until the next day.
+        self.assertTrue(check.is_stale(datetime.timedelta(days=14, hours=23), 14))
+
+    def test_just_short_of_it(self):
+        self.assertFalse(check.is_stale(datetime.timedelta(days=13, hours=23), 14))
+
+    def test_exactly_the_threshold_is_not_more_than_it(self):
+        self.assertFalse(check.is_stale(datetime.timedelta(days=14), 14))
+
+    def test_well_past_it(self):
+        self.assertTrue(check.is_stale(datetime.timedelta(days=194), 14))

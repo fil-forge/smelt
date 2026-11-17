@@ -98,8 +98,12 @@ def parse_built(created: str) -> datetime.datetime | None:
         return None
 
 
-def image_age_days(ref: str, now: datetime.datetime) -> int | None:
-    """How many days ago `ref` was built, or None when docker will not say."""
+def image_age(ref: str, now: datetime.datetime) -> datetime.timedelta | None:
+    """How long ago `ref` was built, or None when docker will not say.
+
+    The elapsed time rather than a count of days: truncating to days first
+    would hold the warning back for an image a few hours past the threshold.
+    """
     try:
         result = subprocess.run(
             ["docker", "image", "inspect", ref, "--format", "{{.Created}}"],
@@ -110,7 +114,17 @@ def image_age_days(ref: str, now: datetime.datetime) -> int | None:
     except (OSError, subprocess.SubprocessError):
         return None
     built = parse_built(result.stdout)
-    return None if built is None else (now - built).days
+    return None if built is None else now - built
+
+
+def is_stale(elapsed: datetime.timedelta, days: int) -> bool:
+    """Whether an image of this age is past the threshold.
+
+    The real elapsed time, not a count of whole days: an image fourteen days
+    and twenty-three hours old is more than fourteen days old, and truncating
+    first would hold its warning back until the next day.
+    """
+    return elapsed > datetime.timedelta(days=days)
 
 
 def report(aged: list[tuple[int, str]], total: int, days: int) -> str:
@@ -156,9 +170,12 @@ def main(argv: list[str]) -> int:
     now = datetime.datetime.now(datetime.timezone.utc)
     aged = []
     for ref in refs:
-        age = image_age_days(ref, now)
-        if age is not None and age > days:
-            aged.append((age, ref))
+        elapsed = image_age(ref, now)
+        if elapsed is not None and is_stale(elapsed, days):
+            # Shown in whole days; the comparison above used the real
+            # elapsed time, so an image just past the threshold is named
+            # rather than held back for the rest of the day.
+            aged.append((elapsed.days, ref))
     if aged:
         aged.sort(reverse=True)
         print(report(aged, len(refs), days))
