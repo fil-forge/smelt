@@ -46,19 +46,35 @@ class ParseBuilt(unittest.TestCase):
         self.assertIsNone(check.parse_built("never"))
 
 
+class SplitTag(unittest.TestCase):
+    def test_ordinary(self):
+        self.assertEqual(check.split_tag("ghcr.io/fil-forge/ingot:main"), ("ghcr.io/fil-forge/ingot", "main"))
+
+    def test_no_tag_means_latest(self):
+        self.assertEqual(check.split_tag("alpine"), ("alpine", "latest"))
+
+    def test_registry_port_is_not_a_tag(self):
+        # The colon in a host:port is followed by a slash; a tag's is not.
+        self.assertEqual(check.split_tag("localhost:5000/piri"), ("localhost:5000/piri", "latest"))
+
+    def test_registry_port_with_a_tag(self):
+        self.assertEqual(check.split_tag("localhost:5000/piri:main"), ("localhost:5000/piri", "main"))
+
+
 class MovingRefs(unittest.TestCase):
     """Only a tag that moves can go stale."""
 
     def test_keeps_moving_tags_and_drops_pinned_ones(self):
-        rows = [
-            {"Repository": "ghcr.io/fil-forge/ingot", "Tag": "main"},
-            {"Repository": "ghcr.io/fil-forge/guppy", "Tag": "main-dev"},
-            {"Repository": "openbao/openbao", "Tag": "2.6"},
-            {"Repository": "rnwood/smtp4dev", "Tag": "v3"},
-            {"Repository": "amazon/dynamodb-local", "Tag": "latest"},
+        refs = [
+            "ghcr.io/fil-forge/ingot:main",
+            "ghcr.io/fil-forge/guppy:main-dev",
+            "openbao/openbao:2.6",
+            "rnwood/smtp4dev:v3",
+            "amazon/dynamodb-local:latest",
+            "ghcr.io/fil-forge/minio:RELEASE.2025-10-15T17-29-55Z",
         ]
         self.assertEqual(
-            check.moving_refs(rows, check.moving_tags()),
+            check.moving_refs(refs, check.moving_tags()),
             [
                 "ghcr.io/fil-forge/ingot:main",
                 "ghcr.io/fil-forge/guppy:main-dev",
@@ -66,30 +82,22 @@ class MovingRefs(unittest.TestCase):
             ],
         )
 
-    def test_drops_untagged_local_builds_and_repeats(self):
-        rows = [
-            {"Repository": "", "Tag": "main"},
-            {"Repository": "ghcr.io/fil-forge/piri", "Tag": "main"},
-            {"Repository": "ghcr.io/fil-forge/piri", "Tag": "main"},
-        ]
-        self.assertEqual(check.moving_refs(rows, check.moving_tags()), ["ghcr.io/fil-forge/piri:main"])
+    def test_drops_repeats(self):
+        # compose config --images prints one line per service, so a shared
+        # image appears many times.
+        refs = ["openbao/openbao:2.6", "ghcr.io/fil-forge/piri:main", "ghcr.io/fil-forge/piri:main"]
+        self.assertEqual(check.moving_refs(refs, check.moving_tags()), ["ghcr.io/fil-forge/piri:main"])
 
 
-class ParseImages(unittest.TestCase):
-    """Compose prints an array or one object per line, depending on version."""
+class ParseRefs(unittest.TestCase):
+    def test_one_per_line(self):
+        self.assertEqual(check.parse_refs("a:main\nb:main\n"), ["a:main", "b:main"])
 
-    def test_array(self):
-        self.assertEqual(len(check.parse_images('[{"Repository":"a"},{"Repository":"b"}]')), 2)
-
-    def test_object_per_line(self):
-        self.assertEqual(len(check.parse_images('{"Repository":"a"}\n{"Repository":"b"}')), 2)
-
-    def test_single_object(self):
-        self.assertEqual(len(check.parse_images('{"Repository":"a"}')), 1)
+    def test_blank_lines_and_padding(self):
+        self.assertEqual(check.parse_refs("\n  a:main  \n\n"), ["a:main"])
 
     def test_nothing(self):
-        self.assertEqual(check.parse_images(""), [])
-        self.assertEqual(check.parse_images("not json"), [])
+        self.assertEqual(check.parse_refs(""), [])
 
 
 class WarnDays(unittest.TestCase):

@@ -16,6 +16,11 @@ Advisory only: it exits 0 whatever happens, because an old image is often what
 an offline or deliberately pinned run wants, and this must never be the reason
 a stack refuses to start.
 
+The references come from `compose config --images`, which reads the
+configuration. `compose images` would read the project's existing containers
+instead, so it answers nothing at all on a stack that is down, which is
+exactly when this runs.
+
 Usage: check-image-age.py [compose command...]
 
     SMELT_IMAGE_AGE_WARN_DAYS   threshold in days (default 14); 0 turns it off
@@ -48,48 +53,34 @@ def moving_tags() -> set[str]:
     return {tag.strip() for tag in raw.split(",") if tag.strip()}
 
 
-def parse_images(raw: str) -> list[dict]:
-    """The rows of `docker compose images --format json`.
+def parse_refs(raw: str) -> list[str]:
+    """The image references `compose config --images` printed, one per line."""
+    return [line.strip() for line in raw.splitlines() if line.strip()]
 
-    Compose prints either a JSON array or one object per line depending on its
-    version, so both are read.
+
+def split_tag(ref: str) -> tuple[str, str]:
+    """A reference's repository and tag.
+
+    The tag follows the last colon, unless that colon is part of a registry's
+    host:port, which a later slash gives away. A reference naming no tag means
+    latest, as docker reads it.
     """
-    raw = raw.strip()
-    if not raw:
-        return []
-    try:
-        rows = json.loads(raw)
-        return [rows] if isinstance(rows, dict) else list(rows)
-    except json.JSONDecodeError:
-        pass
-    rows = []
-    for line in raw.splitlines():
-        line = line.strip()
-        if line:
-            try:
-                rows.append(json.loads(line))
-            except json.JSONDecodeError:
-                pass
-    return rows
+    head, colon, tail = ref.rpartition(":")
+    if not colon or "/" in tail:
+        return ref, "latest"
+    return head, tail
 
 
-def moving_refs(rows: list[dict], tags: set[str]) -> list[str]:
-    """The `repository:tag` of every row on a tag that moves, in order, once each.
-
-    A row with no repository was built here and never tagged, so there is no
-    published build to compare it against.
-    """
-    refs, seen = [], set()
-    for row in rows:
-        repository = row.get("Repository") or ""
-        tag = row.get("Tag") or ""
-        if not repository or tag not in tags:
+def moving_refs(refs: list[str], tags: set[str]) -> list[str]:
+    """Every reference on a tag that moves, in order, once each."""
+    out, seen = [], set()
+    for ref in refs:
+        _, tag = split_tag(ref)
+        if tag not in tags or ref in seen:
             continue
-        ref = f"{repository}:{tag}"
-        if ref not in seen:
-            seen.add(ref)
-            refs.append(ref)
-    return refs
+        seen.add(ref)
+        out.append(ref)
+    return out
 
 
 # Docker stamps nanoseconds, which fromisoformat only accepts from python
@@ -150,7 +141,7 @@ def main(argv: list[str]) -> int:
     compose = argv[1:] or ["docker", "compose"]
     try:
         listed = subprocess.run(
-            [*compose, "images", "--format", "json"],
+            [*compose, "config", "--images"],
             capture_output=True,
             text=True,
             timeout=60,
@@ -158,7 +149,7 @@ def main(argv: list[str]) -> int:
     except (OSError, subprocess.SubprocessError):
         return 0
 
-    refs = moving_refs(parse_images(listed.stdout), moving_tags())
+    refs = moving_refs(parse_refs(listed.stdout), moving_tags())
     if not refs:
         return 0
 
