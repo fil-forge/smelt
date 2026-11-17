@@ -195,7 +195,8 @@ up: ensure-state
 		fi \
 	fi
 	$(MAKE) workspace-build
-	@./scripts/check-image-age.sh $(COMPOSE)
+	@# Advice only, and `|| true` keeps a box without python3 from failing here.
+	@./scripts/check-image-age.py $(COMPOSE) || true
 	$(COMPOSE) up -d --remove-orphans
 	@echo ""
 	@echo "Services starting. Run 'make status' to check health."

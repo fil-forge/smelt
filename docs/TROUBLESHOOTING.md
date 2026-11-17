@@ -44,8 +44,9 @@ make pull                         # refresh every moving tag
 ```
 
 `make up` prints a warning when images on a moving tag (`main`, `main-dev`,
-`latest`) are more than 14 days old. `SMELT_IMAGE_AGE_WARN_DAYS` changes the
-threshold; `0` turns it off.
+`latest`) are more than 14 days old; a pinned tag names the build it wants, so
+its age says nothing. `SMELT_IMAGE_AGE_WARN_DAYS` changes the threshold and
+`0` turns it off.
 
 A worked example: the Fil One console could not create a bucket in a Forge
 region, failing with `MalformedPolicy: Invalid principal in policy`. The ingot

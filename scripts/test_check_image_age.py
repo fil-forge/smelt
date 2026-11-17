@@ -1,0 +1,123 @@
+"""Tests for check-image-age.py.
+
+Run by check_image_age_test.go, and on its own with:
+
+    cd scripts && python3 -m unittest test_check_image_age
+"""
+
+from __future__ import annotations
+
+import datetime
+import importlib.util
+import os
+import pathlib
+import unittest
+
+_SPEC = importlib.util.spec_from_file_location(
+    "check_image_age", pathlib.Path(__file__).parent / "check-image-age.py"
+)
+check = importlib.util.module_from_spec(_SPEC)
+_SPEC.loader.exec_module(check)
+
+
+class ParseBuilt(unittest.TestCase):
+    """Docker's timestamps, which are not all fromisoformat accepts."""
+
+    def test_nanoseconds(self):
+        # What docker actually prints. fromisoformat only takes this from
+        # python 3.11, and the system python on macOS is 3.9: parsing that
+        # failed quietly would make the whole check a no-op.
+        built = check.parse_built("2026-09-24T18:16:16.353297749Z")
+        self.assertEqual(
+            built,
+            datetime.datetime(2026, 9, 24, 18, 16, 16, 353297, tzinfo=datetime.timezone.utc),
+        )
+
+    def test_microseconds(self):
+        built = check.parse_built("2026-09-24T18:16:16.353297Z")
+        self.assertIsNotNone(built)
+        self.assertEqual(built.tzinfo, datetime.timezone.utc)
+
+    def test_whole_seconds(self):
+        self.assertIsNotNone(check.parse_built("2026-09-24T18:16:16Z"))
+
+    def test_not_a_time(self):
+        self.assertIsNone(check.parse_built(""))
+        self.assertIsNone(check.parse_built("never"))
+
+
+class MovingRefs(unittest.TestCase):
+    """Only a tag that moves can go stale."""
+
+    def test_keeps_moving_tags_and_drops_pinned_ones(self):
+        rows = [
+            {"Repository": "ghcr.io/fil-forge/ingot", "Tag": "main"},
+            {"Repository": "ghcr.io/fil-forge/guppy", "Tag": "main-dev"},
+            {"Repository": "openbao/openbao", "Tag": "2.6"},
+            {"Repository": "rnwood/smtp4dev", "Tag": "v3"},
+            {"Repository": "amazon/dynamodb-local", "Tag": "latest"},
+        ]
+        self.assertEqual(
+            check.moving_refs(rows, check.moving_tags()),
+            [
+                "ghcr.io/fil-forge/ingot:main",
+                "ghcr.io/fil-forge/guppy:main-dev",
+                "amazon/dynamodb-local:latest",
+            ],
+        )
+
+    def test_drops_untagged_local_builds_and_repeats(self):
+        rows = [
+            {"Repository": "", "Tag": "main"},
+            {"Repository": "ghcr.io/fil-forge/piri", "Tag": "main"},
+            {"Repository": "ghcr.io/fil-forge/piri", "Tag": "main"},
+        ]
+        self.assertEqual(check.moving_refs(rows, check.moving_tags()), ["ghcr.io/fil-forge/piri:main"])
+
+
+class ParseImages(unittest.TestCase):
+    """Compose prints an array or one object per line, depending on version."""
+
+    def test_array(self):
+        self.assertEqual(len(check.parse_images('[{"Repository":"a"},{"Repository":"b"}]')), 2)
+
+    def test_object_per_line(self):
+        self.assertEqual(len(check.parse_images('{"Repository":"a"}\n{"Repository":"b"}')), 2)
+
+    def test_single_object(self):
+        self.assertEqual(len(check.parse_images('{"Repository":"a"}')), 1)
+
+    def test_nothing(self):
+        self.assertEqual(check.parse_images(""), [])
+        self.assertEqual(check.parse_images("not json"), [])
+
+
+class WarnDays(unittest.TestCase):
+    def setUp(self):
+        self.addCleanup(os.environ.pop, "SMELT_IMAGE_AGE_WARN_DAYS", None)
+
+    def test_default(self):
+        os.environ.pop("SMELT_IMAGE_AGE_WARN_DAYS", None)
+        self.assertEqual(check.warn_days(), check.DEFAULT_WARN_DAYS)
+
+    def test_zero_turns_it_off(self):
+        os.environ["SMELT_IMAGE_AGE_WARN_DAYS"] = "0"
+        self.assertEqual(check.warn_days(), 0)
+
+    def test_a_value_that_is_not_a_count_turns_it_off_rather_than_failing(self):
+        os.environ["SMELT_IMAGE_AGE_WARN_DAYS"] = "a fortnight"
+        self.assertEqual(check.warn_days(), 0)
+
+
+class Report(unittest.TestCase):
+    def test_names_the_oldest_and_counts_the_rest(self):
+        aged = [(d, f"img{d}:main") for d in range(100, 93, -1)]
+        out = check.report(aged, total=12, days=14)
+        self.assertIn("7 of 12 images", out)
+        self.assertIn("img100:main", out)
+        self.assertIn("(+2 more)", out)
+        self.assertIn("make pull", out)
+
+
+if __name__ == "__main__":
+    unittest.main()
