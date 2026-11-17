@@ -64,7 +64,8 @@ func TestGenerateKeysWritesPiriNodesFile(t *testing.T) {
 		{Name: "piri-0", Index: 0},
 		{Name: "piri-1", Index: 1},
 	}
-	if err := GenerateKeys(keysDir, nodes, false); err != nil {
+	hilts, ingots := manifest.DefaultNetworks()
+	if err := GenerateKeys(keysDir, nodes, hilts, ingots, false); err != nil {
 		t.Fatalf("generate: %v", err)
 	}
 

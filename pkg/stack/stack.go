@@ -38,11 +38,16 @@ import (
 
 // Stack represents a running Forge network.
 type Stack struct {
-	t         *testing.T
-	compose   compose.ComposeStack
-	tempDir   string
-	cfg       *config
+	t       *testing.T
+	compose compose.ComposeStack
+	tempDir string
+	cfg     *config
+	// The topology this stack was started with. A snapshot brings its own,
+	// so the services are not always named hilt and ingot, and there is not
+	// always one of each.
 	piriNodes []manifest.ResolvedPiriNode
+	hilts     []manifest.ResolvedHilt
+	ingots    []manifest.ResolvedIngot
 }
 
 // NewStack creates and starts a complete Forge network.
@@ -78,6 +83,10 @@ func NewStack(ctx context.Context, t *testing.T, opts ...Option) (*Stack, error)
 	// 2. Determine topology and stage filesystem state (keys/proofs/chain)
 	//    either from a snapshot or by generating fresh.
 	var resolvedNodes []manifest.ResolvedPiriNode
+	// A cold boot runs the default single network, so its services keep the
+	// names and ports this package waits on below. A snapshot brings its own,
+	// read from the manifest it was saved with.
+	resolvedHilts, resolvedIngots := manifest.DefaultNetworks()
 	var snapDesc *snapshot.Descriptor
 	var snapDir string
 	composeDir := filepath.Join(tempDir, "generated", "compose")
@@ -93,7 +102,7 @@ func NewStack(ctx context.Context, t *testing.T, opts ...Option) (*Stack, error)
 		if err != nil {
 			return nil, err
 		}
-		resolvedNodes, err = loadSnapshotTopology(snapDir)
+		resolvedNodes, resolvedHilts, resolvedIngots, err = loadSnapshotTopology(snapDir)
 		if err != nil {
 			return nil, err
 		}
@@ -111,7 +120,7 @@ func NewStack(ctx context.Context, t *testing.T, opts ...Option) (*Stack, error)
 		// file and Docker materializes it as an empty directory — e.g. a
 		// pre-ingot snapshot leaves ingot crashlooping on
 		// "reading agent key /keys/ingot.pem: is a directory".
-		if err := generate.GenerateKeys(filepath.Join(tempDir, "generated", "keys"), resolvedNodes, false); err != nil {
+		if err := generate.GenerateKeys(filepath.Join(tempDir, "generated", "keys"), resolvedNodes, resolvedHilts, resolvedIngots, false); err != nil {
 			return nil, fmt.Errorf("generate missing keys: %w", err)
 		}
 		t.Logf("smeltery: booting from snapshot %s (%d piri node(s), %d volume(s))",
@@ -119,10 +128,10 @@ func NewStack(ctx context.Context, t *testing.T, opts ...Option) (*Stack, error)
 	} else {
 		resolvedNodes = cfg.resolveNodes()
 		keysDir := filepath.Join(tempDir, "generated", "keys")
-		if err := generate.GenerateKeys(keysDir, resolvedNodes, false); err != nil {
+		if err := generate.GenerateKeys(keysDir, resolvedNodes, resolvedHilts, resolvedIngots, false); err != nil {
 			return nil, fmt.Errorf("generate keys: %w", err)
 		}
-		if err := generateProofs(tempDir, resolvedNodes); err != nil {
+		if err := generateProofs(tempDir, resolvedNodes, resolvedHilts, resolvedIngots); err != nil {
 			return nil, fmt.Errorf("generate proofs: %w", err)
 		}
 		// Cold-boot: compose bind-mounts blockchain state from
@@ -144,6 +153,14 @@ func NewStack(ctx context.Context, t *testing.T, opts ...Option) (*Stack, error)
 		return nil, fmt.Errorf("write piri compose: %w", err)
 	}
 
+	// The hilt and ingot compose files, their per-instance configs and each
+	// vault's server config. The SDK always runs the default single network,
+	// so the services come out named hilt and ingot, on the ports and DIDs
+	// the rest of this package waits on.
+	if _, _, err := generate.GenerateNetworks(tempDir, resolvedHilts, resolvedIngots, resolvedNodes); err != nil {
+		return nil, fmt.Errorf("generate networks: %w", err)
+	}
+
 	// 4. Build environment passed to compose. Starts with image overrides
 	//    and then fills in the SMELT_* vars that the compose files'
 	//    `${VAR:-default}` port mappings and network `external:` flag read
@@ -159,7 +176,7 @@ func NewStack(ctx context.Context, t *testing.T, opts ...Option) (*Stack, error)
 	//        so validation emails embed a URL the ExecDoer-based clicker
 	//        can reach
 	env := cfg.buildEnv()
-	for k, v := range testModeEnv(resolvedNodes) {
+	for k, v := range testModeEnv(resolvedNodes, resolvedHilts, resolvedIngots) {
 		env[k] = v
 	}
 
@@ -169,7 +186,7 @@ func NewStack(ctx context.Context, t *testing.T, opts ...Option) (*Stack, error)
 
 	// Binary injection: build any workspace-selected services and/or use
 	// explicitly-provided binaries, then mount them over the published images.
-	overridePath, err := maybeBinaryOverride(t, tempDir, cfg, resolvedNodes)
+	overridePath, err := maybeBinaryOverride(t, tempDir, cfg, resolvedNodes, resolvedHilts, resolvedIngots)
 	if err != nil {
 		return nil, err
 	}
@@ -197,6 +214,8 @@ func NewStack(ctx context.Context, t *testing.T, opts ...Option) (*Stack, error)
 		tempDir:   tempDir,
 		cfg:       cfg,
 		piriNodes: resolvedNodes,
+		hilts:     resolvedHilts,
+		ingots:    resolvedIngots,
 	}
 
 	// Register cleanup BEFORE compose.Up. If Up fails (e.g., a container
@@ -252,9 +271,19 @@ func NewStack(ctx context.Context, t *testing.T, opts ...Option) (*Stack, error)
 		WaitForService("delegator", wait.ForHTTP("/healthcheck").WithPort("80/tcp").WithStartupTimeout(2*time.Minute)).
 		WaitForService("email", wait.ForHTTP("/api/server").WithPort("80/tcp").WithStartupTimeout(2*time.Minute)).
 		WaitForService("plc", wait.ForHTTP("/_health").WithPort("3000/tcp").WithStartupTimeout(2*time.Minute)).
-		WaitForService("swarf", wait.ForHTTP("/health").WithPort("80/tcp").WithStartupTimeout(2*time.Minute)).
-		WaitForService("hilt", wait.ForHTTP("/health").WithPort("80/tcp").WithStartupTimeout(2*time.Minute)).
-		WaitForService("ingot", wait.ForHTTP("/health").WithPort("80/tcp").WithStartupTimeout(2*time.Minute))
+		WaitForService("swarf", wait.ForHTTP("/health").WithPort("80/tcp").WithStartupTimeout(2*time.Minute))
+
+	// Every network the topology resolved to, not just the leading pair: a
+	// snapshot may carry several, and one left unwaited could still be
+	// crash-looping when a test starts using the stack.
+	for _, h := range resolvedHilts {
+		waitStack = waitStack.WaitForService(h.Name,
+			wait.ForHTTP("/health").WithPort("80/tcp").WithStartupTimeout(2*time.Minute))
+	}
+	for _, g := range resolvedIngots {
+		waitStack = waitStack.WaitForService(g.Name,
+			wait.ForHTTP("/health").WithPort("80/tcp").WithStartupTimeout(2*time.Minute))
+	}
 
 	// Wait for all piri nodes
 	for _, node := range resolvedNodes {
@@ -418,28 +447,31 @@ func (s *Stack) EmailEndpoint() string {
 	return fmt.Sprintf("http://%s:%s", host, port.Port())
 }
 
-// IngotEndpoint returns the host S3 endpoint for the ingot gateway
-// (container port 80, the did:web convention). The host is normalized to
+// IngotEndpoint returns the host S3 endpoint for the leading ingot gateway
+// (container port 80, the did:web convention). A stack of several gateways
+// has this one serve the first region; the rest are reached by name.
+// The host is normalized to
 // 127.0.0.1 rather than
 // "localhost": the AWS SDK uses virtual-host-style addressing
 // (bucket.host) for a hostname endpoint but path-style for an IP, and
 // ingot's versitygw front end is path-style — a hostname endpoint yields
 // 405 MethodNotAllowed on CreateBucket.
 func (s *Stack) IngotEndpoint() string {
-	container, err := s.compose.ServiceContainer(context.Background(), "ingot")
+	name := s.ingots[0].Name
+	container, err := s.compose.ServiceContainer(context.Background(), name)
 	if err != nil {
-		s.t.Fatalf("getting ingot container: %v", err)
+		s.t.Fatalf("getting %s container: %v", name, err)
 	}
 	host, err := container.Host(context.Background())
 	if err != nil {
-		s.t.Fatalf("getting ingot host: %v", err)
+		s.t.Fatalf("getting %s host: %v", name, err)
 	}
 	if host == "localhost" {
 		host = "127.0.0.1"
 	}
 	port, err := container.MappedPort(context.Background(), "80/tcp")
 	if err != nil {
-		s.t.Fatalf("getting ingot port: %v", err)
+		s.t.Fatalf("getting %s port: %v", name, err)
 	}
 	return fmt.Sprintf("http://%s:%s", host, port.Port())
 }
@@ -461,27 +493,29 @@ func (s *Stack) SwarfEndpoint() string {
 	return fmt.Sprintf("http://%s:%s", host, port.Port())
 }
 
-// HiltEndpoint returns the HTTP endpoint for the hilt tenant-management
-// service — both its partner REST API and its UCAN RPC listener share
-// container port 80.
+// HiltEndpoint returns the HTTP endpoint for the leading hilt
+// tenant-management service — both its partner REST API and its UCAN RPC
+// listener share container port 80. A stack of several hilts has this one
+// hold the leading gateway's tenants; the rest are reached by name.
 func (s *Stack) HiltEndpoint() string {
-	container, err := s.compose.ServiceContainer(context.Background(), "hilt")
+	name := s.hilts[0].Name
+	container, err := s.compose.ServiceContainer(context.Background(), name)
 	if err != nil {
-		s.t.Fatalf("getting hilt container: %v", err)
+		s.t.Fatalf("getting %s container: %v", name, err)
 	}
 	host, err := container.Host(context.Background())
 	if err != nil {
-		s.t.Fatalf("getting hilt host: %v", err)
+		s.t.Fatalf("getting %s host: %v", name, err)
 	}
 	port, err := container.MappedPort(context.Background(), "80/tcp")
 	if err != nil {
-		s.t.Fatalf("getting hilt port: %v", err)
+		s.t.Fatalf("getting %s port: %v", name, err)
 	}
 	return fmt.Sprintf("http://%s:%s", host, port.Port())
 }
 
 // defaultHiltPartnerKey mirrors the compose default in
-// systems/hilt/compose.yml: HILT_AUTH_PARTNER_KEY=${HILT_PARTNER_KEY:-dev-partner-key}.
+// the generated hilt compose: HILT_AUTH_PARTNER_KEY=${HILT_PARTNER_KEY:-dev-partner-key}.
 const defaultHiltPartnerKey = "dev-partner-key"
 
 // HiltPartnerKey returns the pre-shared bearer key hilt's Tenant API
@@ -499,7 +533,7 @@ func (s *Stack) HiltPartnerKey() string {
 // and writes a compose override mounting them — plus any explicitly-provided
 // binaries (WithServiceBinary / WithPiriBinary) — over the published images.
 // Returns "" when there are no binaries to inject.
-func maybeBinaryOverride(t *testing.T, tempDir string, cfg *config, nodes []manifest.ResolvedPiriNode) (string, error) {
+func maybeBinaryOverride(t *testing.T, tempDir string, cfg *config, nodes []manifest.ResolvedPiriNode, hilts []manifest.ResolvedHilt, ingots []manifest.ResolvedIngot) (string, error) {
 	bins := map[string]string{}
 
 	if cfg.workspaceBinaries {
@@ -547,11 +581,23 @@ func maybeBinaryOverride(t *testing.T, tempDir string, cfg *config, nodes []mani
 		return "", nil
 	}
 
-	nodeNames := make([]string, len(nodes))
-	for i, n := range nodes {
-		nodeNames[i] = n.Name
+	// Every instance the manifest declares, so a workspace build reaches the
+	// whole stack rather than its leading hilt and gateway.
+	inst := workspace.Instances{
+		Piri:   make([]string, len(nodes)),
+		Hilts:  make([]string, len(hilts)),
+		Ingots: make([]string, len(ingots)),
 	}
-	data, err := workspace.RenderOverride(bins, configs, nodeNames)
+	for i, n := range nodes {
+		inst.Piri[i] = n.Name
+	}
+	for i, h := range hilts {
+		inst.Hilts[i] = h.Name
+	}
+	for i, g := range ingots {
+		inst.Ingots[i] = g.Name
+	}
+	data, err := workspace.RenderOverride(bins, configs, inst)
 	if err != nil {
 		return "", err
 	}

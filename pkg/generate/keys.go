@@ -17,30 +17,43 @@ import (
 	"github.com/fil-forge/ucantone/multikey"
 )
 
-// nonPiriServiceKeys is the list of services that need Ed25519 keys (excluding piri).
-var nonPiriServiceKeys = []string{
+// fixedServiceKeys is the list of singleton services that need Ed25519 keys.
+// Piri, hilt and ingot are declared in the manifest and keyed per instance.
+var fixedServiceKeys = []string{
 	"upload",
 	"indexer",
 	"delegator",
 	"signing-service",
 	"etracker",
 	"guppy",
-	"hilt",
-	"ingot",
 	"swarf",
 }
 
 // GenerateKeys generates all cryptographic keys for the stack.
 // Idempotent: existing keys are skipped unless force is true.
-func GenerateKeys(keysDir string, nodes []manifest.ResolvedPiriNode, force bool) error {
+func GenerateKeys(keysDir string, nodes []manifest.ResolvedPiriNode, hilts []manifest.ResolvedHilt, ingots []manifest.ResolvedIngot, force bool) error {
 	if err := os.MkdirAll(keysDir, 0755); err != nil {
 		return fmt.Errorf("create keys dir: %w", err)
 	}
 
-	// Generate Ed25519 keys for non-piri services.
-	for _, svc := range nonPiriServiceKeys {
+	// Generate Ed25519 keys for the singleton services.
+	for _, svc := range fixedServiceKeys {
 		if err := generateEd25519Key(keysDir, svc, force); err != nil {
 			return fmt.Errorf("generate key for %s: %w", svc, err)
+		}
+	}
+
+	// One identity per declared hilt and ingot. The first of each is named
+	// "hilt" and "ingot", so a single-network stack keeps the key files it
+	// already has on disk.
+	for _, h := range hilts {
+		if err := generateEd25519Key(keysDir, h.Name, force); err != nil {
+			return fmt.Errorf("generate key for %s: %w", h.Name, err)
+		}
+	}
+	for _, i := range ingots {
+		if err := generateEd25519Key(keysDir, i.Name, force); err != nil {
+			return fmt.Errorf("generate key for %s: %w", i.Name, err)
 		}
 	}
 
@@ -69,7 +82,29 @@ func GenerateKeys(keysDir string, nodes []manifest.ResolvedPiriNode, force bool)
 		return fmt.Errorf("write piri nodes file: %w", err)
 	}
 
+	if err := writeNetworksFile(keysDir, ingots); err != nil {
+		return fmt.Errorf("write networks file: %w", err)
+	}
+
 	return nil
+}
+
+// NetworksFile is the name of the file in the keys directory describing the
+// declared topology: one tab-separated `<hilt> <ingot> <region>` line per
+// gateway, in manifest order. It holds no secrets, so the shell steps that
+// need the shape of the stack but none of its keys — proof generation and
+// each hilt's provider registration — read it directly.
+const NetworksFile = "networks.tsv"
+
+// writeNetworksFile rewrites [NetworksFile] so it always reflects the
+// current manifest. A gateway that leaves its region to INGOT_REGION writes
+// an empty third field, which the readers substitute at run time.
+func writeNetworksFile(keysDir string, ingots []manifest.ResolvedIngot) error {
+	var b strings.Builder
+	for _, i := range ingots {
+		fmt.Fprintf(&b, "%s\t%s\t%s\n", i.Hilt, i.Name, i.Region)
+	}
+	return os.WriteFile(filepath.Join(keysDir, NetworksFile), []byte(b.String()), 0644)
 }
 
 // PiriNodesFile is the name of the file in the keys directory listing the DID

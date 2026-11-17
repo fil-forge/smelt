@@ -6,6 +6,13 @@ bodies) and a **catalog-plane** CAR (MST nodes + manifests), and ships each
 plane independently to Forge through the upload service (sprue) as a
 guppy-style edge client.
 
+A stack runs one gateway per region. The services below are what each one
+gets; `smelt generate` writes them into `generated/compose/ingot.yml` from
+the `ingot` section of `smelt.yml`, along with a rendered
+`generated/ingot/<name>.yaml` config, so this directory holds no compose file
+of its own. A manifest that declares no gateway gets the single one described
+here. See [docs/MULTI_NETWORK.md](../../docs/MULTI_NETWORK.md).
+
 ## Services
 
 - **ingot** — the S3 gateway daemon (forge mode).
@@ -26,11 +33,15 @@ guppy-style edge client.
 | 15131 | 5432 | ingot-postgres | PostgreSQL |
 | 15132 | 8200 | ingot-openbao | OpenBao HTTP API |
 
+A second gateway is `ingot-1`, with `ingot-1-openbao` beside it, on ports
+15133 and 15134; a third is `ingot-2` on 15135 and 15136. They share
+`ingot-postgres`, each on its own database.
+
 ## Configuration
 
 - `config/config.yaml` - mounted at `/etc/ingot/config.yaml` (ingot's default
   search path). `INGOT_*` env vars in ingot's environment set any of its
-  config keys, with `_` for `.`; `compose.yml` passes on only the ones it
+  config keys, with `_` for `.`; the generated compose passes on only the ones it
   lists. Ingot builds before
   [fil-forge/ingot#228](https://github.com/fil-forge/ingot/pull/228) apply
   them only to keys the file sets or ingot gives a default.
@@ -55,7 +66,7 @@ guppy-style edge client.
   clear the per-key authorization caches.
 - Region key: `regionkey.provider: openbao` against `http://ingot-openbao:8200`,
   transit mount `transit`, key `region-kek`. The token is
-  `INGOT_REGIONKEY_OPENBAO_TOKEN` in `compose.yml` (default
+  `INGOT_REGIONKEY_OPENBAO_TOKEN` in the generated compose (default
   `dev-ingot-region-token`, override with `INGOT_OPENBAO_TOKEN=... make up`).
   Ingot images that predate the openbao provider
   ([fil-forge/ingot#105](https://github.com/fil-forge/ingot/pull/105)) ignore
@@ -77,7 +88,8 @@ Per the [regional security and key management RFC](https://github.com/fil-one/RF
 each blob's CEK is wrapped by a transit `aes256-gcm96` key created with
 `derived=true` (the wrap is bound to the blob's space and digest) and
 `exportable=false`, held in an OpenBao local to the region. `ingot-openbao`
-is that server. It runs as a real `bao server` (`openbao/config.hcl`:
+is that server. It runs as a real `bao server` (`openbao/config.hcl.tmpl`,
+rendered per gateway into `generated/openbao/<vault>.hcl`:
 TCP listener, raft storage) rather than dev mode, so the KEK persists.
 
 `ingot-openbao-init` runs on every `make up`:

@@ -55,7 +55,8 @@ func TestGenerateKeys(t *testing.T) {
 		{Name: "piri-0", Index: 0, Storage: manifest.StorageSpec{DB: "sqlite", Blob: "filesystem"}},
 	}
 
-	err := generate.GenerateKeys(keysDir, nodes, false)
+	hilts, ingots := manifest.DefaultNetworks()
+	err := generate.GenerateKeys(keysDir, nodes, hilts, ingots, false)
 	if err != nil {
 		t.Fatalf("GenerateKeys failed: %v", err)
 	}
@@ -98,11 +99,15 @@ func TestEmbeddedFilesExist(t *testing.T) {
 		// service fails to start only inside SDK stacks (CI), not `make up`.
 		"systems/hilt/register-provider.sh",
 		"systems/upload/register-providers.sh",
-		"systems/ingot/openbao/config.hcl",
 		"systems/ingot/openbao/init.sh",
-		"systems/hilt/openbao/config.hcl",
 		"systems/hilt/openbao/init.sh",
 		"systems/common/openbao/bootstrap.sh",
+		"systems/common/postgres-init.sh",
+		// Rendered per instance by the generator, so the template has to
+		// travel with the module too.
+		"systems/ingot/config/config.yaml.tmpl",
+		"systems/ingot/openbao/config.hcl.tmpl",
+		"systems/hilt/openbao/config.hcl.tmpl",
 	}
 
 	for _, f := range files {

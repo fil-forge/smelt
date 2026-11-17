@@ -10,6 +10,7 @@ import "embed"
 
 //go:embed systems/common/compose.yml
 //go:embed systems/common/openbao/*
+//go:embed systems/common/postgres-init.sh
 
 //go:embed systems/blockchain/compose.yml
 //go:embed systems/blockchain/state/deployed-addresses.json
@@ -21,11 +22,12 @@ import "embed"
 //go:embed systems/guppy/compose.yml
 //go:embed systems/guppy/config/*
 
-//go:embed systems/hilt/compose.yml
+// hilt and ingot have no compose.yml of their own: `smelt generate` writes
+// generated/compose/hilt.yml and ingot.yml from the manifest, and renders
+// the templates below once per declared instance.
 //go:embed systems/hilt/register-provider.sh
 //go:embed systems/hilt/openbao/*
 
-//go:embed systems/ingot/compose.yml
 //go:embed systems/ingot/config/*
 //go:embed systems/ingot/openbao/*
 

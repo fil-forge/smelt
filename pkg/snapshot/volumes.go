@@ -36,14 +36,33 @@ func resolveVolumes(m *manifest.Manifest) ([]string, error) {
 		"dynamodb-data",       // systems/common — delegator allow list, upload registry
 		"guppy-data",          // systems/guppy — client's login/space state
 		"swarf-postgres-data", // systems/swarf — revocation records
-		"hilt-postgres-data",  // systems/hilt — tenant state
-		"hilt-vault-data",     // systems/hilt — tenant/access-key private keys (raft storage)
-		"hilt-vault-init",     // systems/hilt — unseal share for the above; restored together
+		"hilt-postgres-data",  // systems/hilt — tenant state, every network's database
 		"plc-postgres-data",   // systems/plc — DID PLC registry
-		"ingot-data",          // systems/ingot — node state
-		"ingot-postgres-data", // systems/ingot — registry
-		"ingot-openbao-data",  // systems/ingot — region KEK (raft storage)
-		"ingot-openbao-init",  // systems/ingot — unseal share for the above; restored together
+		"ingot-postgres-data", // systems/ingot — registry, every gateway's database
+	}
+
+	// Per-network volumes. The databases above are shared, but the keys are
+	// not: each hilt holds its tenants' private keys in its own vault and
+	// each gateway its region KEK in its own. Saving the rows without them
+	// restores tenants that cannot be signed for and objects that cannot be
+	// read, so the set has to follow the manifest rather than name the
+	// default pair.
+	hilts, ingots, err := m.ResolveNetworks()
+	if err != nil {
+		return nil, fmt.Errorf("resolve networks: %w", err)
+	}
+	for _, h := range hilts {
+		vols = append(vols,
+			h.Vault()+"-data", // tenant/access-key private keys (raft storage)
+			h.Vault()+"-init", // unseal share for the above; restored together
+		)
+	}
+	for _, i := range ingots {
+		vols = append(vols,
+			i.Name+"-data",    // gateway node state
+			i.Vault()+"-data", // region KEK (raft storage)
+			i.Vault()+"-init", // unseal share for the above; restored together
+		)
 	}
 
 	// Per-piri data volumes.

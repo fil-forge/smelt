@@ -14,6 +14,12 @@ On tenant creation, hilt generates a `did:plc` tenant key, publishes its
 genesis operation to the local [PLC directory](../plc/), and registers
 the tenant as a customer with the upload service via `/customer/add`.
 
+A stack runs one hilt per storage network. The services below are what each
+one gets; `smelt generate` writes them into `generated/compose/hilt.yml` from
+the `hilt` section of `smelt.yml`, so this directory holds no compose file of
+its own. A manifest that declares no hilt gets the single one described here.
+See [docs/MULTI_NETWORK.md](../../docs/MULTI_NETWORK.md).
+
 ## Services
 
 - **hilt** - Tenant management service (`ghcr.io/fil-forge/hilt:main`)
@@ -25,6 +31,11 @@ the tenant as a customer with the upload service via `/customer/add`.
   provisions the KV mount, hilt's policy and hilt's scoped token
   (`openbao/init.sh`, with the shared bootstrap in
   `../common/openbao/bootstrap.sh`)
+- **hilt-init** - one-shot: registers this hilt's gateways as the providers
+  for the regions they serve (`register-provider.sh`)
+
+A second hilt is `hilt-1`, with `hilt-1-vault` and `hilt-1-init` beside it,
+on ports 15113 and 15114. It shares `hilt-postgres`, on its own database.
 
 ## Ports
 
@@ -36,7 +47,8 @@ the tenant as a customer with the upload service via `/customer/add`.
 
 ## Configuration
 
-All configuration is via `HILT_*` environment variables in `compose.yml`:
+All configuration is via `HILT_*` environment variables, which the generator
+writes into `generated/compose/hilt.yml`:
 
 - Identity: `/keys/hilt.pem` wrapped as `did:web:hilt` (DID document served at
   `/.well-known/did.json`).
@@ -98,7 +110,7 @@ Registration is idempotent — when the record already exists in postgres the
 
 - **Image versions**: the flow needs hilt with did:web resolver support
   (hilt `02b2afc`, config `HILT_SERVER_INSECURE_DID_RESOLUTION` — set in
-  `compose.yml`) and the `openbao` vault backend (`HILT_VAULT_OPENBAO_*`
+  the generated compose) and the `openbao` vault backend (`HILT_VAULT_OPENBAO_*`
   config; earlier builds only know `hashicorp` and fail startup with an
   unknown `vault.type`), plus sprue with the `/customer/add` handler (sprue
   `1f27110`). If the published `:main` images predate these, build from

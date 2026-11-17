@@ -54,9 +54,41 @@ var Services = map[string]serviceBuild{
 	"indexer":         {moduleDir: "indexing-service", buildTarget: "./cmd", binPath: "/usr/bin/indexer"},
 	"delegator":       {moduleDir: "delegator", buildTarget: ".", binPath: "/usr/bin/registrar"},
 	"guppy":           {moduleDir: "guppy", buildTarget: ".", binPath: "/usr/bin/guppy"},
-	"hilt":            {moduleDir: "hilt", buildTarget: "./cmd/main.go", binPath: "/usr/bin/hilt", alsoBinIn: []string{"hilt-init"}},
-	"ingot":           {moduleDir: "ingot", buildTarget: "./cmd/ingot", binPath: "/usr/bin/ingot", configPath: "/etc/ingot/config.yaml"},
-	"swarf":           {moduleDir: "swarf", buildTarget: "./cmd/swarf", binPath: "/usr/bin/swarf", configPath: "/etc/swarf/config.yaml"},
+	// hilt's registrar is named after its own instance, so it is derived in
+	// the fan-out rather than listed here.
+	"hilt":  {moduleDir: "hilt", buildTarget: "./cmd/main.go", binPath: "/usr/bin/hilt"},
+	"ingot": {moduleDir: "ingot", buildTarget: "./cmd/ingot", binPath: "/usr/bin/ingot", configPath: "/etc/ingot/config.yaml"},
+	"swarf": {moduleDir: "swarf", buildTarget: "./cmd/swarf", binPath: "/usr/bin/swarf", configPath: "/etc/swarf/config.yaml"},
+}
+
+// Instances are the compose services a manifest fans a build out to. A
+// service declared once in Services can run many times: piri as its nodes,
+// and hilt and ingot as the networks and regions smelt.yml declares. A build
+// that reached only the first of them would leave the rest on the published
+// image, which looks like the change not taking effect.
+type Instances struct {
+	Piri   []string
+	Hilts  []string
+	Ingots []string
+}
+
+// fanOut is every compose service a build of `service` must reach. A hilt
+// also runs its own registrar, which invokes the same image's CLI.
+func (i Instances) fanOut(service string) []string {
+	switch service {
+	case "piri":
+		return i.Piri
+	case "hilt":
+		names := make([]string, 0, len(i.Hilts)*2)
+		for _, h := range i.Hilts {
+			names = append(names, h, h+"-init")
+		}
+		return names
+	case "ingot":
+		return i.Ingots
+	default:
+		return []string{service}
+	}
 }
 
 // libforgeDir is the workspace dir of the shared library. Its presence in the
@@ -221,19 +253,15 @@ func BuildBinary(root, service, outDir string) (string, error) {
 // for the given smelt services: the service itself, its registrar-style
 // siblings (alsoBinIn), and for piri every generated piri-N node. Sorted and
 // without duplicates, ready for `docker compose up --force-recreate`.
-func Containers(services, piriNodes []string) ([]string, error) {
+func Containers(services []string, inst Instances) ([]string, error) {
 	seen := map[string]bool{}
 	for _, service := range services {
 		spec, ok := Services[service]
 		if !ok {
 			return nil, fmt.Errorf("unknown service %q", service)
 		}
-		if service == "piri" {
-			for _, node := range piriNodes {
-				seen[node] = true
-			}
-		} else {
-			seen[service] = true
+		for _, name := range inst.fanOut(service) {
+			seen[name] = true
 		}
 		for _, also := range spec.alsoBinIn {
 			seen[also] = true
@@ -255,18 +283,14 @@ func Containers(services, piriNodes []string) ([]string, error) {
 // path inside an existing directory mount shadows just that file (Docker
 // resolves nested binds by path depth), so a config override coexists with the
 // base compose's config-dir mount.
-func RenderOverride(binaries, configs map[string]string, piriNodes []string) ([]byte, error) {
+func RenderOverride(binaries, configs map[string]string, inst Instances) ([]byte, error) {
 	volumes := map[string][]string{}
 
 	addMount := func(service, hostPath, containerPath string) {
 		mount := fmt.Sprintf("%s:%s:ro", hostPath, containerPath)
-		if service == "piri" {
-			for _, node := range piriNodes {
-				volumes[node] = append(volumes[node], mount)
-			}
-			return
+		for _, name := range inst.fanOut(service) {
+			volumes[name] = append(volumes[name], mount)
 		}
-		volumes[service] = append(volumes[service], mount)
 	}
 
 	for service, hostPath := range binaries {

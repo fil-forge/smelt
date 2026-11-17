@@ -153,10 +153,19 @@ GENERATE := go run ./cmd/smelt generate && mkdir -p $(dir $(MANIFEST_STAMP)) && 
 generate:
 	@$(GENERATE)
 
-# File target: rebuild the generated piri compose when the manifest or
-# generator source changes. Compose-invoking targets below depend on this
-# so fresh checkouts and post-nuke states regenerate piri.yml on demand.
-generated/compose/piri.yml: $(MANIFEST) $(shell find cmd/smelt pkg/generate pkg/manifest -name '*.go' 2>/dev/null) | manifest-switch
+# The templates generation renders per instance. Editing one has to
+# regenerate, or a service keeps a config built from the old text.
+TEMPLATES := $(wildcard systems/ingot/config/*.tmpl systems/hilt/openbao/*.tmpl systems/ingot/openbao/*.tmpl)
+
+# The compose files generation writes. The root compose file includes all
+# three, so compose cannot parse the project while any is missing.
+GENERATED_COMPOSE := generated/compose/piri.yml generated/compose/hilt.yml generated/compose/ingot.yml
+
+# File target: rebuild the generated compose files when the manifest, the
+# generator source or a template changes. One run writes all three, so
+# piri.yml stands for them. Compose-invoking targets below depend on this, so
+# fresh checkouts and post-nuke states regenerate on demand.
+generated/compose/piri.yml: $(MANIFEST) $(TEMPLATES) $(shell find cmd/smelt pkg/generate pkg/manifest -name '*.go' 2>/dev/null) | manifest-switch compose-complete
 	@$(GENERATE)
 
 # Timestamps miss a switch between two existing manifests (both are older
@@ -165,6 +174,13 @@ generated/compose/piri.yml: $(MANIFEST) $(shell find cmd/smelt pkg/generate pkg/
 manifest-switch:
 	@if [ -f generated/compose/piri.yml ] && [ "$$(cat $(MANIFEST_STAMP) 2>/dev/null)" != "$(MANIFEST)" ]; then $(GENERATE); fi
 .PHONY: manifest-switch
+
+# Timestamps miss a missing file too. A checkout that has piri.yml from
+# before hilt.yml and ingot.yml existed looks up to date, and every
+# compose-invoking target then fails on an include that is not there.
+compose-complete:
+	@for f in $(GENERATED_COMPOSE); do [ -f "$$f" ] || { $(GENERATE); break; }; done
+.PHONY: compose-complete
 
 # Initialize the environment (generate keys, proofs, create network)
 init: generate
@@ -252,7 +268,7 @@ nuke: generated/compose/piri.yml check-docker
 	$(COMPOSE) down -v --remove-orphans --rmi local 2>/dev/null || true
 	@# Also remove any dangling volumes from this project
 	$(DOCKER) volume ls -q --filter "name=smelt_" | xargs -r $(DOCKER) volume rm 2>/dev/null || true
-	rm -rf generated/keys generated/proofs generated/compose
+	rm -rf generated/keys generated/proofs generated/compose generated/ingot generated/openbao
 	rm -rf generated/snapshot-scratch/anvil-state.json generated/snapshot-scratch/deployed-addresses.json
 	rm -f generated/snapshot-scratch/smelt.yml
 	@echo ""
@@ -266,7 +282,7 @@ fresh: generated/compose/piri.yml check-docker
 	$(COMPOSE) down -v --remove-orphans --rmi local 2>/dev/null || true
 	@# Also remove any dangling volumes from this project
 	$(DOCKER) volume ls -q --filter "name=smelt_" | xargs -r $(DOCKER) volume rm 2>/dev/null || true
-	rm -rf generated/keys generated/proofs generated/compose
+	rm -rf generated/keys generated/proofs generated/compose generated/ingot generated/openbao
 	rm -rf generated/snapshot-scratch/anvil-state.json generated/snapshot-scratch/deployed-addresses.json
 	rm -f generated/snapshot-scratch/smelt.yml
 	@echo ""

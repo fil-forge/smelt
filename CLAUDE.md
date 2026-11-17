@@ -57,7 +57,9 @@ smelt/
 │   │   ├── delegator.pem   # Delegation service identity
 │   │   ├── upload.pem      # Upload service identity
 │   │   └── payer-key.hex   # Blockchain transaction signing
-│   ├── compose/            # Generated piri.yml (from `make generate`)
+│   ├── compose/            # Generated piri.yml, hilt.yml, ingot.yml (from `make generate`)
+│   ├── ingot/              # Generated per-gateway ingot configs
+│   ├── openbao/            # Generated per-vault server configs
 │   ├── proofs/             # UCAN delegation proofs
 │   ├── snapshots/          # Saved stack-state checkpoints (snapshot save/load)
 │   ├── snapshot-scratch/   # Working chain state + session manifest when loaded
@@ -83,6 +85,7 @@ smelt/
     ├── GETTING_STARTED.md  # First-time setup walkthrough
     ├── ARCHITECTURE.md     # Service interaction diagrams and data flow
     ├── MULTI_PIRI.md       # Multi-piri design and manifest reference
+    ├── MULTI_NETWORK.md    # Multiple hilts and ingots: networks and regions
     ├── SNAPSHOTS.md        # Snapshot save/load (skip slow cold-boot)
     ├── TROUBLESHOOTING.md  # Common issues and diagnostics
     ├── PERF_TESTING.md     # Benchmark loop against the local ingot
@@ -111,11 +114,33 @@ piri:
     # Add more nodes for multi-provider scenarios (up to 9 total)
 ```
 
-Running `make generate` (or implicitly `make up`) regenerates `generated/compose/piri.yml` and any new keys. The Makefile has a file-target rule that reruns the generator whenever `smelt.yml` or any file under `cmd/smelt/`, `pkg/generate/`, or `pkg/manifest/` changes, so compose-invoking targets transparently stay in sync on fresh checkouts and post-`nuke` states.
+Running `make generate` (or implicitly `make up`) regenerates `generated/compose/piri.yml`, `hilt.yml` and `ingot.yml`, the per-instance configs under `generated/ingot/` and `generated/openbao/`, and any new keys. The Makefile has a file-target rule that reruns the generator whenever `smelt.yml` or any file under `cmd/smelt/`, `pkg/generate/`, or `pkg/manifest/` changes, so compose-invoking targets transparently stay in sync on fresh checkouts and post-`nuke` states.
 
 To run a different topology without editing the tracked file, point `SMELT_MANIFEST` at another manifest (ready-made ones live in `manifests/`), e.g. `SMELT_MANIFEST=manifests/piri-1-postgres-filesystem.yml make up`. Export it for the whole session: generate, workspace build and snapshot save all read it.
 
 See [docs/MULTI_PIRI.md](docs/MULTI_PIRI.md) for the full manifest schema, shared infrastructure (postgres, MinIO), Anvil wallet mapping, and hot-add/remove behavior.
+
+### Configuring storage networks
+
+The `hilt` and `ingot` sections of `smelt.yml` declare the storage networks: one hilt per network, one ingot per region it serves. Both may be left out, which is the single network smelt has always run, on the same names, DIDs and ports.
+
+```yaml
+hilt:
+  nodes:
+    - name: hilt
+    - name: hilt-1
+ingot:
+  nodes:
+    - name: ingot
+      region: us-east-9
+    - name: ingot-1
+      region: eu-central-9
+    - name: ingot-2
+      region: us-west-9
+      hilt: hilt-1
+```
+
+A tenant on a network is region-free: its access keys work at every region the network serves, and its buckets may live in any of them. A key cannot reach a second network. `SMELT_MANIFEST=manifests/networks-2.yml make up` runs the topology above; see [docs/MULTI_NETWORK.md](docs/MULTI_NETWORK.md) for the schema, what each instance gets, and the ports.
 
 ### Starting and Stopping
 
@@ -240,7 +265,8 @@ aws --profile smelt s3 cp README.md s3://my-bucket/
 
 `scripts/s3-key.sh` creates the hilt tenant if needed, mints an access key with every S3
 permission, and writes the profile with the stack's region, ingot's endpoint and path-style
-addressing. `TENANT=` / `PROFILE=` override the defaults. hilt-vault keeps the tenant's
+addressing. `TENANT=` / `PROFILE=` override the defaults, and on a multi-network stack
+`SMELT_HILT=` / `SMELT_INGOT=` pick which network the key belongs to. hilt-vault keeps the tenant's
 signing key on a volume, so the profile keeps working across `make down && make up`. A stack
 whose vault has lost the key (one restored from a snapshot saved before the vault persisted)
 makes the script move on to the next free tenant id (`dev-2`, ...) with a fresh key.
@@ -328,14 +354,14 @@ All host-side ports live in a dedicated `15XXX` range to avoid collision with co
 | ipni admin | 15091 | HTTP | IPNI admin |
 | ipni p2p | 15092 | libp2p | Advertisement sync |
 | piri-{N} | 15100 + N | HTTP/UCAN | Storage node(s); N defined by `smelt.yml` (default 1, max 9) |
-| hilt | 15110 | HTTP/UCAN | Tenant management (Tenant API + UCAN RPC) |
+| hilt | 15110 | HTTP/UCAN | Tenant management (Tenant API + UCAN RPC); extra hilts take 15113, 15115, … |
 | hilt-postgres | 15111 | PostgreSQL | Hilt tenant/provider store |
-| hilt-vault | 15112 | HTTP | Hilt key vault (OpenBao, raft storage) |
+| hilt-vault | 15112 | HTTP | Hilt key vault (OpenBao, raft storage); extra hilts' vaults take 15114, 15116, … |
 | plc | 15120 | HTTP | did:plc directory (reference implementation) |
 | plc-postgres | 15121 | PostgreSQL | did:plc directory store |
-| ingot | 15130 | S3/HTTP | S3 gateway over Forge |
+| ingot | 15130 | S3/HTTP | S3 gateway over Forge; extra gateways take 15133, 15135, … |
 | ingot-postgres | 15131 | PostgreSQL | Ingot registry/metadata |
-| ingot-openbao | 15132 | HTTP | Region KEK vault for ingot (OpenBao, raft storage) |
+| ingot-openbao | 15132 | HTTP | Region KEK vault for ingot (OpenBao, raft storage); extra gateways' vaults take 15134, 15136, … |
 | swarf | 15140 | HTTP/UCAN | UCAN revocation service |
 | swarf-postgres | 15141 | PostgreSQL | Swarf revocation store |
 | guppy | (none) | CLI | Client container |

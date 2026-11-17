@@ -107,12 +107,12 @@ func runWorkspaceBuild(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  reusing %s\n", svc)
 	}
 
-	nodeNames, err := resolvePiriNodeNames(projectDir)
+	inst, err := resolveInstances(projectDir)
 	if err != nil {
 		return err
 	}
 
-	data, err := workspace.RenderOverride(binaries, nil, nodeNames)
+	data, err := workspace.RenderOverride(binaries, nil, inst)
 	if err != nil {
 		return err
 	}
@@ -139,11 +139,11 @@ func runWorkspaceServices(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	nodeNames, err := resolvePiriNodeNames(projectDir)
+	inst, err := resolveInstances(projectDir)
 	if err != nil {
 		return err
 	}
-	containers, err := workspace.Containers(services, nodeNames)
+	containers, err := workspace.Containers(services, inst)
 	if err != nil {
 		return err
 	}
@@ -184,19 +184,36 @@ func restrictServices(selected, only []string) ([]string, error) {
 
 // resolvePiriNodeNames resolves piri-N service names from the active manifest so
 // the override can mount the piri binary into every node.
-func resolvePiriNodeNames(projectDir string) ([]string, error) {
+// resolveInstances is every compose service the manifest fans a build out
+// to: the piri nodes, and the hilts and gateways the declared networks run.
+func resolveInstances(projectDir string) (workspace.Instances, error) {
 	manifestPath, _ := manifest.ResolveManifestPath(projectDir)
 	m, err := manifest.Parse(manifestPath)
 	if err != nil {
-		return nil, fmt.Errorf("parse manifest: %w", err)
+		return workspace.Instances{}, fmt.Errorf("parse manifest: %w", err)
 	}
 	nodes, err := m.Resolve()
 	if err != nil {
-		return nil, fmt.Errorf("resolve manifest: %w", err)
+		return workspace.Instances{}, fmt.Errorf("resolve manifest: %w", err)
 	}
-	names := make([]string, len(nodes))
+	hilts, ingots, err := m.ResolveNetworks()
+	if err != nil {
+		return workspace.Instances{}, fmt.Errorf("resolve manifest: %w", err)
+	}
+
+	inst := workspace.Instances{
+		Piri:   make([]string, len(nodes)),
+		Hilts:  make([]string, len(hilts)),
+		Ingots: make([]string, len(ingots)),
+	}
 	for i, n := range nodes {
-		names[i] = n.Name
+		inst.Piri[i] = n.Name
 	}
-	return names, nil
+	for i, h := range hilts {
+		inst.Hilts[i] = h.Name
+	}
+	for i, g := range ingots {
+		inst.Ingots[i] = g.Name
+	}
+	return inst, nil
 }

@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"errors"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -53,7 +54,7 @@ func TestRenderOverrideBinariesAndConfigs(t *testing.T) {
 	data, err := RenderOverride(
 		map[string]string{"ingot": "/host/bin/ingot", "piri": "/host/bin/piri"},
 		map[string]string{"ingot": "/host/cfg/config.yaml"},
-		[]string{"piri-0", "piri-1"},
+		Instances{Piri: []string{"piri-0", "piri-1"}, Ingots: []string{"ingot"}},
 	)
 	if err != nil {
 		t.Fatalf("RenderOverride: %v", err)
@@ -79,7 +80,7 @@ func TestRenderOverrideRegistrarFanOut(t *testing.T) {
 	// workspace build would test a local server against the published CLI.
 	data, err := RenderOverride(
 		map[string]string{"upload": "/host/bin/sprue", "hilt": "/host/bin/hilt"},
-		nil, nil,
+		nil, Instances{Hilts: []string{"hilt"}},
 	)
 	if err != nil {
 		t.Fatalf("RenderOverride: %v", err)
@@ -102,10 +103,10 @@ func TestRenderOverrideRegistrarFanOut(t *testing.T) {
 }
 
 func TestRenderOverrideUnknownService(t *testing.T) {
-	if _, err := RenderOverride(map[string]string{"nope": "/x"}, nil, nil); err == nil {
+	if _, err := RenderOverride(map[string]string{"nope": "/x"}, nil, Instances{}); err == nil {
 		t.Fatal("expected error for unknown binary service")
 	}
-	if _, err := RenderOverride(nil, map[string]string{"nope": "/x"}, nil); err == nil {
+	if _, err := RenderOverride(nil, map[string]string{"nope": "/x"}, Instances{}); err == nil {
 		t.Fatal("expected error for unknown config service")
 	}
 }
@@ -113,13 +114,13 @@ func TestRenderOverrideUnknownService(t *testing.T) {
 func TestRenderOverrideNoConfigPath(t *testing.T) {
 	// guppy has no registered configPath — config override must error, not
 	// silently mount nowhere.
-	if _, err := RenderOverride(nil, map[string]string{"guppy": "/x"}, nil); err == nil {
+	if _, err := RenderOverride(nil, map[string]string{"guppy": "/x"}, Instances{}); err == nil {
 		t.Fatal("expected error for service without a config path")
 	}
 }
 
 func TestContainers(t *testing.T) {
-	got, err := Containers([]string{"piri", "upload", "ingot"}, []string{"piri-0", "piri-1"})
+	got, err := Containers([]string{"piri", "upload", "ingot"}, Instances{Piri: []string{"piri-0", "piri-1"}, Ingots: []string{"ingot"}})
 	if err != nil {
 		t.Fatalf("Containers: %v", err)
 	}
@@ -130,7 +131,45 @@ func TestContainers(t *testing.T) {
 }
 
 func TestContainersUnknownService(t *testing.T) {
-	if _, err := Containers([]string{"nope"}, nil); err == nil {
+	if _, err := Containers([]string{"nope"}, Instances{}); err == nil {
 		t.Fatal("expected error for unknown service")
+	}
+}
+
+// A manifest declaring several networks runs several hilts and gateways. A
+// build that reached only the leading pair would leave the rest on the
+// published image, which reads as the change not taking effect.
+func TestRenderOverrideReachesEveryInstance(t *testing.T) {
+	data, err := RenderOverride(
+		map[string]string{"hilt": "/host/bin/hilt", "ingot": "/host/bin/ingot"},
+		nil,
+		Instances{Hilts: []string{"hilt", "hilt-1"}, Ingots: []string{"ingot", "ingot-1", "ingot-2"}},
+	)
+	if err != nil {
+		t.Fatalf("RenderOverride: %v", err)
+	}
+	out := string(data)
+
+	// Each hilt and its own registrar, and every gateway. Anchored to a
+	// service key: the mount paths hold these names too.
+	for _, want := range []string{"hilt", "hilt-init", "hilt-1", "hilt-1-init", "ingot", "ingot-1", "ingot-2"} {
+		key := regexp.MustCompile(`(?m)^\s+` + regexp.QuoteMeta(want) + `:$`)
+		if !key.MatchString(out) {
+			t.Errorf("override is missing service %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestContainersReachesEveryInstance(t *testing.T) {
+	got, err := Containers(
+		[]string{"hilt", "ingot"},
+		Instances{Hilts: []string{"hilt", "hilt-1"}, Ingots: []string{"ingot", "ingot-1"}},
+	)
+	if err != nil {
+		t.Fatalf("Containers: %v", err)
+	}
+	want := []string{"hilt", "hilt-1", "hilt-1-init", "hilt-init", "ingot", "ingot-1"}
+	if strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Errorf("got %v, want %v", got, want)
 	}
 }

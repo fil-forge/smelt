@@ -6,8 +6,17 @@
 #   make s3-key                       # tenant "dev", profile "smelt"
 #   make s3-key TENANT=perf PROFILE=smelt-perf
 #
-# The region is read from the running ingot container (INGOT_REGION): it is
-# the region hilt registered ingot for and the region clients must sign with.
+# On a stack running several networks (docs/MULTI_NETWORK.md), SMELT_HILT and
+# SMELT_INGOT pick which one the key belongs to and which gateway the profile
+# talks to. The gateway has to be one its hilt registered, or every request
+# with the key is refused:
+#
+#   make s3-key SMELT_HILT=hilt-1 SMELT_INGOT=ingot-2 PROFILE=smelt-net2
+#
+# The region is read from the running gateway container (INGOT_REGION): it is
+# the region hilt registered that gateway for and the region clients must
+# sign with.
+#
 # The secret access key is written only to the AWS CLI credentials file (hilt
 # returns it once); this script never prints it. The profile also carries a
 # custom `tenant_id` key naming the tenant it belongs to.
@@ -24,6 +33,10 @@ set -euo pipefail
 
 TENANT="${TENANT:-dev}"
 PROFILE="${PROFILE:-smelt}"
+# The network this key belongs to. The defaults are the leading pair, which
+# is the whole stack unless smelt.yml declares more.
+SMELT_HILT="${SMELT_HILT:-hilt}"
+SMELT_INGOT="${SMELT_INGOT:-ingot}"
 # Hilt requires key names to be unique per tenant, so each run mints a new one.
 KEY_NAME="${KEY_NAME:-$PROFILE-$(date -u +%Y%m%dT%H%M%SZ)}"
 # Every permission hilt recognizes (its pkg/s3perm map). Hilt gives each S3
@@ -53,17 +66,17 @@ done
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-region="$(docker compose exec -T ingot printenv INGOT_REGION 2>/dev/null)" \
-  || die "cannot read INGOT_REGION from the ingot container; is the stack up? (make up)"
-[ -n "$region" ] || die "ingot container has no INGOT_REGION set"
+region="$(docker compose exec -T "$SMELT_INGOT" printenv INGOT_REGION 2>/dev/null)" \
+  || die "cannot read INGOT_REGION from the $SMELT_INGOT container; is the stack up? (make up)"
+[ -n "$region" ] || die "$SMELT_INGOT container has no INGOT_REGION set"
 
 # The partner key and the two URLs come from the running stack, so the
 # HILT_PARTNER_KEY and SMELT_*_PORT overrides given to `make up` carry over.
 # Setting HILT_PARTNER_KEY, HILT_URL or INGOT_URL for this script bypasses that.
 PARTNER_KEY="${HILT_PARTNER_KEY:-}"
 if [ -z "$PARTNER_KEY" ]; then
-  PARTNER_KEY="$(docker compose exec -T hilt printenv HILT_AUTH_PARTNER_KEY 2>/dev/null)" \
-    || die "cannot read HILT_AUTH_PARTNER_KEY from the hilt container; is the stack up? (make up)"
+  PARTNER_KEY="$(docker compose exec -T "$SMELT_HILT" printenv HILT_AUTH_PARTNER_KEY 2>/dev/null)" \
+    || die "cannot read HILT_AUTH_PARTNER_KEY from the $SMELT_HILT container; is the stack up? (make up)"
 fi
 
 # published_url <service> <container-port>: http://localhost:<host-port>
@@ -74,9 +87,9 @@ published_url() {
   echo "http://localhost:${port##*:}"
 }
 HILT_URL="${HILT_URL:-}"
-if [ -z "$HILT_URL" ]; then HILT_URL="$(published_url hilt 80)"; fi
+if [ -z "$HILT_URL" ]; then HILT_URL="$(published_url "$SMELT_HILT" 80)"; fi
 INGOT_URL="${INGOT_URL:-}"
-if [ -z "$INGOT_URL" ]; then INGOT_URL="$(published_url ingot 80)"; fi
+if [ -z "$INGOT_URL" ]; then INGOT_URL="$(published_url "$SMELT_INGOT" 80)"; fi
 
 auth=(-H "Authorization: Bearer $PARTNER_KEY" -H "Content-Type: application/json")
 
@@ -153,7 +166,7 @@ aws configure set --profile "$PROFILE" tenant_id "$TENANT"
 
 cat <<EOF
 
-Access key $access_key_id (tenant $TENANT, region $region) saved to AWS CLI profile "$PROFILE".
+Access key $access_key_id (tenant $TENANT on $SMELT_HILT, region $region via $SMELT_INGOT) saved to AWS CLI profile "$PROFILE".
 Try it:
 
   aws --profile $PROFILE s3 mb s3://my-bucket

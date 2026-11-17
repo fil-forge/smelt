@@ -17,7 +17,8 @@ func TestGenerateKeys(t *testing.T) {
 		{Name: "piri-1", Index: 1, Storage: manifest.StorageSpec{DB: "postgres", Blob: "s3"}},
 	}
 
-	if err := GenerateKeys(keysDir, nodes, false); err != nil {
+	hilts, ingots := manifest.DefaultNetworks()
+	if err := GenerateKeys(keysDir, nodes, hilts, ingots, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -39,8 +40,16 @@ func TestGenerateKeys(t *testing.T) {
 		}
 	}
 
-	// Check non-piri service keys.
-	for _, svc := range nonPiriServiceKeys {
+	// Check the singleton service keys, and the identity of each hilt and
+	// ingot the default topology declares.
+	names := append([]string{}, fixedServiceKeys...)
+	for _, h := range hilts {
+		names = append(names, h.Name)
+	}
+	for _, i := range ingots {
+		names = append(names, i.Name)
+	}
+	for _, svc := range names {
 		path := filepath.Join(keysDir, svc+".pem")
 		if _, err := os.Stat(path); err != nil {
 			t.Errorf("expected %s to exist", path)
@@ -60,7 +69,8 @@ func TestGenerateKeysIdempotent(t *testing.T) {
 		{Name: "piri-0", Index: 0, Storage: manifest.StorageSpec{DB: "sqlite", Blob: "filesystem"}},
 	}
 
-	if err := GenerateKeys(keysDir, nodes, false); err != nil {
+	hilts, ingots := manifest.DefaultNetworks()
+	if err := GenerateKeys(keysDir, nodes, hilts, ingots, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -72,7 +82,7 @@ func TestGenerateKeysIdempotent(t *testing.T) {
 	}
 
 	// Re-generate without force — key should not change.
-	if err := GenerateKeys(keysDir, nodes, false); err != nil {
+	if err := GenerateKeys(keysDir, nodes, hilts, ingots, false); err != nil {
 		t.Fatal(err)
 	}
 	after, err := os.ReadFile(keyPath)
@@ -271,6 +281,10 @@ piri:
 		t.Fatal(err)
 	}
 
+	// Generate renders the per-instance ingot and vault configs from the
+	// templates in systems/, so the project dir needs them.
+	copyTemplates(t, tmpDir)
+
 	result, err := Generate(Options{
 		ManifestPath: manifestPath,
 		ProjectDir:   tmpDir,
@@ -385,6 +399,76 @@ func TestGeneratePiriComposeTraceEndpoint(t *testing.T) {
 		}
 		if len(got) != 1 || got[0] != want {
 			t.Errorf("%s: OTEL entries = %q, want [%q]", name, got, want)
+		}
+	}
+}
+
+// copyTemplates mirrors the template files Generate reads out of a project
+// tree into dst, which is a temp dir standing in for the repo.
+func copyTemplates(t *testing.T, dst string) {
+	t.Helper()
+	for _, rel := range []string{
+		filepath.Join("systems", "ingot", "config", "config.yaml.tmpl"),
+		filepath.Join("systems", "ingot", "openbao", "config.hcl.tmpl"),
+		filepath.Join("systems", "hilt", "openbao", "config.hcl.tmpl"),
+	} {
+		data, err := os.ReadFile(filepath.Join("..", "..", rel))
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := filepath.Join(dst, rel)
+		if err := os.MkdirAll(filepath.Dir(out), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(out, data, 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// An instance named after a service the generator emits would merge with it
+// rather than add one, so the manifest refuses those names. The piri services
+// appear only for the storage backends that use them, which is how a name
+// comes to be emitted here and left out of the reserved list, so this holds
+// the two together across every backend combination.
+func TestGeneratedPiriServicesAreReservedNames(t *testing.T) {
+	nodes := []manifest.ResolvedPiriNode{
+		{Name: "piri-0", Index: 0, Storage: manifest.StorageSpec{DB: "sqlite", Blob: "filesystem"}},
+		{Name: "piri-1", Index: 1, Storage: manifest.StorageSpec{DB: "postgres", Blob: "s3"}},
+	}
+	data, err := GeneratePiriCompose(nodes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc struct {
+		Services map[string]yaml.Node `yaml:"services"`
+	}
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		t.Fatal(err)
+	}
+	if len(doc.Services) < 4 {
+		t.Fatalf("expected the piri nodes and their backends, got %d services", len(doc.Services))
+	}
+
+	// The node services are named by the manifest that asked for them, and a
+	// hilt taking one of those names is refused against that same manifest.
+	// What has to be reserved for every manifest is the rest: the backends
+	// the generator adds on its own.
+	isNode := map[string]bool{}
+	for _, n := range nodes {
+		isNode[n.Name] = true
+	}
+
+	for name := range doc.Services {
+		if isNode[name] {
+			continue
+		}
+		m, err := manifest.ParseBytes([]byte("version: 1\nhilt:\n  nodes:\n    - name: " + name + "\n"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := m.ResolveNetworks(); err == nil {
+			t.Errorf("a hilt may be named %q, which the piri compose already declares", name)
 		}
 	}
 }

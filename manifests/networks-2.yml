@@ -1,0 +1,33 @@
+# Two storage networks, as the Fil One console sees them: one network whose
+# tenants and keys reach two regions, and a second that reaches one.
+#
+# The console calls a network's Management API once per network, so this is
+# the smallest topology that exercises a region-free tenant: a key issued on
+# the first network works at both of its regions, and cannot reach the second
+# network at all.
+#
+#   SMELT_MANIFEST=manifests/networks-2.yml make up
+#
+# Ports: hilt 15110 and hilt-1 15113; ingot 15130, ingot-1 15133 and
+# ingot-2 15135. Each gateway's vault sits on the port after its own.
+version: 1
+piri:
+  nodes:
+    - storage:
+        db: postgres
+        blob: s3
+
+hilt:
+  nodes:
+    - name: hilt
+    - name: hilt-1
+
+ingot:
+  nodes:
+    - name: ingot
+      region: us-east-9
+    - name: ingot-1
+      region: eu-central-9
+    - name: ingot-2
+      region: us-west-9
+      hilt: hilt-1
