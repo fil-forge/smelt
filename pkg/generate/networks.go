@@ -25,12 +25,6 @@ func ProofName(hilt manifest.ResolvedHilt) string {
 	return hilt.Name + "-customer-add-proof.txt"
 }
 
-// S3ProofName is the file in generated/proofs holding the delegation a hilt
-// issues to one of its gateways for the /s3/* commands.
-func S3ProofName(hilt, ingot string) string {
-	return hilt + "-" + ingot + "-s3-proof.txt"
-}
-
 // GenerateHiltCompose builds the compose file for every declared hilt: the
 // service, its provider registrar, its vault and the vault's initializer,
 // plus the one postgres server they share.
@@ -444,7 +438,7 @@ func GenerateIngotConfig(tmpl string, i manifest.ResolvedIngot) ([]byte, error) 
 		Hilt:       i.Hilt,
 		HiltDID:    "did:web:" + i.Hilt,
 		Vault:      i.Vault(),
-		S3ProofTxt: S3ProofName(i.Hilt, i.Name),
+		S3ProofTxt: manifest.S3ProofName(i.Hilt, i.Name),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("render ingot config: %w", err)

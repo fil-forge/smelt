@@ -9,9 +9,10 @@ const (
 	// MaxHilts and MaxIngots are limited by the host ports reserved for
 	// each in the 15XXX map: 15110-15119 for hilt and its vaults,
 	// 15130-15139 for ingot and its vaults. The first instance of each
-	// keeps the ports it has always had.
-	MaxHilts  = 5
-	MaxIngots = 5
+	// keeps the ports it has always had. A fifth of either would put its
+	// vault on 15120 or 15140, which plc and swarf hold.
+	MaxHilts  = 4
+	MaxIngots = 4
 
 	// FirstHiltName and FirstIngotName are the names the leading instance
 	// of each takes when the manifest does not name it. They carry no
@@ -165,7 +166,92 @@ func (m *Manifest) ResolveNetworks() ([]ResolvedHilt, []ResolvedIngot, error) {
 			return nil, nil, fmt.Errorf("manifest: hilt %q has no ingot, so its network serves no region", h.Name)
 		}
 	}
+
+	piri, err := m.Resolve()
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := assertNamesAreFree(hilts, ingots, piri); err != nil {
+		return nil, nil, err
+	}
+	if err := assertProofsAreDistinct(ingots); err != nil {
+		return nil, nil, err
+	}
 	return hilts, ingots, nil
+}
+
+// sharedServices are the services generation emits once however many
+// instances are declared, so an instance may not take one of their names.
+var sharedServices = []string{
+	"hilt-postgres", "hilt-postgres-init",
+	"ingot-postgres", "ingot-postgres-init",
+}
+
+// assertNamesAreFree refuses a manifest whose instances would write over each
+// other's services. Every instance brings derived names with it — a hilt also
+// emits a registrar and a vault, a gateway a vault — so a hilt called
+// "hilt-init" is not a new service but the first hilt's registrar, and the
+// stack would wait on a server that never completes.
+func assertNamesAreFree(hilts []ResolvedHilt, ingots []ResolvedIngot, piri []ResolvedPiriNode) error {
+	owner := map[string]string{}
+	claim := func(service, by string) error {
+		if held, taken := owner[service]; taken {
+			return fmt.Errorf("manifest: %s and %s would both be the service %q", held, by, service)
+		}
+		owner[service] = by
+		return nil
+	}
+
+	for _, name := range sharedServices {
+		owner[name] = "generation itself"
+	}
+	for _, n := range piri {
+		if err := claim(n.Name, fmt.Sprintf("piri node %q", n.Name)); err != nil {
+			return err
+		}
+	}
+	for _, h := range hilts {
+		by := fmt.Sprintf("hilt %q", h.Name)
+		for _, service := range []string{h.Name, h.Name + "-init", h.Vault(), h.Vault() + "-init"} {
+			if err := claim(service, by); err != nil {
+				return err
+			}
+		}
+	}
+	for _, i := range ingots {
+		by := fmt.Sprintf("ingot %q", i.Name)
+		for _, service := range []string{i.Name, i.Vault(), i.Vault() + "-init"} {
+			if err := claim(service, by); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// assertProofsAreDistinct refuses a manifest whose gateways would share a
+// proof file. The name joins the pair with a dash and a name may hold one, so
+// ("a-b", "c") and ("a", "b-c") both read as "a-b-c": one gateway would be
+// handed a delegation issued by the wrong hilt to the wrong audience, and
+// could authorize nothing.
+func assertProofsAreDistinct(ingots []ResolvedIngot) error {
+	owner := map[string]string{}
+	for _, i := range ingots {
+		pair := fmt.Sprintf("%s -> %s", i.Hilt, i.Name)
+		name := S3ProofName(i.Hilt, i.Name)
+		if held, taken := owner[name]; taken {
+			return fmt.Errorf("manifest: %s and %s would share the proof file %q", held, pair, name)
+		}
+		owner[name] = pair
+	}
+	return nil
+}
+
+// S3ProofName is the file holding the delegation a hilt issues to one of its
+// gateways for the /s3/* commands. [assertProofsAreDistinct] keeps two pairs
+// from landing on one name.
+func S3ProofName(hilt, ingot string) string {
+	return hilt + "-" + ingot + "-s3-proof.txt"
 }
 
 func resolveHilts(spec *HiltSpec) ([]ResolvedHilt, error) {

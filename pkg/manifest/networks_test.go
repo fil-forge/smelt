@@ -166,6 +166,38 @@ func TestResolveNetworksRejects(t *testing.T) {
 			"version: 1\nhilt:\n  nodes:\n    - name: Hilt_One\n",
 			"must match",
 		},
+		{
+			// Generation gives each hilt a registrar named after it, so this
+			// second hilt would be written over the first one's.
+			"a hilt named after another's registrar",
+			"version: 1\nhilt:\n  nodes:\n    - name: hilt\n    - name: hilt-init\n" +
+				"ingot:\n  nodes:\n    - region: us-east-9\n    - region: us-west-9\n      hilt: hilt-init\n",
+			"would both be the service",
+		},
+		{
+			"a gateway named after a hilt's vault",
+			"version: 1\ningot:\n  nodes:\n    - name: hilt-vault\n      region: us-east-9\n",
+			"would both be the service",
+		},
+		{
+			"an instance named after a piri node",
+			"version: 1\npiri:\n  count: 1\ningot:\n  nodes:\n    - name: piri-0\n      region: us-east-9\n",
+			"would both be the service",
+		},
+		{
+			"an instance named after the shared postgres",
+			"version: 1\ningot:\n  nodes:\n    - name: ingot-postgres\n      region: us-east-9\n",
+			"would both be the service",
+		},
+		{
+			// The proof file joins the pair with a dash and a name may hold
+			// one, so these two pairs both read as "a-b-c".
+			"two pairs sharing a proof file",
+			"version: 1\nhilt:\n  nodes:\n    - name: a-b\n    - name: a\n" +
+				"ingot:\n  nodes:\n    - name: c\n      region: us-east-9\n      hilt: a-b\n" +
+				"    - name: b-c\n      region: us-west-9\n      hilt: a\n",
+			"would share the proof file",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -184,13 +216,39 @@ func TestResolveNetworksRejects(t *testing.T) {
 	}
 }
 
+// A fifth instance of either would put its vault on a port plc or swarf
+// holds, so the stack it describes could not start.
 func TestMaxInstances(t *testing.T) {
-	m, err := ParseBytes([]byte("version: 1\nhilt:\n  count: 6\n"))
-	if err != nil {
-		t.Fatal(err)
+	for _, kind := range []string{"hilt", "ingot"} {
+		m, err := ParseBytes([]byte("version: 1\n" + kind + ":\n  count: 5\n"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := m.ResolveNetworks(); err == nil {
+			t.Errorf("expected 5 %ss to exceed the maximum", kind)
+		}
 	}
-	if _, _, err := m.ResolveNetworks(); err == nil {
-		t.Fatal("expected 6 hilts to exceed the maximum")
+}
+
+// Whatever the maximum is, the ports it allows have to be free. plc and swarf
+// are the neighbours the two ranges run into.
+func TestPortsStayInsideTheirRanges(t *testing.T) {
+	taken := map[int]string{15111: "hilt-postgres", 15120: "plc", 15121: "plc-postgres", 15131: "ingot-postgres", 15140: "swarf", 15141: "swarf-postgres"}
+	for i := 0; i < MaxHilts; i++ {
+		h := ResolvedHilt{Index: i}
+		for _, port := range []int{h.Port(), h.VaultPort()} {
+			if other, clash := taken[port]; clash {
+				t.Errorf("hilt %d takes port %d, which %s holds", i, port, other)
+			}
+		}
+	}
+	for i := 0; i < MaxIngots; i++ {
+		g := ResolvedIngot{Index: i}
+		for _, port := range []int{g.Port(), g.VaultPort()} {
+			if other, clash := taken[port]; clash {
+				t.Errorf("ingot %d takes port %d, which %s holds", i, port, other)
+			}
+		}
 	}
 }
 

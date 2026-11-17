@@ -47,16 +47,24 @@ func validateSnapshotOptions(cfg *config) error {
 
 // loadSnapshotTopology parses the snapshot's embedded smelt.yml and
 // returns the resolved piri-node list the stack should stand up.
-func loadSnapshotTopology(snapshotDir string) ([]manifest.ResolvedPiriNode, error) {
+func loadSnapshotTopology(snapshotDir string) ([]manifest.ResolvedPiriNode, []manifest.ResolvedHilt, []manifest.ResolvedIngot, error) {
 	m, err := manifest.Parse(filepath.Join(snapshotDir, "smelt.yml"))
 	if err != nil {
-		return nil, fmt.Errorf("parse snapshot smelt.yml: %w", err)
+		return nil, nil, nil, fmt.Errorf("parse snapshot smelt.yml: %w", err)
 	}
 	nodes, err := m.Resolve()
 	if err != nil {
-		return nil, fmt.Errorf("resolve snapshot manifest: %w", err)
+		return nil, nil, nil, fmt.Errorf("resolve snapshot manifest: %w", err)
 	}
-	return nodes, nil
+	// The networks come from the same manifest as the nodes. Booting a
+	// snapshot of a multi-network stack on the default pair would give the
+	// restored volumes fresh identities and name proof files the snapshot
+	// does not carry.
+	hilts, ingots, err := m.ResolveNetworks()
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("resolve snapshot manifest: %w", err)
+	}
+	return nodes, hilts, ingots, nil
 }
 
 // seedBaselineState populates the tempDir's generated/snapshot-scratch/

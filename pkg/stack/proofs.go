@@ -88,7 +88,7 @@ func generateProofs(tempDir string, nodes []manifest.ResolvedPiriNode, hilts []m
 	for _, i := range ingots {
 		if err := writeProofs(keysDir, proofsDir,
 			i.Hilt, "did:web:"+i.Hilt, i.DID(),
-			generate.S3ProofName(i.Hilt, i.Name),
+			manifest.S3ProofName(i.Hilt, i.Name),
 			[]ucan.Command{
 				s3req.Authorize.Command,
 				s3bkt.Create.Command,

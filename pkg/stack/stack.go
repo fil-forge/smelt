@@ -78,9 +78,9 @@ func NewStack(ctx context.Context, t *testing.T, opts ...Option) (*Stack, error)
 	// 2. Determine topology and stage filesystem state (keys/proofs/chain)
 	//    either from a snapshot or by generating fresh.
 	var resolvedNodes []manifest.ResolvedPiriNode
-	// The SDK boots the default single network, whatever piri topology it
-	// was given, so its services keep the names and ports this package
-	// waits on below.
+	// A cold boot runs the default single network, so its services keep the
+	// names and ports this package waits on below. A snapshot brings its own,
+	// read from the manifest it was saved with.
 	resolvedHilts, resolvedIngots := manifest.DefaultNetworks()
 	var snapDesc *snapshot.Descriptor
 	var snapDir string
@@ -97,7 +97,7 @@ func NewStack(ctx context.Context, t *testing.T, opts ...Option) (*Stack, error)
 		if err != nil {
 			return nil, err
 		}
-		resolvedNodes, err = loadSnapshotTopology(snapDir)
+		resolvedNodes, resolvedHilts, resolvedIngots, err = loadSnapshotTopology(snapDir)
 		if err != nil {
 			return nil, err
 		}
@@ -181,7 +181,7 @@ func NewStack(ctx context.Context, t *testing.T, opts ...Option) (*Stack, error)
 
 	// Binary injection: build any workspace-selected services and/or use
 	// explicitly-provided binaries, then mount them over the published images.
-	overridePath, err := maybeBinaryOverride(t, tempDir, cfg, resolvedNodes)
+	overridePath, err := maybeBinaryOverride(t, tempDir, cfg, resolvedNodes, resolvedHilts, resolvedIngots)
 	if err != nil {
 		return nil, err
 	}
@@ -511,7 +511,7 @@ func (s *Stack) HiltPartnerKey() string {
 // and writes a compose override mounting them — plus any explicitly-provided
 // binaries (WithServiceBinary / WithPiriBinary) — over the published images.
 // Returns "" when there are no binaries to inject.
-func maybeBinaryOverride(t *testing.T, tempDir string, cfg *config, nodes []manifest.ResolvedPiriNode) (string, error) {
+func maybeBinaryOverride(t *testing.T, tempDir string, cfg *config, nodes []manifest.ResolvedPiriNode, hilts []manifest.ResolvedHilt, ingots []manifest.ResolvedIngot) (string, error) {
 	bins := map[string]string{}
 
 	if cfg.workspaceBinaries {
@@ -559,11 +559,23 @@ func maybeBinaryOverride(t *testing.T, tempDir string, cfg *config, nodes []mani
 		return "", nil
 	}
 
-	nodeNames := make([]string, len(nodes))
-	for i, n := range nodes {
-		nodeNames[i] = n.Name
+	// Every instance the manifest declares, so a workspace build reaches the
+	// whole stack rather than its leading hilt and gateway.
+	inst := workspace.Instances{
+		Piri:   make([]string, len(nodes)),
+		Hilts:  make([]string, len(hilts)),
+		Ingots: make([]string, len(ingots)),
 	}
-	data, err := workspace.RenderOverride(bins, configs, nodeNames)
+	for i, n := range nodes {
+		inst.Piri[i] = n.Name
+	}
+	for i, h := range hilts {
+		inst.Hilts[i] = h.Name
+	}
+	for i, g := range ingots {
+		inst.Ingots[i] = g.Name
+	}
+	data, err := workspace.RenderOverride(bins, configs, inst)
 	if err != nil {
 		return "", err
 	}

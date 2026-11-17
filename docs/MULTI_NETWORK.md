@@ -50,6 +50,13 @@ The generator refuses a manifest that cannot work: two gateways claiming one
 region, a gateway naming a hilt that is not declared, a hilt with no gateway
 (its network would serve nothing), or more than one gateway with no region.
 
+It also refuses names that would collide once generation derives the rest. An
+instance brings a registrar or a vault with it, so a hilt called `hilt-init`
+is not a new service but the first hilt's registrar; and the proof file names
+a hilt and a gateway joined by a dash, so the pairs (`a-b`, `c`) and (`a`,
+`b-c`) would both write `a-b-c`, handing one gateway a delegation meant for
+the other.
+
 ## What each instance gets
 
 Every hilt and every gateway is a separate principal with separate state.
@@ -78,13 +85,16 @@ service next to its vault.
 | `hilt` | 15110 | `hilt-vault` | 15112 |
 | `hilt-1` | 15113 | `hilt-1-vault` | 15114 |
 | `hilt-2` | 15115 | `hilt-2-vault` | 15116 |
+| `hilt-3` | 15117 | `hilt-3-vault` | 15118 |
 | `ingot` | 15130 | `ingot-openbao` | 15132 |
 | `ingot-1` | 15133 | `ingot-1-openbao` | 15134 |
 | `ingot-2` | 15135 | `ingot-2-openbao` | 15136 |
+| `ingot-3` | 15137 | `ingot-3-openbao` | 15138 |
 
 `hilt-postgres` stays on 15111 and `ingot-postgres` on 15131, each serving
-every instance of its kind. Five hilts and five gateways fit the reserved
-ranges; the generator refuses more.
+every instance of its kind. Four of each fit the reserved ranges, and the
+generator refuses more: a fifth would put its vault on 15120 or 15140, which
+plc and swarf hold.
 
 ## Generated files
 

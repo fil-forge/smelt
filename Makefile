@@ -153,12 +153,16 @@ GENERATE := go run ./cmd/smelt generate && mkdir -p $(dir $(MANIFEST_STAMP)) && 
 generate:
 	@$(GENERATE)
 
-# File target: rebuild the generated compose files when the manifest or
-# generator source changes. One run writes piri.yml, hilt.yml and ingot.yml
-# together, so piri.yml stands for all three. Compose-invoking targets below
-# depend on this, so fresh checkouts and post-nuke states regenerate on
-# demand.
-generated/compose/piri.yml: $(MANIFEST) $(shell find cmd/smelt pkg/generate pkg/manifest -name '*.go' 2>/dev/null) | manifest-switch
+# The templates generation renders per instance. Editing one has to
+# regenerate, or a service keeps a config built from the old text.
+TEMPLATES := $(wildcard systems/ingot/config/*.tmpl systems/hilt/openbao/*.tmpl systems/ingot/openbao/*.tmpl)
+
+# File target: rebuild the generated compose files when the manifest, the
+# generator source or a template changes. One run writes piri.yml, hilt.yml
+# and ingot.yml together, so piri.yml stands for all three. Compose-invoking
+# targets below depend on this, so fresh checkouts and post-nuke states
+# regenerate on demand.
+generated/compose/piri.yml: $(MANIFEST) $(TEMPLATES) $(shell find cmd/smelt pkg/generate pkg/manifest -name '*.go' 2>/dev/null) | manifest-switch
 	@$(GENERATE)
 
 # Timestamps miss a switch between two existing manifests (both are older
