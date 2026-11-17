@@ -211,6 +211,8 @@ up: ensure-state
 		fi \
 	fi
 	$(MAKE) workspace-build
+	@# Advice only, and `|| true` keeps a box without python3 from failing here.
+	@./scripts/check-image-age.py $(COMPOSE) || true
 	$(COMPOSE) up -d --remove-orphans
 	@echo ""
 	@echo "Services starting. Run 'make status' to check health."
@@ -288,6 +290,10 @@ fresh: generated/compose/piri.yml check-docker
 	$(MAKE) init
 	$(MAKE) ensure-state
 	$(MAKE) workspace-build
+	@# `down --rmi local` keeps every image with a tag of its own, which is
+	@# all the published ones, so a from-scratch rebuild would otherwise
+	@# start the same cached `:main` it just tore down.
+	$(COMPOSE) pull --ignore-pull-failures
 	$(COMPOSE) build
 	$(COMPOSE) up -d --remove-orphans
 	@echo ""
