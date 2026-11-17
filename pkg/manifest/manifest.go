@@ -33,6 +33,11 @@ var bucketPrefixRE = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]*$`)
 type Manifest struct {
 	Version int      `yaml:"version"`
 	Piri    PiriSpec `yaml:"piri"`
+	// Hilt and Ingot declare the storage networks: one hilt per network,
+	// one ingot per region it serves. Both may be omitted, which is the
+	// single network smelt has always run. See networks.go.
+	Hilt  HiltSpec  `yaml:"hilt,omitempty"`
+	Ingot IngotSpec `yaml:"ingot,omitempty"`
 }
 
 // PiriSpec describes the desired piri node topology.

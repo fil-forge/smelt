@@ -153,9 +153,11 @@ GENERATE := go run ./cmd/smelt generate && mkdir -p $(dir $(MANIFEST_STAMP)) && 
 generate:
 	@$(GENERATE)
 
-# File target: rebuild the generated piri compose when the manifest or
-# generator source changes. Compose-invoking targets below depend on this
-# so fresh checkouts and post-nuke states regenerate piri.yml on demand.
+# File target: rebuild the generated compose files when the manifest or
+# generator source changes. One run writes piri.yml, hilt.yml and ingot.yml
+# together, so piri.yml stands for all three. Compose-invoking targets below
+# depend on this, so fresh checkouts and post-nuke states regenerate on
+# demand.
 generated/compose/piri.yml: $(MANIFEST) $(shell find cmd/smelt pkg/generate pkg/manifest -name '*.go' 2>/dev/null) | manifest-switch
 	@$(GENERATE)
 
@@ -250,7 +252,7 @@ nuke: generated/compose/piri.yml check-docker
 	$(COMPOSE) down -v --remove-orphans --rmi local 2>/dev/null || true
 	@# Also remove any dangling volumes from this project
 	$(DOCKER) volume ls -q --filter "name=smelt_" | xargs -r $(DOCKER) volume rm 2>/dev/null || true
-	rm -rf generated/keys generated/proofs generated/compose
+	rm -rf generated/keys generated/proofs generated/compose generated/ingot generated/openbao
 	rm -rf generated/snapshot-scratch/anvil-state.json generated/snapshot-scratch/deployed-addresses.json
 	rm -f generated/snapshot-scratch/smelt.yml
 	@echo ""
@@ -264,7 +266,7 @@ fresh: generated/compose/piri.yml check-docker
 	$(COMPOSE) down -v --remove-orphans --rmi local 2>/dev/null || true
 	@# Also remove any dangling volumes from this project
 	$(DOCKER) volume ls -q --filter "name=smelt_" | xargs -r $(DOCKER) volume rm 2>/dev/null || true
-	rm -rf generated/keys generated/proofs generated/compose
+	rm -rf generated/keys generated/proofs generated/compose generated/ingot generated/openbao
 	rm -rf generated/snapshot-scratch/anvil-state.json generated/snapshot-scratch/deployed-addresses.json
 	rm -f generated/snapshot-scratch/smelt.yml
 	@echo ""

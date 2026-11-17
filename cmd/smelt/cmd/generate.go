@@ -41,8 +41,10 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("Generated %d piri node(s)\n", result.NodeCount)
+	fmt.Printf("Generated %d piri node(s), %d hilt(s), %d ingot(s)\n", result.NodeCount, result.HiltCount, result.IngotCount)
 	fmt.Printf("  Compose: %s\n", result.PiriComposePath)
+	fmt.Printf("           %s\n", result.HiltComposePath)
+	fmt.Printf("           %s\n", result.IngotComposePath)
 	fmt.Printf("  Keys: %s\n", result.KeysDir)
 	return nil
 }

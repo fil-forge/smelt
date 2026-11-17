@@ -78,6 +78,10 @@ func NewStack(ctx context.Context, t *testing.T, opts ...Option) (*Stack, error)
 	// 2. Determine topology and stage filesystem state (keys/proofs/chain)
 	//    either from a snapshot or by generating fresh.
 	var resolvedNodes []manifest.ResolvedPiriNode
+	// The SDK boots the default single network, whatever piri topology it
+	// was given, so its services keep the names and ports this package
+	// waits on below.
+	resolvedHilts, resolvedIngots := manifest.DefaultNetworks()
 	var snapDesc *snapshot.Descriptor
 	var snapDir string
 	composeDir := filepath.Join(tempDir, "generated", "compose")
@@ -111,7 +115,7 @@ func NewStack(ctx context.Context, t *testing.T, opts ...Option) (*Stack, error)
 		// file and Docker materializes it as an empty directory — e.g. a
 		// pre-ingot snapshot leaves ingot crashlooping on
 		// "reading agent key /keys/ingot.pem: is a directory".
-		if err := generate.GenerateKeys(filepath.Join(tempDir, "generated", "keys"), resolvedNodes, false); err != nil {
+		if err := generate.GenerateKeys(filepath.Join(tempDir, "generated", "keys"), resolvedNodes, resolvedHilts, resolvedIngots, false); err != nil {
 			return nil, fmt.Errorf("generate missing keys: %w", err)
 		}
 		t.Logf("smeltery: booting from snapshot %s (%d piri node(s), %d volume(s))",
@@ -119,10 +123,10 @@ func NewStack(ctx context.Context, t *testing.T, opts ...Option) (*Stack, error)
 	} else {
 		resolvedNodes = cfg.resolveNodes()
 		keysDir := filepath.Join(tempDir, "generated", "keys")
-		if err := generate.GenerateKeys(keysDir, resolvedNodes, false); err != nil {
+		if err := generate.GenerateKeys(keysDir, resolvedNodes, resolvedHilts, resolvedIngots, false); err != nil {
 			return nil, fmt.Errorf("generate keys: %w", err)
 		}
-		if err := generateProofs(tempDir, resolvedNodes); err != nil {
+		if err := generateProofs(tempDir, resolvedNodes, resolvedHilts, resolvedIngots); err != nil {
 			return nil, fmt.Errorf("generate proofs: %w", err)
 		}
 		// Cold-boot: compose bind-mounts blockchain state from
@@ -142,6 +146,14 @@ func NewStack(ctx context.Context, t *testing.T, opts ...Option) (*Stack, error)
 	}
 	if err := os.WriteFile(filepath.Join(composeDir, "piri.yml"), piriYAML, 0644); err != nil {
 		return nil, fmt.Errorf("write piri compose: %w", err)
+	}
+
+	// The hilt and ingot compose files, their per-instance configs and each
+	// vault's server config. The SDK always runs the default single network,
+	// so the services come out named hilt and ingot, on the ports and DIDs
+	// the rest of this package waits on.
+	if _, _, err := generate.GenerateNetworks(tempDir, resolvedHilts, resolvedIngots, resolvedNodes); err != nil {
+		return nil, fmt.Errorf("generate networks: %w", err)
 	}
 
 	// 4. Build environment passed to compose. Starts with image overrides
@@ -481,7 +493,7 @@ func (s *Stack) HiltEndpoint() string {
 }
 
 // defaultHiltPartnerKey mirrors the compose default in
-// systems/hilt/compose.yml: HILT_AUTH_PARTNER_KEY=${HILT_PARTNER_KEY:-dev-partner-key}.
+// the generated hilt compose: HILT_AUTH_PARTNER_KEY=${HILT_PARTNER_KEY:-dev-partner-key}.
 const defaultHiltPartnerKey = "dev-partner-key"
 
 // HiltPartnerKey returns the pre-shared bearer key hilt's Tenant API

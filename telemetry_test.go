@@ -10,11 +10,10 @@ import (
 )
 
 // The services that export traces, and the service name each runs under in
-// its compose file.
+// its compose file. Hilt and ingot are generated, so their paths come from
+// generatedComposePaths at run time.
 var tracedServices = map[string]string{
-	"systems/ingot/compose.yml":  "ingot",
 	"systems/upload/compose.yml": "upload",
-	"systems/hilt/compose.yml":   "hilt",
 }
 
 type composeEnv struct {
@@ -58,7 +57,12 @@ func TestTracedServicesOTELEnvironment(t *testing.T) {
 		"OTEL_RESOURCE_ATTRIBUTES",
 		"OTEL_METRIC_EXPORT_INTERVAL",
 	}
+	hiltPath, ingotPath := generatedComposePaths(t)
+	traced := map[string]string{hiltPath: "hilt", ingotPath: "ingot"}
 	for path, svc := range tracedServices {
+		traced[path] = svc
+	}
+	for path, svc := range traced {
 		got := otelEntries(t, path, svc)
 		if strings.Join(got, "\n") != strings.Join(want, "\n") {
 			t.Errorf("%s: %s OTEL entries\n got %q\nwant %q", path, svc, got, want)

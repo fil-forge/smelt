@@ -5,8 +5,9 @@
 # - indexing-service-proof: indexer delegates claim/cache to delegator
 # - egress-tracking-proof: etracker delegates egress/track to delegator
 # - piri-N-proof: each piri node delegates blob/* + pdp/info to upload
-# - hilt-customer-add-proof: upload delegates customer/add to hilt
-# - hilt-ingot-s3-proof: hilt delegates the /s3/* commands to ingot
+# - <hilt>-customer-add-proof: upload delegates customer/add to each hilt
+# - <hilt>-<ingot>-s3-proof: each hilt delegates the /s3/* commands to each
+#   gateway registered against it
 #
 # Prerequisites:
 # - Keys must exist in generated/keys/ (run 'make generate' first)
@@ -153,57 +154,75 @@ if [[ "$PIRI_KEYS_FOUND" -eq 0 ]]; then
     echo "         Run 'make generate' to create them."
 fi
 
-# Generate hilt customer-add proof (upload → hilt, /customer/add).
-# Hilt presents this to the upload service when registering tenants as
-# customers. NOTE: hilt's upload.proofs loader parses a UCAN *container*
-# (hilt pkg/fx/upload.go), so --container is required here — the bare
-# envelope emitted for the indexer/etracker proofs will not parse.
-HILT_PROOF_FILE="$PROOFS_DIR/hilt-customer-add-proof.txt"
-if [[ -f "$HILT_PROOF_FILE" && "$FORCE" != "--force" ]]; then
+# Generate the per-network proofs: one customer-add proof per hilt, and one
+# /s3/* proof per (hilt, gateway) pair. The topology comes from
+# generated/keys/networks.tsv, which `smelt generate` writes from smelt.yml;
+# its three tab-separated fields are the hilt, the gateway and the region.
+NETWORKS_FILE="$KEYS_DIR/networks.tsv"
+if [[ ! -s "$NETWORKS_FILE" ]]; then
+    echo "Error: no topology in $NETWORKS_FILE"
+    echo "Run 'make generate' first"
+    exit 1
+fi
+
+# Each hilt appears once per gateway; collect the distinct names in order.
+HILTS=$(cut -f1 "$NETWORKS_FILE" | awk '!seen[$0]++')
+
+for hilt in $HILTS; do
+    # NOTE: hilt's upload.proofs loader parses a UCAN *container* (hilt
+    # pkg/fx/upload.go), so --container is required here — the bare envelope
+    # emitted for the indexer/etracker proofs will not parse.
+    proof_file="$PROOFS_DIR/${hilt}-customer-add-proof.txt"
+    if [[ -f "$proof_file" && "$FORCE" != "--force" ]]; then
+        echo ""
+        echo "[skip] ${hilt}-customer-add-proof.txt already exists"
+        continue
+    fi
+
     echo ""
-    echo "[skip] hilt-customer-add-proof.txt already exists"
-else
-    echo ""
-    echo "Generating hilt customer-add proof..."
+    echo "Generating ${hilt} customer-add proof..."
     echo "  Issuer: $UPLOAD_WEB_DID (key: upload.pem)"
-    echo "  Audience: did:web:hilt"
+    echo "  Audience: did:web:${hilt}"
     echo "  Commands: /customer/add"
 
     "$UCANTOOL" delegate \
         --issuer-private-key-file "$KEYS_DIR/upload.pem" \
         --issuer-did-web "$UPLOAD_WEB_DID" \
-        --audience "did:web:hilt" \
+        --audience "did:web:${hilt}" \
         --subject "$UPLOAD_WEB_DID" \
         --command "/customer/add" \
         --container "base64+gzip" \
-        > "$HILT_PROOF_FILE"
+        > "$proof_file"
 
-    echo "  [new] hilt-customer-add-proof.txt"
-fi
+    echo "  [new] ${hilt}-customer-add-proof.txt"
+done
 
-# Generate hilt → ingot S3 proof (all /s3/* commands ingot invokes on hilt).
-# Ingot presents these when calling hilt's UCAN RPC API. The audience is
-# ingot's did:web service identity (systems/ingot/config/config.yaml), which
-# hilt resolves to ingot's key via http://ingot/.well-known/did.json.
-INGOT_PROOF_FILE="$PROOFS_DIR/hilt-ingot-s3-proof.txt"
-if [[ -f "$INGOT_PROOF_FILE" && "$FORCE" != "--force" ]]; then
+# The /s3/* commands a gateway invokes on its hilt. The audience is the
+# gateway's did:web service identity (generated/ingot/<name>.yaml
+# identity.service_id), which hilt resolves to its key via
+# http://<gateway>/.well-known/did.json.
+while IFS=$'\t' read -r hilt ingot _region; do
+    [[ -n "$hilt" && -n "$ingot" ]] || continue
+    proof_file="$PROOFS_DIR/${hilt}-${ingot}-s3-proof.txt"
+    if [[ -f "$proof_file" && "$FORCE" != "--force" ]]; then
+        echo ""
+        echo "[skip] ${hilt}-${ingot}-s3-proof.txt already exists"
+        continue
+    fi
+
+    check_key "$KEYS_DIR/${hilt}.pem"
+
     echo ""
-    echo "[skip] hilt-ingot-s3-proof.txt already exists"
-else
-    check_key "$KEYS_DIR/hilt.pem"
-    INGOT_DID="did:web:ingot"
-
-    echo ""
-    echo "Generating hilt → ingot S3 proof..."
-    echo "  Issuer: did:web:hilt (key: hilt.pem)"
-    echo "  Audience: $INGOT_DID"
+    echo "Generating ${hilt} -> ${ingot} S3 proof..."
+    echo "  Issuer: did:web:${hilt} (key: ${hilt}.pem)"
+    echo "  Audience: did:web:${ingot}"
     echo "  Commands: /s3/request/authorize, /s3/bucket/{create,delete,info,list,policy}"
 
     "$UCANTOOL" delegate \
-        --issuer-private-key-file "$KEYS_DIR/hilt.pem" \
-        --issuer-did-web "did:web:hilt" \
-        --audience "$INGOT_DID" \
-        --subject "did:web:hilt" \
+        --issuer-private-key-file "$KEYS_DIR/${hilt}.pem" \
+        --issuer-did-web "did:web:${hilt}" \
+        --audience "did:web:${ingot}" \
+        --subject "did:web:${hilt}" \
         --command "/s3/request/authorize" \
         --command "/s3/bucket/create" \
         --command "/s3/bucket/delete" \
@@ -211,10 +230,10 @@ else
         --command "/s3/bucket/list" \
         --command "/s3/bucket/policy" \
         --container "base64+gzip" \
-        > "$INGOT_PROOF_FILE"
+        > "$proof_file"
 
-    echo "  [new] hilt-ingot-s3-proof.txt"
-fi
+    echo "  [new] ${hilt}-${ingot}-s3-proof.txt"
+done < "$NETWORKS_FILE"
 
 echo ""
 echo "Proofs generated in: $PROOFS_DIR"

@@ -13,18 +13,8 @@ import (
 // the stack used before the variable existed, so an unset variable renders
 // the same compose config and a set one repins exactly these services.
 var thirdPartyImages = map[string]map[string]string{
-	"systems/ingot/compose.yml": {
-		"ingot-openbao":      "${OPENBAO_IMAGE:-openbao/openbao:2.6}",
-		"ingot-openbao-init": "${OPENBAO_IMAGE:-openbao/openbao:2.6}",
-		"ingot-postgres":     "${POSTGRES_IMAGE:-postgres:16-alpine}",
-	},
 	"systems/upload/compose.yml": {
 		"postgres": "${POSTGRES_IMAGE:-postgres:16-alpine}",
-	},
-	"systems/hilt/compose.yml": {
-		"hilt-vault":      "${OPENBAO_IMAGE:-openbao/openbao:2.6}",
-		"hilt-vault-init": "${OPENBAO_IMAGE:-openbao/openbao:2.6}",
-		"hilt-postgres":   "${POSTGRES_IMAGE:-postgres:16-alpine}",
 	},
 	"systems/swarf/compose.yml": {
 		"swarf-postgres": "${POSTGRES_IMAGE:-postgres:16-alpine}",
@@ -61,7 +51,25 @@ func readComposeImages(t *testing.T, path string) composeImages {
 }
 
 func TestThirdPartyImagesReadOverrideVariables(t *testing.T) {
+	// Hilt and ingot are generated, so their files come from the generator
+	// rather than the tree.
+	hiltPath, ingotPath := generatedComposePaths(t)
+	images := map[string]map[string]string{
+		hiltPath: {
+			"hilt-vault":      "${OPENBAO_IMAGE:-openbao/openbao:2.6}",
+			"hilt-vault-init": "${OPENBAO_IMAGE:-openbao/openbao:2.6}",
+			"hilt-postgres":   "${POSTGRES_IMAGE:-postgres:16-alpine}",
+		},
+		ingotPath: {
+			"ingot-openbao":      "${OPENBAO_IMAGE:-openbao/openbao:2.6}",
+			"ingot-openbao-init": "${OPENBAO_IMAGE:-openbao/openbao:2.6}",
+			"ingot-postgres":     "${POSTGRES_IMAGE:-postgres:16-alpine}",
+		},
+	}
 	for path, want := range thirdPartyImages {
+		images[path] = want
+	}
+	for path, want := range images {
 		c := readComposeImages(t, path)
 		for svc, image := range want {
 			got, ok := c.Services[svc]

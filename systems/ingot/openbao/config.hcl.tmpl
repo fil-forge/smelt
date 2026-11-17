@@ -12,8 +12,8 @@
 
 ui = false
 
-api_addr     = "http://ingot-openbao:8200"
-cluster_addr = "http://ingot-openbao:8201"
+api_addr     = "http://{{.Vault}}:8200"
+cluster_addr = "http://{{.Vault}}:8201"
 
 listener "tcp" {
   address     = "0.0.0.0:8200"
@@ -22,5 +22,5 @@ listener "tcp" {
 
 storage "raft" {
   path    = "/openbao/file"
-  node_id = "ingot-openbao"
+  node_id = "{{.Vault}}"
 }
