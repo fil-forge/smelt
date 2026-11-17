@@ -3,6 +3,7 @@ package manifest
 import (
 	"fmt"
 	"regexp"
+	"strings"
 )
 
 const (
@@ -108,6 +109,28 @@ func (h ResolvedHilt) Vault() string { return suffixed(h.Name, "vault") }
 // per gateway: the key belongs to the region, not the network.
 func (i ResolvedIngot) Vault() string { return suffixed(i.Name, "openbao") }
 
+// PortEnv and VaultPortEnv name the variables that override this instance's
+// host ports. The compose files interpolate them and the Go test SDK sets
+// them to a container-side port so compose publishes on an ephemeral one,
+// which is how parallel stacks avoid each other.
+func (h ResolvedHilt) PortEnv() string      { return portEnv(h.Name, "") }
+func (h ResolvedHilt) VaultPortEnv() string { return portEnv(h.Name, "VAULT") }
+
+// PortEnv names the variable that overrides this gateway's host port. See
+// [ResolvedHilt.PortEnv].
+func (i ResolvedIngot) PortEnv() string      { return portEnv(i.Name, "") }
+func (i ResolvedIngot) VaultPortEnv() string { return portEnv(i.Name, "OPENBAO") }
+
+// portEnv is SMELT_<NAME>[_<PART>]_PORT, the name a generated compose file
+// interpolates for a host port.
+func portEnv(name, part string) string {
+	env := "SMELT_" + strings.ToUpper(strings.ReplaceAll(name, "-", "_"))
+	if part != "" {
+		env += "_" + part
+	}
+	return env + "_PORT"
+}
+
 // Port is the host port the hilt serves on.
 func (h ResolvedHilt) Port() int { return indexedPort(15110, 15113, h.Index) }
 
@@ -174,17 +197,30 @@ func (m *Manifest) ResolveNetworks() ([]ResolvedHilt, []ResolvedIngot, error) {
 	if err := assertNamesAreFree(hilts, ingots, piri); err != nil {
 		return nil, nil, err
 	}
-	if err := assertProofsAreDistinct(ingots); err != nil {
+	if err := assertProofsAreDistinct(hilts, ingots, piri); err != nil {
 		return nil, nil, err
 	}
 	return hilts, ingots, nil
 }
 
-// sharedServices are the services generation emits once however many
-// instances are declared, so an instance may not take one of their names.
-var sharedServices = []string{
+// reservedServices are the compose services an instance may not be named
+// after: the ones generation emits once however many instances there are,
+// and the ones the static compose files under systems/ declare. Taking one
+// of those names does not add a service, it merges with the existing one —
+// and for a service with an identity of its own, such as upload, the network
+// principal would reuse that service's key and the two would stop being
+// distinct. TestReservedServicesCoverTheComposeFiles holds this list to what
+// systems/ actually declares.
+var reservedServices = []string{
+	// Written by generation, once per stack.
 	"hilt-postgres", "hilt-postgres-init",
 	"ingot-postgres", "ingot-postgres-init",
+	// Declared under systems/.
+	"blockchain", "delegator", "dynamodb-local", "email", "grafana", "guppy",
+	"indexer", "ipni", "ipni-init", "minio", "otel-collector", "plc",
+	"plc-postgres", "postgres", "prometheus", "redis", "signing-service",
+	"stress-tester", "swarf", "swarf-postgres", "tempo", "upload",
+	"upload-init",
 }
 
 // assertNamesAreFree refuses a manifest whose instances would write over each
@@ -202,8 +238,8 @@ func assertNamesAreFree(hilts []ResolvedHilt, ingots []ResolvedIngot, piri []Res
 		return nil
 	}
 
-	for _, name := range sharedServices {
-		owner[name] = "generation itself"
+	for _, name := range reservedServices {
+		owner[name] = "a service the stack already runs"
 	}
 	for _, n := range piri {
 		if err := claim(n.Name, fmt.Sprintf("piri node %q", n.Name)); err != nil {
@@ -229,29 +265,65 @@ func assertNamesAreFree(hilts []ResolvedHilt, ingots []ResolvedIngot, piri []Res
 	return nil
 }
 
-// assertProofsAreDistinct refuses a manifest whose gateways would share a
-// proof file. The name joins the pair with a dash and a name may hold one, so
-// ("a-b", "c") and ("a", "b-c") both read as "a-b-c": one gateway would be
-// handed a delegation issued by the wrong hilt to the wrong audience, and
-// could authorize nothing.
-func assertProofsAreDistinct(ingots []ResolvedIngot) error {
-	owner := map[string]string{}
-	for _, i := range ingots {
-		pair := fmt.Sprintf("%s -> %s", i.Hilt, i.Name)
-		name := S3ProofName(i.Hilt, i.Name)
-		if held, taken := owner[name]; taken {
-			return fmt.Errorf("manifest: %s and %s would share the proof file %q", held, pair, name)
-		}
-		owner[name] = pair
-	}
-	return nil
-}
+// fixedProofs are the delegation files written whatever the manifest says.
+var fixedProofs = []string{"indexing-service-proof.txt", "egress-tracking-proof.txt"}
 
 // S3ProofName is the file holding the delegation a hilt issues to one of its
-// gateways for the /s3/* commands. [assertProofsAreDistinct] keeps two pairs
-// from landing on one name.
+// gateways for the /s3/* commands.
 func S3ProofName(hilt, ingot string) string {
 	return hilt + "-" + ingot + "-s3-proof.txt"
+}
+
+// CustomerAddProofName is the file holding the delegation the upload service
+// issues to a hilt for /customer/add.
+func CustomerAddProofName(hilt string) string {
+	return hilt + "-customer-add-proof.txt"
+}
+
+// PiriProofName is the file holding the delegation a storage node issues to
+// the upload service.
+func PiriProofName(node string) string {
+	return node + "-proof.txt"
+}
+
+// assertProofsAreDistinct refuses a manifest whose instances would share a
+// proof file. Every name is built by joining parts with a dash, and a name
+// may hold one, so different things can land on the same file: the gateways
+// ("a-b", "c") and ("a", "b-c") both read as "a-b-c", and a storage node
+// called "hilt-customer-add" writes the file holding the upload service's
+// delegation to hilt. Whichever is written second wins, and the loser is
+// left with a delegation issued by the wrong party to the wrong audience,
+// which authorizes nothing.
+func assertProofsAreDistinct(hilts []ResolvedHilt, ingots []ResolvedIngot, piri []ResolvedPiriNode) error {
+	owner := map[string]string{}
+	claim := func(name, by string) error {
+		if held, taken := owner[name]; taken {
+			return fmt.Errorf("manifest: %s and %s would share the proof file %q", held, by, name)
+		}
+		owner[name] = by
+		return nil
+	}
+
+	for _, name := range fixedProofs {
+		owner[name] = "a proof the stack always writes"
+	}
+	for _, h := range hilts {
+		if err := claim(CustomerAddProofName(h.Name), fmt.Sprintf("hilt %q", h.Name)); err != nil {
+			return err
+		}
+	}
+	for _, i := range ingots {
+		by := fmt.Sprintf("%s -> %s", i.Hilt, i.Name)
+		if err := claim(S3ProofName(i.Hilt, i.Name), by); err != nil {
+			return err
+		}
+	}
+	for _, n := range piri {
+		if err := claim(PiriProofName(n.Name), fmt.Sprintf("piri node %q", n.Name)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func resolveHilts(spec *HiltSpec) ([]ResolvedHilt, error) {

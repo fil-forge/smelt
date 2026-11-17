@@ -22,7 +22,7 @@ import (
 // ProofName is the file in generated/proofs holding the delegation the
 // upload service issues to a hilt for /customer/add.
 func ProofName(hilt manifest.ResolvedHilt) string {
-	return hilt.Name + "-customer-add-proof.txt"
+	return manifest.CustomerAddProofName(hilt.Name)
 }
 
 // GenerateHiltCompose builds the compose file for every declared hilt: the
@@ -102,7 +102,7 @@ func buildHiltService(h manifest.ResolvedHilt) ComposeService {
 	return ComposeService{
 		Image: image,
 		User:  "0:0", // key files are 600
-		Ports: []string{fmt.Sprintf("${SMELT_%s_PORT:-%d:80}", envName(h.Name), h.Port())},
+		Ports: []string{fmt.Sprintf("${%s:-%d:80}", h.PortEnv(), h.Port())},
 		Environment: []string{
 			"HILT_SERVER_HOST=0.0.0.0",
 			"HILT_SERVER_PORT=80",
@@ -185,7 +185,7 @@ func buildHiltInitService(h manifest.ResolvedHilt) ComposeService {
 }
 
 func buildHiltVaultService(h manifest.ResolvedHilt) ComposeService {
-	return buildVaultService(h.Vault(), h.VaultPort(), envName(h.Name)+"_VAULT")
+	return buildVaultService(h.Vault(), h.VaultPort(), h.VaultPortEnv())
 }
 
 // VaultConfigName is the rendered server config for one vault. Each carries
@@ -244,7 +244,7 @@ func buildIngotService(i manifest.ResolvedIngot, piri []manifest.ResolvedPiriNod
 		Image:   image,
 		User:    "0:0", // key files are 600
 		Command: []string{"serve", "--config", "/etc/ingot/config.yaml"},
-		Ports:   []string{fmt.Sprintf("${SMELT_%s_PORT:-%d:80}", envName(i.Name), i.Port())},
+		Ports:   []string{fmt.Sprintf("${%s:-%d:80}", i.PortEnv(), i.Port())},
 		Volumes: []string{
 			fmt.Sprintf("%s-data:/data", i.Name),
 			fmt.Sprintf("../keys/%s.pem:/keys/ingot.pem:ro", i.Name),
@@ -271,7 +271,7 @@ func buildIngotService(i manifest.ResolvedIngot, piri []manifest.ResolvedPiriNod
 }
 
 func buildIngotVaultService(i manifest.ResolvedIngot) ComposeService {
-	return buildVaultService(i.Vault(), i.VaultPort(), envName(i.Name)+"_OPENBAO")
+	return buildVaultService(i.Vault(), i.VaultPort(), i.VaultPortEnv())
 }
 
 func buildIngotVaultInitService(i manifest.ResolvedIngot) ComposeService {
@@ -305,7 +305,7 @@ func buildVaultService(name string, port int, portEnv string) ComposeService {
 	return ComposeService{
 		Image:   "${OPENBAO_IMAGE:-openbao/openbao:2.6}",
 		Command: []string{"server"},
-		Ports:   []string{fmt.Sprintf("${SMELT_%s_PORT:-%d:8200}", portEnv, port)},
+		Ports:   []string{fmt.Sprintf("${%s:-%d:8200}", portEnv, port)},
 		Environment: []string{
 			// For `docker compose exec <vault> bao ...` (the CLI defaults to https)
 			"BAO_ADDR=http://127.0.0.1:8200",
@@ -399,13 +399,6 @@ func regionValue(i manifest.ResolvedIngot) string {
 		return "${INGOT_REGION:-us-west-1}"
 	}
 	return i.Region
-}
-
-// envName turns a service name into the SMELT_<NAME>_PORT fragment that
-// overrides its host port, as pkg/stack does to let parallel test stacks
-// take ephemeral ports.
-func envName(name string) string {
-	return strings.ToUpper(strings.ReplaceAll(name, "-", "_"))
 }
 
 // GenerateIngotConfig renders one gateway's config.yaml from the template in

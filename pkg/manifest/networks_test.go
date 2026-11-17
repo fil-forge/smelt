@@ -190,6 +190,18 @@ func TestResolveNetworksRejects(t *testing.T) {
 			"would both be the service",
 		},
 		{
+			"an instance named after a service the stack already runs",
+			"version: 1\nhilt:\n  nodes:\n    - name: upload\n",
+			"would both be the service",
+		},
+		{
+			// A storage node writes <name>-proof.txt, which is the file
+			// holding the upload service's delegation to this hilt.
+			"a piri node named after a hilt's customer-add proof",
+			"version: 1\npiri:\n  nodes:\n    - name: hilt-customer-add\n",
+			"would share the proof file",
+		},
+		{
 			// The proof file joins the pair with a dash and a name may hold
 			// one, so these two pairs both read as "a-b-c".
 			"two pairs sharing a proof file",

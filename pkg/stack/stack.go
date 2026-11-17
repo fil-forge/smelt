@@ -171,7 +171,7 @@ func NewStack(ctx context.Context, t *testing.T, opts ...Option) (*Stack, error)
 	//        so validation emails embed a URL the ExecDoer-based clicker
 	//        can reach
 	env := cfg.buildEnv()
-	for k, v := range testModeEnv(resolvedNodes) {
+	for k, v := range testModeEnv(resolvedNodes, resolvedHilts, resolvedIngots) {
 		env[k] = v
 	}
 

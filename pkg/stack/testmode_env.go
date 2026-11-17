@@ -16,7 +16,11 @@ import (
 // compose publish on an ephemeral host port; MappedPort on the resulting
 // container resolves it back to whatever Docker picked. `make up` leaves
 // these unset and gets the fixed 15XXX bindings from the defaults.
-func testModeEnv(nodes []manifest.ResolvedPiriNode) map[string]string {
+func testModeEnv(
+	nodes []manifest.ResolvedPiriNode,
+	hilts []manifest.ResolvedHilt,
+	ingots []manifest.ResolvedIngot,
+) map[string]string {
 	env := map[string]string{
 		// Network: per-project (compose-created) instead of the shared
 		// external `forge-network`. Parallel test stacks otherwise
@@ -48,14 +52,10 @@ func testModeEnv(nodes []manifest.ResolvedPiriNode) map[string]string {
 		"SMELT_IPNI_P2P_PORT":        "3003",
 		"SMELT_UPLOAD_PORT":          "80",
 		"SMELT_UPLOAD_POSTGRES_PORT": "5432",
-		"SMELT_HILT_PORT":            "80",
 		"SMELT_HILT_POSTGRES_PORT":   "5432",
-		"SMELT_HILT_VAULT_PORT":      "8200",
 		"SMELT_PLC_PORT":             "3000",
 		"SMELT_PLC_POSTGRES_PORT":    "5432",
-		"SMELT_INGOT_PORT":           "80",
 		"SMELT_INGOT_POSTGRES_PORT":  "5432",
-		"SMELT_INGOT_OPENBAO_PORT":   "8200",
 		"SMELT_SWARF_PORT":           "80",
 		"SMELT_SWARF_POSTGRES_PORT":  "5432",
 
@@ -71,6 +71,19 @@ func testModeEnv(nodes []manifest.ResolvedPiriNode) map[string]string {
 	// Generator-emitted piri.yml references these by node index.
 	for _, node := range nodes {
 		env[fmt.Sprintf("SMELT_PIRI_%d_PORT", node.Index)] = "3000"
+	}
+
+	// Per-instance hilt and gateway ports, named by the instances
+	// themselves. A snapshot can carry more than the leading pair, and one
+	// left on its fixed 15XXX binding would collide with the next stack
+	// running beside it.
+	for _, h := range hilts {
+		env[h.PortEnv()] = "80"
+		env[h.VaultPortEnv()] = "8200"
+	}
+	for _, i := range ingots {
+		env[i.PortEnv()] = "80"
+		env[i.VaultPortEnv()] = "8200"
 	}
 
 	return env
