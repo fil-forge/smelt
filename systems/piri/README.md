@@ -8,6 +8,8 @@ Storage node(s) with PDP (Proof of Data Possession) proofs.
 
 One or more `piri-{N}` services, each configured according to the corresponding entry in `smelt.yml`. Shared `piri-postgres` (with a `piri-postgres-init` sidecar) and/or `piri-minio` services are included when any node selects those backends.
 
+Each node hashes and aggregates an upload at once (`SMELT_PIRI_COMMP_DELAY`, default `0s`) from 1 MiB (`SMELT_PIRI_MIN_AGGREGATE_SIZE`, default `1048576`), so a small upload reaches the chain in minutes. Piri's own defaults are a 1h delay and 128 MiB; set these variables to test with them.
+
 ## Ports
 
 | Host Port | Service | Description |

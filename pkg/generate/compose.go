@@ -91,6 +91,11 @@ func buildPiriService(node manifest.ResolvedPiriNode) ComposeService {
 		// hilt and sprue use. The entrypoint writes it into piri's
 		// [[telemetry.traces]]; empty leaves piri's config as it was.
 		"OTEL_ENDPOINT=${OTEL_ENDPOINT:-${OTEL_EXPORTER_OTLP_ENDPOINT:-}}",
+		// Hash and aggregate a small upload at once so it reaches the chain
+		// in minutes; piri defaults to a 1h commP delay and 128 MiB
+		// aggregates. The shell can restore production values.
+		"PIRI_PDP_AGGREGATION_COMMP_DELAY=${SMELT_PIRI_COMMP_DELAY:-0s}",
+		"PIRI_PDP_AGGREGATION_AGGREGATOR_MIN_AGGREGATE_SIZE=${SMELT_PIRI_MIN_AGGREGATE_SIZE:-1048576}",
 	}
 
 	if node.Storage.DB == manifest.DBPostgres {

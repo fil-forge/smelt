@@ -3,6 +3,7 @@ package generate
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -399,6 +400,37 @@ func TestGeneratePiriComposeTraceEndpoint(t *testing.T) {
 		}
 		if len(got) != 1 || got[0] != want {
 			t.Errorf("%s: OTEL entries = %q, want [%q]", name, got, want)
+		}
+	}
+}
+
+func TestGeneratePiriComposeAggregatesSmallUploadsAtOnce(t *testing.T) {
+	nodes := []manifest.ResolvedPiriNode{
+		{Name: "piri-0", Index: 0, Storage: manifest.StorageSpec{DB: "postgres", Blob: "filesystem"}},
+		{Name: "piri-1", Index: 1, Storage: manifest.StorageSpec{DB: "postgres", Blob: "s3"}},
+	}
+
+	data, err := GeneratePiriCompose(nodes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var compose ComposeFile
+	if err := yaml.Unmarshal(data, &compose); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"PIRI_PDP_AGGREGATION_COMMP_DELAY=${SMELT_PIRI_COMMP_DELAY:-0s}",
+		"PIRI_PDP_AGGREGATION_AGGREGATOR_MIN_AGGREGATE_SIZE=${SMELT_PIRI_MIN_AGGREGATE_SIZE:-1048576}",
+	}
+	for _, name := range []string{"piri-0", "piri-1"} {
+		var got []string
+		for _, e := range compose.Services[name].Environment {
+			if strings.HasPrefix(e, "PIRI_PDP_AGGREGATION_") {
+				got = append(got, e)
+			}
+		}
+		if !slices.Equal(got, want) {
+			t.Errorf("%s: aggregation entries = %q, want %q", name, got, want)
 		}
 	}
 }
