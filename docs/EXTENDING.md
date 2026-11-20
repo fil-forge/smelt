@@ -556,7 +556,7 @@ curl -s -X POST http://localhost:15000 \
 # Get contract storage slot
 curl -s -X POST http://localhost:15000 \
   -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","method":"eth_getStorageAt","params":["0xc5a5C42992dECbae36851359345FE25997F5C42d","0x0","latest"],"id":1}' | jq
+  -d '{"jsonrpc":"2.0","method":"eth_getStorageAt","params":["0xE6E340D132b5f46d1e472DebcD681B2aBc16e57E","0x0","latest"],"id":1}' | jq
 ```
 
 ### Inspecting Container State

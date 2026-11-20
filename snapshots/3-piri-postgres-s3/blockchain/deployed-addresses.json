@@ -15,8 +15,8 @@
     "PDPVerifier": "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853",
     "FilecoinPayV1": "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6",
     "ServiceProviderRegistry": "0x610178dA211FEF7D417bC0e6FeD39F05609AD788",
-    "FilecoinWarmStorageService": "0xc5a5C42992dECbae36851359345FE25997F5C42d",
-    "FilecoinWarmStorageServiceStateView": "0xc5a5C42992dECbae36851359345FE25997F5C42d",
+    "FilecoinWarmStorageService": "0xE6E340D132b5f46d1e472DebcD681B2aBc16e57E",
+    "FilecoinWarmStorageServiceStateView": "0xE6E340D132b5f46d1e472DebcD681B2aBc16e57E",
     "FWSSDispatcher": "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e"
   },
   "config": {

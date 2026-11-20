@@ -17,7 +17,7 @@ services:
       "--host", "0.0.0.0",
       "--port", "7446",
       "--rpc-url", "ws://blockchain:8545",
-      "--service-contract-address", "0xc5a5C42992dECbae36851359345FE25997F5C42d",
+      "--service-contract-address", "0xE6E340D132b5f46d1e472DebcD681B2aBc16e57E",
       "--signing-key-path", "/keys/payer-key.hex",
       "--service-key-file", "/keys/signing-service.pem",
       "--service-did", "did:web:signing-service"
