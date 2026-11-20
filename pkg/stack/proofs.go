@@ -19,6 +19,7 @@ import (
 	"github.com/fil-forge/ucantone/did"
 	"github.com/fil-forge/ucantone/multikey"
 	"github.com/fil-forge/ucantone/ucan"
+	"github.com/fil-forge/ucantone/ucan/command"
 	"github.com/fil-forge/ucantone/ucan/container"
 	"github.com/fil-forge/ucantone/ucan/delegation"
 )
@@ -35,6 +36,9 @@ var piriCommands = []ucan.Command{
 	pdpcmds.Info.Command,
 }
 
+// pdpSignCommand is the parent of every /pdp/sign/* command.
+var pdpSignCommand = command.MustParse("/pdp/sign")
+
 // delegateFn matches the method value of a libforge bound command's Delegate
 // (e.g. claim.Cache.Delegate, egress.Track.Delegate).
 type delegateFn func(issuer ucan.Issuer, audience, subject did.DID, opts ...delegation.Option) (ucan.Delegation, error)
@@ -46,7 +50,8 @@ type delegateFn func(issuer ucan.Issuer, audience, subject did.DID, opts ...dele
 // ucantone delegation.Decode.
 //
 // As of ucan1.0 these are: indexer → delegator (/claim/cache), etracker →
-// delegator (/space/egress/track), upload → each hilt (/customer/add) and
+// delegator (/space/egress/track), signing-service → delegator (/pdp/sign),
+// upload → each hilt (/customer/add) and
 // each hilt → each of its gateways (/s3/*), plus one piri-N → upload proof
 // per node — upload's register-providers.sh still passes each node's proof
 // file to `sprue client admin provider register`.
@@ -65,6 +70,18 @@ func generateProofs(tempDir string, nodes []manifest.ResolvedPiriNode, hilts []m
 	if err := writeDelegation(keysDir, proofsDir,
 		"etracker", "did:web:etracker", "did:web:delegator",
 		"egress-tracking-proof.txt", egress.Track.Delegate); err != nil {
+		return err
+	}
+
+	// signing-service → delegator (/pdp/sign): the delegator extends this to
+	// each storage node on its allow list. The parent command covers every
+	// /pdp/sign/* command, and has no libforge binding of its own.
+	if err := writeDelegation(keysDir, proofsDir,
+		"signing-service", "did:web:signing-service", "did:web:delegator",
+		"signing-service-proof.txt",
+		func(issuer ucan.Issuer, audience, subject did.DID, opts ...delegation.Option) (ucan.Delegation, error) {
+			return delegation.Delegate(issuer, audience, subject, pdpSignCommand, opts...)
+		}); err != nil {
 		return err
 	}
 

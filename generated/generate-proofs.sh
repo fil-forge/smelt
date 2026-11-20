@@ -4,6 +4,7 @@
 # This script generates the delegation proofs needed for services to communicate:
 # - indexing-service-proof: indexer delegates claim/cache to delegator
 # - egress-tracking-proof: etracker delegates egress/track to delegator
+# - signing-service-proof: signing-service delegates pdp/sign to delegator
 # - piri-N-proof: each piri node delegates blob/* + pdp/info to upload
 # - <hilt>-customer-add-proof: upload delegates customer/add to each hilt
 # - <hilt>-<ingot>-s3-proof: each hilt delegates the /s3/* commands to each
@@ -50,6 +51,7 @@ mkdir -p "$PROOFS_DIR"
 check_key "$KEYS_DIR/indexer.pem"
 check_key "$KEYS_DIR/delegator.pem"
 check_key "$KEYS_DIR/etracker.pem"
+check_key "$KEYS_DIR/signing-service.pem"
 check_key "$KEYS_DIR/upload.pem"
 # Per-node piri keys (piri-0.pem, piri-1.pem, ...) are checked by the loop below.
 
@@ -105,6 +107,31 @@ else
         > "$EGRESS_PROOF_FILE"
 
     echo "  [new] egress-tracking-proof.txt"
+fi
+
+# Generate signing service proof (signing-service → delegator, pdp/sign capability).
+# The delegator extends it to each storage node on its allow list; the parent
+# command covers every /pdp/sign/* command.
+SIGNING_PROOF_FILE="$PROOFS_DIR/signing-service-proof.txt"
+if [[ -f "$SIGNING_PROOF_FILE" && "$FORCE" != "--force" ]]; then
+    echo ""
+    echo "[skip] signing-service-proof.txt already exists"
+else
+    echo ""
+    echo "Generating signing service proof..."
+    echo "  Issuer: did:web:signing-service (key: signing-service.pem)"
+    echo "  Audience: $DELEGATOR_WEB_DID"
+    echo "  Commands: /pdp/sign"
+
+    "$UCANTOOL" delegate \
+        --issuer-private-key-file "$KEYS_DIR/signing-service.pem" \
+        --issuer-did-web "did:web:signing-service" \
+        --audience "$DELEGATOR_WEB_DID" \
+        --subject "did:web:signing-service" \
+        --command "/pdp/sign" \
+        > "$SIGNING_PROOF_FILE"
+
+    echo "  [new] signing-service-proof.txt"
 fi
 
 # Generate per-node piri proofs (piri-N → upload, blob/* + pdp/info).
