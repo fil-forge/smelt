@@ -6,7 +6,7 @@ require (
 	github.com/compose-spec/compose-go/v2 v2.15.0
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/fil-forge/libforge v0.0.0-20261020103720-b6aeeaf7c926
-	github.com/fil-forge/ucantone v0.0.0-20260924160040-c31dec73d9b3
+	github.com/fil-forge/ucantone v0.0.0-20261120104359-4253712d41e4
 	github.com/google/uuid v1.6.0
 	github.com/lib/pq v0.0.0-20150723085316-0dad96c0b94f
 	github.com/pelletier/go-toml/v2 v2.4.3
@@ -57,7 +57,7 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
-	github.com/gobwas/glob v0.2.3 // indirect
+	github.com/gobwas/glob v1.1.0 // indirect
 	github.com/gofrs/flock v0.13.0 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect

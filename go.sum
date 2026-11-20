@@ -118,8 +118,8 @@ github.com/felixge/httpsnoop v1.1.0 h1:3YtUj32ZZkqZtt3sZZsClsymw/QDuVfpNhoA31zeO
 github.com/felixge/httpsnoop v1.1.0/go.mod h1:Zqxgdd+1Rkcz8euOqdr7lqgCRJztwr5hp9vDSi5UZCE=
 github.com/fil-forge/libforge v0.0.0-20261020103720-b6aeeaf7c926 h1:i6Zr11ukpOvJx80T06okJidomSv7DJCj5mSGdOy8ltk=
 github.com/fil-forge/libforge v0.0.0-20261020103720-b6aeeaf7c926/go.mod h1:ZtPwUgXm7gqQSmjmIcfMy5AwWpFIR02WMZvbgNOwi/4=
-github.com/fil-forge/ucantone v0.0.0-20260924160040-c31dec73d9b3 h1:Ta5ODMWR9mM4zMfRp/K1unAKvnt7f5dhehRA+YHiv7w=
-github.com/fil-forge/ucantone v0.0.0-20260924160040-c31dec73d9b3/go.mod h1:aX35jlUs3hnWAhigjO8z9kMPiYnkW3XOW8iVoJyz7cg=
+github.com/fil-forge/ucantone v0.0.0-20261120104359-4253712d41e4 h1:2hQIpdhNOu0QKY1rpdsYnJRtNG/0MklyETPraR/ms+Y=
+github.com/fil-forge/ucantone v0.0.0-20261120104359-4253712d41e4/go.mod h1:PJe9Lcv+QWawlM29ItA9y5JzFIs37gZ3jODxYKXbQkM=
 github.com/filecoin-project/go-data-segment v0.0.1 h1:1wmDxOG4ubWQm3ZC1XI5nCon5qgSq7Ra3Rb6Dbu10Gs=
 github.com/filecoin-project/go-data-segment v0.0.1/go.mod h1:H0/NKbsRxmRFBcLibmABv+yFNHdmtl5AyplYLnb0Zv4=
 github.com/filecoin-project/go-fil-commcid v0.3.1 h1:4EfxpHSlvtkOqa9weG2Yt5kxFmPib2xU7Uc9Lbqk7fs=
@@ -182,8 +182,8 @@ github.com/go-openapi/validate v0.25.3 h1:4nzAIavcJ7WveHK2+V1UAkZK3kWcjzxZCzjfZA
 github.com/go-openapi/validate v0.25.3/go.mod h1:GemfuGMyYpIaBoKpX3z8sLywrmxpzWVOoJ7R0VeAVuk=
 github.com/go-viper/mapstructure/v2 v2.5.0 h1:vM5IJoUAy3d7zRSVtIwQgBj7BiWtMPfmPEgAXnvj1Ro=
 github.com/go-viper/mapstructure/v2 v2.5.0/go.mod h1:oJDH3BJKyqBA2TXFhDsKDGDTlndYOZ6rGS0BRZIxGhM=
-github.com/gobwas/glob v0.2.3 h1:A4xDbljILXROh+kObIiy5kIaPYD8e96x1tgBhUI5J+Y=
-github.com/gobwas/glob v0.2.3/go.mod h1:d3Ez4x06l9bZtSvzIay5+Yzi0fmZzPgnTbPcKjJAkT8=
+github.com/gobwas/glob v1.1.0 h1:CS8tIr7+5fu50N+tKsQy3osOU5jmhjHv0/ildcKAn2Q=
+github.com/gobwas/glob v1.1.0/go.mod h1:5OYLTTNYHcww+D/XwWAjGpmIE8sD41kWneKyzWkK7/k=
 github.com/gofrs/flock v0.13.0 h1:95JolYOvGMqeH31+FC7D2+uULf6mG61mEZ/A8dRYMzw=
 github.com/gofrs/flock v0.13.0/go.mod h1:jxeyy9R1auM5S6JYDBhDt+E2TCo7DkratH4Pgi8P+Z0=
 github.com/golang-jwt/jwt/v5 v5.3.1 h1:kYf81DTWFe7t+1VvL7eS+jKFVWaUnK9cB1qbwn63YCY=
