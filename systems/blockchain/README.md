@@ -32,7 +32,7 @@ The chain boots from the committed baseline in `state/`: `anvil-state.json` hold
 cast call --rpc-url http://localhost:15000 0xa513E6E4b8f2a923D98304ec87F64353C4D5C853 'VERSION()(string)'
 ```
 
-The baseline holds PDPVerifier 3.5.0 and FWSS 1.5.0, deployed by the localdev image that [fil-forge/filecoin-services](https://github.com/fil-forge/filecoin-services) publishes. FWSS runs on the ERC-8167 dispatcher, recorded as `FWSSDispatcher`, and the proxy serves the StateView reads itself, so `FilecoinWarmStorageServiceStateView` is the proxy's address.
+The baseline holds PDPVerifier 3.5.0 and FWSS 1.6.0, deployed by the localdev image that [fil-forge/filecoin-services](https://github.com/fil-forge/filecoin-services) publishes. FWSS runs on the ERC-8167 dispatcher, recorded as `FWSSDispatcher`, and the proxy serves the StateView reads itself, so `FilecoinWarmStorageServiceStateView` is the proxy's address.
 
 `compose.yml` pins the image that produced the baseline, by tag and digest, because a newer image may not load it. Move the pin and the baseline in the same change.
 

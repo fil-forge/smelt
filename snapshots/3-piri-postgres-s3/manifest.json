@@ -1,6 +1,6 @@
 {
   "name": "3-piri-postgres-s3",
-  "created_at": "2026-11-11T22:35:18.067459Z",
+  "created_at": "2026-11-20T15:41:50.410886Z",
   "volumes": [
     "minio-data",
     "ipni-data",
@@ -8,11 +8,11 @@
     "guppy-data",
     "swarf-postgres-data",
     "hilt-postgres-data",
+    "plc-postgres-data",
+    "ingot-postgres-data",
     "hilt-vault-data",
     "hilt-vault-init",
-    "plc-postgres-data",
     "ingot-data",
-    "ingot-postgres-data",
     "ingot-openbao-data",
     "ingot-openbao-init",
     "piri-0-data",
@@ -40,6 +40,7 @@
     "ingot.did",
     "ingot.pem",
     "ingot.pub",
+    "networks.tsv",
     "payer-key.hex",
     "piri-0-wallet.hex",
     "piri-0.did",
@@ -75,12 +76,12 @@
   ],
   "images": {
     "blockchain": {
-      "tag": "ghcr.io/fil-forge/filecoin-localdev:fc39541@sha256:5538f99ab97101642139d5bb001f98cbf88f8c13e6b515cae0760bb7a7ee3822",
-      "digest": "ghcr.io/fil-forge/filecoin-localdev@sha256:5538f99ab97101642139d5bb001f98cbf88f8c13e6b515cae0760bb7a7ee3822"
+      "tag": "ghcr.io/fil-forge/filecoin-localdev:98ebc7c@sha256:396ad383dffc4e178e7b87fddc1cf1944722ba63f8ee1642efdaf012822c07c3",
+      "digest": "ghcr.io/fil-forge/filecoin-localdev@sha256:396ad383dffc4e178e7b87fddc1cf1944722ba63f8ee1642efdaf012822c07c3"
     },
     "delegator": {
       "tag": "ghcr.io/fil-forge/delegator:main",
-      "digest": "ghcr.io/fil-forge/delegator@sha256:7fb4eb518859b62c11ddafaa3b88cdcf8c9623e8d7a68a366a6af647479f19b3"
+      "digest": "ghcr.io/fil-forge/delegator@sha256:06ede396eb1ed1ab56ecafc4ae754443ddd6f259b161e22e20264dfca5c5d839"
     },
     "dynamodb-local": {
       "tag": "amazon/dynamodb-local:latest",
@@ -92,15 +93,15 @@
     },
     "guppy": {
       "tag": "ghcr.io/fil-forge/guppy:main-dev",
-      "digest": "ghcr.io/fil-forge/guppy@sha256:c641515208237ac2b4baf8b46743644130f2411c29b9184e510bb41215a9cccb"
+      "digest": "ghcr.io/fil-forge/guppy@sha256:2b7fefece783a91d1da9bd765cf2f34d359e8f7a6df9c7410caa135ca46b9e6f"
     },
     "hilt": {
       "tag": "ghcr.io/fil-forge/hilt:main",
-      "digest": "ghcr.io/fil-forge/hilt@sha256:04285cd72f38cd2dd6497e7f8b109b5d55076558f9acebaa150adee941baac03"
+      "digest": "ghcr.io/fil-forge/hilt@sha256:05822fcb23b3db600218978a8e0056a2f5364b6d4e2ccf42c5cea101100320c8"
     },
     "hilt-init": {
       "tag": "ghcr.io/fil-forge/hilt:main",
-      "digest": "ghcr.io/fil-forge/hilt@sha256:04285cd72f38cd2dd6497e7f8b109b5d55076558f9acebaa150adee941baac03"
+      "digest": "ghcr.io/fil-forge/hilt@sha256:05822fcb23b3db600218978a8e0056a2f5364b6d4e2ccf42c5cea101100320c8"
     },
     "hilt-postgres": {
       "tag": "postgres:16-alpine",
@@ -120,7 +121,7 @@
     },
     "ingot": {
       "tag": "ghcr.io/fil-forge/ingot:main",
-      "digest": "ghcr.io/fil-forge/ingot@sha256:09f53be37b19b484b57d469593b9450e3bbb47f63129d383fff7661bf6e59c3d"
+      "digest": "ghcr.io/fil-forge/ingot@sha256:cfb42cb1444618acdb68a071fbc883d404618c96539e5e3f419e34cee358c576"
     },
     "ingot-openbao": {
       "tag": "openbao/openbao:2.6",
@@ -148,15 +149,15 @@
     },
     "piri-0": {
       "tag": "ghcr.io/fil-forge/piri:main",
-      "digest": "ghcr.io/fil-forge/piri@sha256:7c649baebe2ff652ef2f85a240f83d46892b988fd9e5f867495638b45d37db22"
+      "digest": "ghcr.io/fil-forge/piri@sha256:d241abef968a5387618af879e7de030bde3868ab25c3d9a1e804f073a38c431c"
     },
     "piri-1": {
       "tag": "ghcr.io/fil-forge/piri:main",
-      "digest": "ghcr.io/fil-forge/piri@sha256:7c649baebe2ff652ef2f85a240f83d46892b988fd9e5f867495638b45d37db22"
+      "digest": "ghcr.io/fil-forge/piri@sha256:d241abef968a5387618af879e7de030bde3868ab25c3d9a1e804f073a38c431c"
     },
     "piri-2": {
       "tag": "ghcr.io/fil-forge/piri:main",
-      "digest": "ghcr.io/fil-forge/piri@sha256:7c649baebe2ff652ef2f85a240f83d46892b988fd9e5f867495638b45d37db22"
+      "digest": "ghcr.io/fil-forge/piri@sha256:d241abef968a5387618af879e7de030bde3868ab25c3d9a1e804f073a38c431c"
     },
     "piri-minio": {
       "tag": "ghcr.io/fil-forge/minio:RELEASE.2025-10-15T17-29-55Z",
@@ -192,7 +193,7 @@
     },
     "swarf": {
       "tag": "ghcr.io/fil-forge/swarf:main",
-      "digest": "ghcr.io/fil-forge/swarf@sha256:34f724d70ba2255fd5ef8a1cb498d9b25e327c06da8c1a1d02f69eba35996901"
+      "digest": "ghcr.io/fil-forge/swarf@sha256:014ed9319f1eff0debee11f127d30eb7e33cc6af8bccf67fd3c18f84ccf367b0"
     },
     "swarf-postgres": {
       "tag": "postgres:16-alpine",
@@ -200,11 +201,11 @@
     },
     "upload": {
       "tag": "ghcr.io/fil-forge/sprue:main",
-      "digest": "ghcr.io/fil-forge/sprue@sha256:dac4f50876d62fd1988f7384c614387fa23a2c60e5fe4283d4cc6296c555ec22"
+      "digest": "ghcr.io/fil-forge/sprue@sha256:8e000ed3e7fb3a09d53c4ce35de943d454b0528678fcc6250679d5a1cc1f226c"
     },
     "upload-init": {
       "tag": "ghcr.io/fil-forge/sprue:main",
-      "digest": "ghcr.io/fil-forge/sprue@sha256:dac4f50876d62fd1988f7384c614387fa23a2c60e5fe4283d4cc6296c555ec22"
+      "digest": "ghcr.io/fil-forge/sprue@sha256:8e000ed3e7fb3a09d53c4ce35de943d454b0528678fcc6250679d5a1cc1f226c"
     }
   }
 }
