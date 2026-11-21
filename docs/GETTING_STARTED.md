@@ -185,7 +185,7 @@ This tool generates UCAN delegation proofs—signed statements that grant one se
 
 #### Step 5: Generate UCAN Delegation Proofs
 
-Two proofs are generated:
+Three proofs are generated:
 
 **Indexing Service Proof** (`indexing-service-proof.txt`)
 - Issuer: `did:web:indexer`
@@ -200,6 +200,13 @@ This proof allows the delegator to cache claims with the indexer on behalf of st
 - Capability: `egress/track`
 
 This proof enables egress tracking functionality through the delegator.
+
+**Signing Service Proof** (`signing-service-proof.txt`)
+- Issuer: `did:web:signing-service`
+- Audience: `did:web:delegator`
+- Capability: `pdp/sign`
+
+This proof lets the delegator issue each storage node on its allow list a short-lived delegation for the signing service.
 
 #### Step 6: Create Docker Network
 

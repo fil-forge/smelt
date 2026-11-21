@@ -270,7 +270,7 @@ func assertNamesAreFree(hilts []ResolvedHilt, ingots []ResolvedIngot, piri []Res
 }
 
 // fixedProofs are the delegation files written whatever the manifest says.
-var fixedProofs = []string{"indexing-service-proof.txt", "egress-tracking-proof.txt"}
+var fixedProofs = []string{"indexing-service-proof.txt", "egress-tracking-proof.txt", "signing-service-proof.txt"}
 
 // S3ProofName is the file holding the delegation a hilt issues to one of its
 // gateways for the /s3/* commands.
