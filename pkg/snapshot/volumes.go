@@ -99,6 +99,14 @@ func resolveVolumes(m *manifest.Manifest) ([]string, error) {
 func archiveVolume(ctx context.Context, projectName, volName, outputDir string) error {
 	fullVol := fmt.Sprintf("%s_%s", projectName, volName)
 
+	// `docker run -v` creates a missing named volume, so archiving one that
+	// does not exist would silently produce an empty tar. That happens when
+	// the project name is wrong or the manifest lists a volume the running
+	// stack never created; either way the snapshot would be incomplete.
+	if !volumeExists(ctx, fullVol) {
+		return fmt.Errorf("volume %s does not exist; is the stack running under compose project %q? (set COMPOSE_PROJECT_NAME to override)", fullVol, projectName)
+	}
+
 	outputDirAbs, err := filepath.Abs(outputDir)
 	if err != nil {
 		return fmt.Errorf("resolve output dir: %w", err)
@@ -117,14 +125,6 @@ func archiveVolume(ctx context.Context, projectName, volName, outputDir string) 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		// Volume-not-found is non-fatal — the manifest may list volumes that
-		// this particular session never created (e.g. piri-postgres-data when
-		// the stack was brought up with only sqlite nodes during dev, then
-		// the manifest was edited). Surface the error for other causes.
-		if !volumeExists(ctx, fullVol) {
-			fmt.Fprintf(os.Stderr, "  skip: volume %q does not exist\n", fullVol)
-			return nil
-		}
 		return fmt.Errorf("archive %s: %w", fullVol, err)
 	}
 	return nil
