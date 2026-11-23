@@ -235,24 +235,22 @@ Docker Compose starts ten services with dependency ordering. Services wait for t
 The startup sequence, roughly:
 
 1. **blockchain** starts first (no dependencies)
-2. **dynamodb-local** and **redis** start (no dependencies)
+2. **delegator-postgres** and **redis** start (no dependencies)
 3. **ipni** starts (no dependencies)
 4. **signing-service** waits for blockchain
-5. **delegator** waits for blockchain and dynamodb-local
+5. **delegator** waits for blockchain and delegator-postgres; **delegator-init** then puts every piri node on its allow list
 6. **indexer** waits for redis and ipni
-7. **piri** waits for blockchain, indexer, signing-service, delegator, and dynamodb-local
-8. **upload** waits for indexer, dynamodb-local, and piri
+7. **piri** waits for blockchain, indexer, signing-service, delegator, and delegator-init
+8. **upload** waits for indexer, minio, and its postgres
 9. **guppy** waits for upload and piri
 
 ### Piri's Multi-Step Initialization
 
 Each piri node declared in `smelt.yml` (default 1, up to 9) runs its own multi-step initialization on first start:
 
-1. **Derive DID**: Work out the node's `did:web` identity from its public URL
-2. **Register with allow list**: Add the DID to the delegator's DynamoDB allow list
-3. **Register on-chain**: Register as a storage provider with the PDP contracts via signing-service
-4. **Create proof set**: Submit a create-proof-set transaction and wait for confirmation
-5. **Start server**: Begin accepting storage requests on port `3000` (mapped to host `15100 + N`)
+1. **Register on-chain**: Register as a storage provider with the PDP contracts via signing-service, under the `did:web` of its public URL
+2. **Create proof set**: Submit a create-proof-set transaction and wait for confirmation
+3. **Start server**: Begin accepting storage requests on port `3000` (mapped to host `15100 + N`)
 
 All nodes initialize concurrently. First-time setup takes 1–3 minutes per node (with some amortization across parallel startup). Monitor a specific node with `docker compose logs -f piri-{N}`.
 
@@ -289,7 +287,8 @@ This runs `docker compose ps` and highlights health states. A healthy network lo
 NAME                     STATUS                        PORTS
 smelt-blockchain-1       Up 1 minute (healthy)         0.0.0.0:15000->8545/tcp
 smelt-delegator-1        Up 1 minute (healthy)         0.0.0.0:15040->80/tcp
-smelt-dynamodb-local-1   Up 1 minute (healthy)         0.0.0.0:15010->8000/tcp
+smelt-delegator-init-1   Exited (0)
+smelt-delegator-postgres-1 Up 1 minute (healthy)       0.0.0.0:15041->5432/tcp
 smelt-email-1            Up 1 minute                   0.0.0.0:15080->25/tcp, 0.0.0.0:15081->80/tcp
 smelt-guppy-1            Up 1 minute
 smelt-indexer-1          Up 1 minute (healthy)         0.0.0.0:15050->80/tcp
@@ -521,15 +520,11 @@ curl http://localhost:15030/healthcheck
 # Returns health status
 ```
 
-**DynamoDB Local (web console)**
-
-Open in your browser: `http://localhost:15010/shell/`
-
-This provides a JavaScript shell for querying DynamoDB tables. Useful for inspecting:
-- `delegator-allow-list`: DIDs authorized to receive delegations
-- `delegator-provider-info`: Registered storage providers and their delegation proofs
-- `upload-allocations`: Pending blob allocations
-- `upload-receipts`: Stored UCAN receipts
+**Delegator store (Postgres)**
+```bash
+docker compose exec delegator-postgres psql -U delegator -d delegator -c 'SELECT did FROM allow_list'
+# Lists the DIDs allowed to register: one per piri node
+```
 
 **IPNI (finder)**
 ```bash
@@ -561,7 +556,6 @@ Common causes:
 
 - **Piri unhealthy**: Piri's initialization is complex. Check logs for:
   - "Failed to extract DID" — key file issue
-  - "Registration failed" — DynamoDB connectivity
   - "Init failed" — blockchain or delegator connectivity
 
 - **Indexer unhealthy**: Usually means Redis isn't ready. Check Redis health first.
@@ -794,10 +788,10 @@ For deep protocol understanding:
 | Service | Host Port | Health Check |
 |---------|-----------|--------------|
 | Blockchain | 15000 | `curl -X POST localhost:15000 -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'` |
-| DynamoDB | 15010 | `http://localhost:15010/shell/` (browser) |
 | Redis | 15020 | `redis-cli -h localhost -p 15020 ping` |
 | Signing Service | 15030 | `curl localhost:15030/healthcheck` |
 | Delegator | 15040 | `curl localhost:15040/healthcheck` |
+| Delegator Postgres | 15041 | `pg_isready -h localhost -p 15041` |
 | Indexer | 15050 | `curl localhost:15050/` |
 | Upload | 15060 | `curl localhost:15060/health` |
 | MinIO S3 / console | 15070 / 15071 | `curl localhost:15070/minio/health/live` / browser `http://localhost:15071` |

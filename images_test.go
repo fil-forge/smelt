@@ -23,8 +23,10 @@ var thirdPartyImages = map[string]map[string]string{
 		"plc-postgres": "${POSTGRES_IMAGE:-postgres:16-alpine}",
 	},
 	"systems/common/compose.yml": {
-		"dynamodb-local": "${DYNAMODB_LOCAL_IMAGE:-amazon/dynamodb-local:latest}",
-		"email":          "${SMTP4DEV_IMAGE:-rnwood/smtp4dev:v3}",
+		"email": "${SMTP4DEV_IMAGE:-rnwood/smtp4dev:v3}",
+	},
+	"systems/delegator/compose.yml": {
+		"delegator-postgres": "${POSTGRES_IMAGE:-postgres:16-alpine}",
 	},
 	"systems/indexing/indexer/compose.yml": {
 		"redis": "${REDIS_IMAGE:-redis:7-alpine}",

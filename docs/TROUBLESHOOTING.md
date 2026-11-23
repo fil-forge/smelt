@@ -217,7 +217,7 @@ Failed to connect to IPNI
 
 #### Upload Stays Unhealthy
 
-**Static dependencies**: `indexer`, `dynamodb-local`. Note that `upload` does **not** statically depend on any `piri-{N}` — it reaches piri nodes via service DID resolution at request time. This means upload can be healthy while piri is not, and upload requests will fail at invocation time instead of at startup.
+**Static dependencies**: `indexer`, `minio`, `postgres`. Note that `upload` does **not** statically depend on any `piri-{N}` — it reaches piri nodes via service DID resolution at request time. This means upload can be healthy while piri is not, and upload requests will fail at invocation time instead of at startup.
 
 **Diagnostic**:
 ```bash
@@ -230,7 +230,7 @@ docker compose logs upload
 |---------|-------|----------|
 | "Cannot connect to indexer" | Indexer not healthy | Fix indexer first |
 | "Cannot connect to piri" at request time | A piri node not healthy | `docker compose logs piri-0` (or the target node) |
-| "DynamoDB connection failed" | dynamodb-local not healthy | `docker compose logs dynamodb-local` |
+| Cannot connect to postgres | upload's postgres not healthy | `docker compose logs postgres` |
 | Starts but invocations fail | Delegation proof missing | `make nuke && make up` |
 
 ---
@@ -248,9 +248,9 @@ docker compose logs delegator
 **Common causes**:
 - Blockchain not accessible (signing-service needs it)
 - Key files missing or corrupted
-- DynamoDB not accessible (delegator needs it)
+- delegator-postgres not accessible (delegator needs it)
 
-**Solution**: If blockchain and dynamodb-local are healthy but these services aren't:
+**Solution**: If blockchain and delegator-postgres are healthy but these services aren't:
 ```bash
 make nuke && make up
 ```
@@ -341,7 +341,7 @@ Check which services show unhealthy or starting. The upload flow requires:
 - upload (orchestration)
 - piri (storage)
 - indexer (claim caching)
-- dynamodb-local (state persistence)
+- postgres (upload's metadata stores)
 
 **Common cause**: Piri initialization still in progress. Piri's
 first-time setup takes up to 3 minutes per node. Check:
@@ -358,7 +358,7 @@ before retrying uploads.
 
 **Full error**: `receipt not found` or `no receipt for invocation`
 
-**Cause**: The async workflow was interrupted. Receipts are stored in DynamoDB; if DynamoDB was reset mid-upload, the receipt is gone.
+**Cause**: The async workflow was interrupted. Upload keeps its state in its postgres and minio; if those were reset mid-upload, the receipt is gone.
 
 **Solution**:
 1. Retry the upload
@@ -891,30 +891,33 @@ When a service is unhealthy, check its dependencies first.
 flowchart BT
     subgraph Foundation["Foundation (no dependencies)"]
         blockchain
-        dynamodb["dynamodb-local"]
+        delegator_pg["delegator-postgres"]
+        upload_pg["postgres"]
+        minio
         redis
         ipni
     end
 
     signing["signing-service"] --> blockchain
     delegator --> blockchain
-    delegator --> dynamodb
+    delegator --> delegator_pg
+    delegator_init["delegator-init"] --> delegator
     indexer --> redis
     indexer --> ipni
     piri --> blockchain
     piri --> indexer
     piri --> signing
     piri --> delegator
-    piri --> dynamodb
+    piri --> delegator_init
     upload --> indexer
-    upload --> piri
-    upload --> dynamodb
+    upload --> minio
+    upload --> upload_pg
     guppy --> upload
     guppy --> piri
 ```
 
-If `upload` is unhealthy, check `indexer`, `piri`, and `dynamodb-local` first.
+If `upload` is unhealthy, check `indexer`, `minio`, and `postgres` first.
 
-If `piri` is unhealthy, check `blockchain`, `signing-service`, `delegator`, `indexer`, and `dynamodb-local` first.
+If `piri` is unhealthy, check `blockchain`, `signing-service`, `delegator`, `delegator-init`, and `indexer` first.
 
 Work from the bottom up.

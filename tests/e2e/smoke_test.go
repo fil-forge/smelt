@@ -14,10 +14,10 @@ import (
 )
 
 // Each storage permutation boots a full stack (~20 containers, including
-// several postgres, vault, and the JVM-based dynamodb-local). Booting
-// them all at once saturates a 4-vCPU CI runner and the slow-starting
-// JVM services miss their healthcheck windows, so concurrency is bounded
-// via `go test -parallel N` (see e2e.yml, defaulting to 1). The -parallel
+// several postgres and vault). Booting them all at once saturates a
+// 4-vCPU CI runner and the slow-starting services miss their healthcheck
+// windows, so concurrency is bounded via `go test -parallel N` (see
+// e2e.yml, defaulting to 1). The -parallel
 // token is held until each subtest fully completes — including the stack
 // teardown registered by MustNewStack via t.Cleanup — so it caps live
 // stacks correctly.

@@ -6,11 +6,12 @@ server:
   port: 80
 
 store:
-  region: "us-west-1"
-  allowlist_table_name: "delegator-allow-list"
-  providerinfo_table_name: "delegator-provider-info"
+  type: "postgres"
+  # The delegator applies its schema migrations on startup. Dev-only
+  # credentials, like every other database in the stack.
+  postgres:
+    dsn: "postgres://delegator:delegator@delegator-postgres:5432/delegator?sslmode=disable"
   providerweight: 1
-  endpoint: "http://dynamodb-local:8000"
 
 delegator:
   key_file: "/keys/delegator.pem"

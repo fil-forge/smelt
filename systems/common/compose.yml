@@ -1,8 +1,5 @@
 # Common System - Shared infrastructure services
 #
-# DynamoDB Local for state persistence.
-# Used by: delegator, upload, piri
-#
 # MinIO for S3-compatible object storage.
 # Used by: upload
 #
@@ -10,38 +7,6 @@
 # Used by: upload
 
 services:
-  dynamodb-local:
-    image: ${DYNAMODB_LOCAL_IMAGE:-amazon/dynamodb-local:latest}
-    # Root so docker's auto-created volume dir (root-owned) is writable. The
-    # upstream image's dynamodblocal uid 1000 can't write into a fresh named
-    # volume without a chown sidecar.
-    user: "0:0"
-    ports:
-      - "${SMELT_DYNAMODB_PORT:-15010:8000}"
-    # -dbPath persists tables to disk (default is in-memory). Required so
-    # delegator's allow list and upload's provider registry survive restarts
-    # and are captured by `smelt snapshot save`.
-    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-dbPath", "/data"]
-    volumes:
-      - dynamodb-data:/data
-    healthcheck:
-      # DynamoDB Local 3.0+ dropped the JS web shell at /shell/, and it
-      # has no other endpoint that returns 2xx for a plain GET — only
-      # signed DynamoDB API POSTs get real responses. That's why an
-      # `-sf` HTTP probe against any path doesn't work (and why the
-      # previous `|| exit 0` here was masking a genuinely-broken check).
-      # Probe the TCP port directly via bash's /dev/tcp pseudo-device:
-      # we only care whether the JVM has bound port 8000, not what it
-      # says back.
-      test: ["CMD-SHELL", "bash -c ':>/dev/tcp/127.0.0.1/8000'"]
-      start_interval: 1s
-      interval: 5s
-      timeout: 3s
-      retries: 5
-      start_period: 10s
-    restart: unless-stopped
-    networks:
-      - forge-network
   # MinIO for S3-compatible storage
   minio:
     image: ${MINIO_IMAGE:-ghcr.io/fil-forge/minio:RELEASE.2025-10-15T17-29-55Z}
@@ -78,4 +43,3 @@ services:
 
 volumes:
   minio-data:
-  dynamodb-data:

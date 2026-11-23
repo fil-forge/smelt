@@ -421,7 +421,7 @@ Each system can run independently if its dependencies are available. This is use
 # Just blockchain (no dependencies)
 cd systems/blockchain && docker compose up -d
 
-# Just common services (DynamoDB)
+# Just common services (MinIO, smtp4dev)
 cd systems/common && docker compose up -d
 
 # Indexing stack (needs redis, which is included)
@@ -443,12 +443,12 @@ For standalone operation, ensure these dependencies are running:
 | System | Requires |
 |--------|----------|
 | blockchain | — |
-| common (dynamodb-local) | — |
+| common (minio, smtp4dev) | — |
 | signing-service | blockchain |
-| delegator | blockchain, dynamodb-local |
+| delegator (+ delegator-postgres) | blockchain |
 | indexing (ipni + indexer) | redis (included) |
-| piri | blockchain, signing-service, delegator, indexer, dynamodb-local |
-| upload | piri, indexer, dynamodb-local |
+| piri | blockchain, signing-service, delegator, indexer |
+| upload (+ postgres) | indexer, minio |
 | guppy | upload, piri |
 
 ## Adding More Piri Nodes
@@ -508,29 +508,14 @@ At debug log level, services log UCAN invocations and receipts. Search for:
 docker compose logs -f piri 2>&1 | grep -E "(invocation|receipt|capability)"
 ```
 
-### Checking DynamoDB State
+### Checking the Delegator's Allow List
 
-DynamoDB Local provides a web shell at http://localhost:15010/shell/
-
-To list tables:
-
-```javascript
-var dynamodb = new AWS.DynamoDB({
-  endpoint: 'http://localhost:15010',
-  region: 'us-west-1'
-});
-dynamodb.listTables({}, function(err, data) {
-  console.log(data.TableNames);
-});
-```
-
-Or use the AWS CLI:
+The delegator keeps its allow list and provider info in `delegator-postgres` (host port 15041):
 
 ```bash
-aws dynamodb list-tables --endpoint-url http://localhost:15010 --region us-west-1
-
-aws dynamodb scan --table-name delegator-allow-list \
-  --endpoint-url http://localhost:15010 --region us-west-1
+docker compose exec delegator-postgres psql -U delegator -d delegator \
+  -c 'SELECT did, added_by, added_at FROM allow_list' \
+  -c 'SELECT provider, endpoint, proof_set FROM provider_info'
 ```
 
 ### Inspecting Blockchain State

@@ -52,7 +52,7 @@ var Services = map[string]serviceBuild{
 	"upload":          {moduleDir: "sprue", buildTarget: "./cmd/main.go", binPath: "/usr/bin/sprue", alsoBinIn: []string{"upload-init"}},
 	"signing-service": {moduleDir: "piri-signing-service", buildTarget: ".", binPath: "/usr/bin/signer"},
 	"indexer":         {moduleDir: "indexing-service", buildTarget: "./cmd", binPath: "/usr/bin/indexer"},
-	"delegator":       {moduleDir: "delegator", buildTarget: ".", binPath: "/usr/bin/registrar"},
+	"delegator":       {moduleDir: "delegator", buildTarget: ".", binPath: "/usr/bin/registrar", alsoBinIn: []string{"delegator-init"}},
 	"guppy":           {moduleDir: "guppy", buildTarget: ".", binPath: "/usr/bin/guppy"},
 	// hilt's registrar is named after its own instance, so it is derived in
 	// the fan-out rather than listed here.

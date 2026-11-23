@@ -120,11 +120,11 @@ func TestRenderOverrideNoConfigPath(t *testing.T) {
 }
 
 func TestContainers(t *testing.T) {
-	got, err := Containers([]string{"piri", "upload", "ingot"}, Instances{Piri: []string{"piri-0", "piri-1"}, Ingots: []string{"ingot"}})
+	got, err := Containers([]string{"piri", "upload", "ingot", "delegator"}, Instances{Piri: []string{"piri-0", "piri-1"}, Ingots: []string{"ingot"}})
 	if err != nil {
 		t.Fatalf("Containers: %v", err)
 	}
-	want := []string{"ingot", "piri-0", "piri-1", "upload", "upload-init"}
+	want := []string{"delegator", "delegator-init", "ingot", "piri-0", "piri-1", "upload", "upload-init"}
 	if strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Errorf("got %v, want %v", got, want)
 	}

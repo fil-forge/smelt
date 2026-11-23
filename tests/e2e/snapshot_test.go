@@ -49,8 +49,8 @@ func TestStackFromSnapshot(t *testing.T) {
 	}
 
 	// End-to-end smoke: upload a small file and retrieve it. Exercises
-	// the delegator allow-list + upload provider registry, which are
-	// restored from dynamodb-data.tar.gz in the snapshot.
+	// the delegator allow list, which delegator-init writes on every boot,
+	// and upload's provider registry, which upload-init writes.
 	gup, err := guppy.NewContainerClient(s)
 	if err != nil {
 		t.Fatalf("guppy client: %v", err)

@@ -122,7 +122,7 @@ generated/snapshots/<name>/
 ├── proofs/                      # every *.txt in generated/proofs/
 └── volumes/                       # .tar.gz per named docker volume
     ├── piri-0-data.tar.gz
-    ├── dynamodb-data.tar.gz       # delegator allow list, upload registry
+    ├── delegator-postgres-data.tar.gz # delegator allow list, provider info
     ├── minio-data.tar.gz          # upload's S3 backend
     ├── ipni-data.tar.gz           # content discovery index
     ├── guppy-data.tar.gz          # client login + spaces

@@ -116,27 +116,11 @@ config_has_indexer() {
 # Ensure directories exist
 mkdir -p "$DATA_DIR" "$TEMP_DIR"
 
-# Step 1: Derive piri's DID from its public URL
-#
-# A node is identified by the did:web of its public URL: the URL's host, with
-# the colon before a port percent-encoded. Piri derives the same DID itself;
-# it is worked out here because the allow list needs it before piri runs.
-echo "[1/4] Deriving piri DID..."
-PIRI_HOST="${PUBLIC_URL#*://}"
-PIRI_HOST="${PIRI_HOST%%/*}"
-if [ -z "$PIRI_HOST" ]; then
-    echo "ERROR: Failed to derive DID from PUBLIC_URL=$PUBLIC_URL"
-    exit 1
-fi
-PIRI_DID="did:web:$(printf '%s' "$PIRI_HOST" | sed 's/:/%3A/')"
-echo "  DID: $PIRI_DID"
+# delegator-init has already put this node's DID on the delegator's allow
+# list; the generated compose makes piri wait for it.
 
-# Step 2: Register DID with delegator allow list
-echo "[2/4] Registering DID with allow list..."
-/scripts/register-did.sh "$PIRI_DID" || echo "Warning: Registration failed, continuing..."
-
-# Step 3: Initialize piri (if not already initialized)
-echo "[3/4] Initializing piri..."
+# Step 1: Initialize piri (if not already initialized)
+echo "[1/2] Initializing piri..."
 if [ -f "$CONFIG_FILE" ] && grep -q "proof_set" "$CONFIG_FILE" 2>/dev/null; then
     echo "  Config exists, skipping init"
     if [ "$INDEXER" = "off" ] && config_has_indexer "$CONFIG_FILE"; then
@@ -241,6 +225,6 @@ if [ -n "$TRACES_HOST" ]; then
     } >> "$CONFIG_FILE"
 fi
 
-# Step 4: Start piri server
-echo "[4/4] Starting piri..."
+# Step 2: Start piri server
+echo "[2/2] Starting piri..."
 exec /usr/bin/piri serve full --config "$CONFIG_FILE" "$@"
