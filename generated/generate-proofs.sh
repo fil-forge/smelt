@@ -119,8 +119,24 @@ for PIRI_KEY in "$KEYS_DIR"/piri-*.pem; do
     [[ "$NODE_NAME" =~ ^piri-[0-9]+$ ]] || continue
     PIRI_KEYS_FOUND=1
 
+    # A node is identified by the did:web of its public URL, which `smelt
+    # generate` writes beside its key, and the delegation has to be issued as
+    # that DID: upload registers the node under it. The DID a proof was issued
+    # as is recorded next to the proof, so one issued under another DID (the
+    # key's did:key, in a keys directory from before nodes were did:webs) is
+    # replaced instead of skipped.
+    PIRI_DID_FILE="$KEYS_DIR/${NODE_NAME}.did"
+    if [[ ! -s "$PIRI_DID_FILE" ]]; then
+        echo "Error: no DID for ${NODE_NAME} at $PIRI_DID_FILE"
+        echo "Run 'make generate' first"
+        exit 1
+    fi
+    PIRI_DID=$(tr -d '[:space:]' < "$PIRI_DID_FILE")
+
     PIRI_PROOF_FILE="$PROOFS_DIR/${NODE_NAME}-proof.txt"
-    if [[ -f "$PIRI_PROOF_FILE" && "$FORCE" != "--force" ]]; then
+    PIRI_PROOF_ISSUER_FILE="$PROOFS_DIR/${NODE_NAME}-proof.issuer"
+    if [[ -f "$PIRI_PROOF_FILE" && "$FORCE" != "--force" ]] &&
+        [[ -f "$PIRI_PROOF_ISSUER_FILE" && "$(cat "$PIRI_PROOF_ISSUER_FILE")" == "$PIRI_DID" ]]; then
         echo ""
         echo "[skip] ${NODE_NAME}-proof.txt already exists"
         continue
@@ -128,12 +144,13 @@ for PIRI_KEY in "$KEYS_DIR"/piri-*.pem; do
 
     echo ""
     echo "Generating ${NODE_NAME} proof..."
-    echo "  Issuer: ${NODE_NAME}.pem"
+    echo "  Issuer: $PIRI_DID (${NODE_NAME}.pem)"
     echo "  Audience: $UPLOAD_WEB_DID"
     echo "  Commands: /blob/allocate, /blob/accept, /blob/remove, /blob/reject, /blob/release, /blob/replica/allocate, /pdp/info"
 
     "$UCANTOOL" delegate \
         --issuer-private-key-file "$PIRI_KEY" \
+        --issuer-did-web "$PIRI_DID" \
         --audience "$UPLOAD_WEB_DID" \
         --command "/blob/allocate" \
         --command "/blob/accept" \
@@ -144,6 +161,7 @@ for PIRI_KEY in "$KEYS_DIR"/piri-*.pem; do
         --command "/pdp/info" \
         --container "base64+gzip" \
         > "$PIRI_PROOF_FILE"
+    printf '%s' "$PIRI_DID" > "$PIRI_PROOF_ISSUER_FILE"
 
     echo "  [new] ${NODE_NAME}-proof.txt"
 done
