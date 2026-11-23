@@ -2,7 +2,7 @@
 # Register a DID with the delegator allow list (DynamoDB)
 #
 # Usage: ./register-did.sh <did>
-#   <did>: The DID to register (e.g., did:key:z6Mk...)
+#   <did>: The DID to register (e.g., did:web:piri-0%3A3000)
 #
 # Environment variables:
 #   DYNAMODB_ENDPOINT: DynamoDB endpoint (default: http://dynamodb-local:8000)

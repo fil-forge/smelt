@@ -62,6 +62,12 @@ func GenerateKeys(keysDir string, nodes []manifest.ResolvedPiriNode, hilts []man
 		if err := generateEd25519Key(keysDir, node.Name, force); err != nil {
 			return fmt.Errorf("generate key for %s: %w", node.Name, err)
 		}
+		// A node is identified by the did:web of its public URL, which its
+		// key says nothing about. Written on every run, so a keys directory
+		// that recorded the key's did:key for a node is corrected.
+		if err := writeDID(keysDir, node.Name, node.DID()); err != nil {
+			return fmt.Errorf("write DID for %s: %w", node.Name, err)
+		}
 
 		acctIdx := PiriAccountIndex(node.Index)
 		if acctIdx >= len(AnvilAccounts) {
@@ -129,8 +135,9 @@ func writePiriNodesFile(keysDir string, nodes []manifest.ResolvedPiriNode) error
 }
 
 // generateEd25519Key generates an Ed25519 key pair in PEM format, plus a
-// <name>.did file holding the key's did:key identifier (consumed by shell
-// scripts that have no DID tooling, e.g. systems/hilt/register-provider.sh).
+// <name>.did file holding the key's did:key identifier. For a piri node
+// GenerateKeys replaces that with the node's did:web, which shell scripts with
+// no DID tooling read (e.g. systems/hilt/register-provider.sh).
 // An existing key is kept unless force is true; its <name>.did is written if
 // missing, so a keys directory created before DID files existed is completed
 // by a plain `smelt generate`.
@@ -189,7 +196,11 @@ func writeDIDFile(keysDir, name string, privPEM []byte) error {
 	if err != nil {
 		return fmt.Errorf("decode private key for DID derivation: %w", err)
 	}
-	id := multikey.KeyIssuer(signer).DID().String()
+	return writeDID(keysDir, name, multikey.KeyIssuer(signer).DID().String())
+}
+
+// writeDID writes <name>.did holding id.
+func writeDID(keysDir, name, id string) error {
 	didPath := filepath.Join(keysDir, name+".did")
 	if err := os.WriteFile(didPath, []byte(id+"\n"), 0644); err != nil {
 		return fmt.Errorf("write DID file: %w", err)

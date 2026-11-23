@@ -40,7 +40,14 @@ for pub_key in /piri-keys/piri-*.pub; do
         *) continue ;;
     esac
 
-    did=$(sprue identity parse "$pub_key")
+    # A node is identified by the did:web of its public URL, which
+    # `smelt generate` writes beside its key.
+    did_file="/piri-keys/${node_name}.did"
+    if [ ! -s "$did_file" ]; then
+        echo "upload-init: no DID for ${node_name} in generated/keys — run 'make generate'" >&2
+        exit 1
+    fi
+    did=$(tr -d '\r\n' < "$did_file")
     endpoint="http://${node_name}:3000"
     proofs="/proofs/${node_name}-proof.txt"
 

@@ -96,6 +96,22 @@ type ResolvedPiriNode struct {
 	Storage StorageSpec
 }
 
+// piriPort is the port every piri node listens on inside the stack.
+const piriPort = 3000
+
+// PublicURL is where the node is reached by the other services in the stack.
+func (n ResolvedPiriNode) PublicURL() string {
+	return fmt.Sprintf("http://%s:%d", n.Name, piriPort)
+}
+
+// DID is the node's identity: the did:web of its public URL. A did:web names a
+// host, and carries a port that is not the scheme's default with its colon
+// percent-encoded, so piri-0 on port 3000 is did:web:piri-0%3A3000. Piri
+// derives the same DID from the public URL it is given.
+func (n ResolvedPiriNode) DID() string {
+	return fmt.Sprintf("did:web:%s%%3A%d", n.Name, piriPort)
+}
+
 // Resolve normalizes the manifest into a concrete list of resolved nodes.
 func (m *Manifest) Resolve() ([]ResolvedPiriNode, error) {
 	spec := &m.Piri
