@@ -376,7 +376,7 @@ shell-hilt: ensure-state
 #
 # Dependencies are started too (no --no-deps): after `make clean` or
 # `make down` nothing else is running, and a workspace service started alone
-# crash-loops on its missing dependencies (e.g. delegator on dynamodb-local).
+# crash-loops on its missing dependencies (e.g. delegator on delegator-postgres).
 # --force-recreate applies to the named services only; compose recreates a
 # dependency only when its config changed, so a running stack keeps its
 # chain state and volumes.

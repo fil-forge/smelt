@@ -64,11 +64,11 @@ flowchart TB
     blockchain --> delegator["delegator<br/>:15040→:80"]
     blockchain --> redis["redis<br/>:15020→:6379"]
 
-    delegator --> dynamodb["dynamodb-local<br/>:15010→:8000"]
+    delegator --> delegator_pg["delegator-postgres<br/>:15041→:5432"]
     redis --> ipni["ipni<br/>:15090/:15092"]
 
     signing --> piri["piri-0 .. piri-N<br/>:15100+N→:3000<br/>(N declared in smelt.yml)"]
-    dynamodb --> piri
+    delegator_pg --> piri
     ipni --> indexer["indexer<br/>:15050→:80"]
 
     piri --> upload["upload (mock svc)<br/>:15060→:80"]
@@ -231,7 +231,7 @@ were working with.
 - **guppy** → upload: All upload UCAN invocations
 - **upload** → piri: `blob/allocate` and `blob/accept` for storage
 - **upload** → indexer: `assert/index` for indexing, `claim/cache` for location claims
-- **upload** → dynamodb: Fetches Piri's delegation proof
+- **upload** → postgres: Metadata stores
 
 **Key code paths**:
 ```
@@ -286,7 +286,7 @@ pkg/indexerclient/client.go → UCAN client for Indexer communication (assert/in
 - **upload** → piri: `blob/allocate`, `blob/accept` invocations
 - **piri** → signing-service: PDP operation signing (createProofSet, addRoots)
 - **piri** → delegator: Gets delegation during init
-- **piri** → dynamodb: Registers in allow-list during init
+- **delegator-init** → delegator-postgres: Puts the node's did:web on the allow list before piri starts, so the delegator accepts its registration during init
 - **piri** → ipni: Publishes content advertisements (via HTTP announcements)
 - **guppy** → piri: Retrieves blob data via `/piece/{cid}` with UCAN auth
 
@@ -342,26 +342,17 @@ Both services are only emitted into `generated/compose/piri.yml` when at least o
 
 ---
 
-### 8. DynamoDB Local - Host port 15010 → container 8000
+### 8. Delegator Postgres - Host port 15041 → container 5432
 
-**Role**: Local DynamoDB for persisting delegations and allow-lists.
+**Role**: The delegator's store, holding its allow list and provider info.
 
-**Image**: `amazon/dynamodb-local:latest`
+**Image**: `postgres:16-alpine` (`POSTGRES_IMAGE`)
 
-**Tables**:
-
-| Table                     | Purpose                                      |
-|---------------------------|----------------------------------------------|
-| `delegator-allow-list`    | Storage providers allowed to get delegations |
-| `delegator-provider-info` | Delegation proofs for registered providers   |
-| `upload-allocations`      | Blob allocations pending acceptance          |
-| `upload-receipts`         | Stored receipts for async task completion    |
-| `upload-provisionings`    | Space provisioning records                   |
+The delegator applies its schema migrations on startup. The one-shot `delegator-init` service then runs the delegator's `store allow-did` command for every DID in `generated/keys/piri-nodes.did`, so each piri-N is on the allow list before it starts.
 
 **Interactions**:
-- **delegator** → dynamodb: Stores/retrieves allow-list and provider delegations
-- **piri** → dynamodb: Registers in allow-list during init
-- **upload** → dynamodb: Fetches Piri's delegation, stores allocations/receipts
+- **delegator** → delegator-postgres: Reads the allow list, stores provider info
+- **delegator-init** → delegator-postgres: Adds every piri-N to the allow list
 
 ---
 
@@ -401,8 +392,7 @@ Both services are only emitted into `generated/compose/piri.yml` when at least o
 
 **Interactions**:
 - **piri** → delegator: Requests delegation during init
-- **delegator** → dynamodb: Stores delegations in provider-info table
-- **upload** → dynamodb: Reads delegations for proof chains
+- **delegator** → delegator-postgres: Reads the allow list, stores provider info
 
 ---
 
@@ -749,7 +739,7 @@ Piri requires UCAN authorization for blob retrieval. The `space/content/retrieve
 | `keys/delegator.pem`           | delegator       | Service identity key           |
 | `keys/payer-key.hex`           | signing-service | Blockchain transaction signing |
 | `config/guppy-config.toml`     | guppy           | Space configurations           |
-| `config/delegator-config.yaml` | delegator       | Allow-list and DynamoDB config |
+| `config/delegator.yaml`        | delegator       | Store and contract config      |
 | `config/signer.yaml`           | signing-service | Contract addresses             |
 
 ---
@@ -821,10 +811,10 @@ All host ports live in the `15XXX` range to avoid collision with common dev tool
 | Service         | Container Port | Host Port | Protocol  |
 |-----------------|----------------|-----------|-----------|
 | blockchain      | 8545           | 15000     | JSON-RPC  |
-| dynamodb-local  | 8000           | 15010     | HTTP      |
 | redis           | 6379           | 15020     | Redis     |
 | signing-service | 7446           | 15030     | HTTP      |
 | delegator       | 80             | 15040     | HTTP/UCAN |
+| delegator-postgres | 5432        | 15041     | PostgreSQL |
 | indexer         | 80             | 15050     | HTTP/UCAN |
 | upload          | 80             | 15060     | HTTP/UCAN |
 | minio S3        | 9000           | 15070     | S3        |
@@ -883,7 +873,7 @@ guppy retrieve <space-did> <root-cid> ./downloads
 
 ### Delegation errors
 - Verify delegator is running and healthy
-- Check that upload service can reach DynamoDB to fetch delegations
+- Check that every piri is on the allow list: `docker compose logs delegator-init`
 - Ensure PRINCIPAL_MAPPING is correct for did:web resolution
 
 ### Piri connection failures

@@ -220,8 +220,9 @@ var reservedServices = []string{
 	"ingot-postgres", "ingot-postgres-init",
 	"piri-postgres", "piri-postgres-init", "piri-minio",
 	// Declared under systems/.
-	"blockchain", "delegator", "dynamodb-local", "email", "grafana", "guppy",
-	"indexer", "ipni", "ipni-init", "minio", "otel-collector", "plc",
+	"blockchain", "delegator", "delegator-init", "delegator-postgres", "email",
+	"grafana", "guppy", "indexer", "ipni", "ipni-init", "minio",
+	"otel-collector", "plc",
 	"plc-postgres", "postgres", "prometheus", "redis", "signing-service",
 	"stress-tester", "swarf", "swarf-postgres", "tempo", "upload",
 	"upload-init",

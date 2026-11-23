@@ -1,6 +1,7 @@
 # Delegator System - UCAN delegation service (registrar)
 #
-# Issues UCAN delegations to storage providers.
+# Issues UCAN delegations to storage providers and keeps its allow list and
+# provider info in Postgres.
 # Used by: piri
 
 services:
@@ -16,7 +17,7 @@ services:
       - ../../generated/proofs:/proofs:ro
       - ./config/delegator.yaml:/.delegator.yaml:ro
     depends_on:
-      dynamodb-local:
+      delegator-postgres:
         condition: service_healthy
       blockchain:
         condition: service_healthy
@@ -30,3 +31,45 @@ services:
     restart: unless-stopped
     networks:
       - forge-network
+
+  # One-shot: puts every piri-N from smelt.yml on the allow list with the
+  # delegator's own CLI, from the same image and config. Each generated piri
+  # service waits for it to complete. See allow-piri.sh.
+  delegator-init:
+    image: ${DELEGATOR_IMAGE:-ghcr.io/fil-forge/delegator:main}
+    user: "0:0"
+    entrypoint: ["sh", "/allow-piri.sh"]
+    volumes:
+      - ../../generated/keys/piri-nodes.did:/piri-nodes.did:ro
+      - ./config/delegator.yaml:/.delegator.yaml:ro
+      - ./allow-piri.sh:/allow-piri.sh:ro
+    depends_on:
+      delegator:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - forge-network
+
+  delegator-postgres:
+    image: ${POSTGRES_IMAGE:-postgres:16-alpine}
+    ports:
+      - "${SMELT_DELEGATOR_POSTGRES_PORT:-15041:5432}"
+    environment:
+      - POSTGRES_USER=delegator
+      - POSTGRES_PASSWORD=delegator
+      - POSTGRES_DB=delegator
+    volumes:
+      - delegator-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U delegator -d delegator"]
+      start_interval: 1s
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - forge-network
+
+volumes:
+  delegator-postgres-data:

@@ -42,7 +42,7 @@ func newEntrypointRoot(t *testing.T) *entrypointRun {
 	t.Helper()
 	root := t.TempDir()
 	r := &entrypointRun{root: root, out: filepath.Join(root, "out")}
-	for _, d := range []string{"keys", "config", "data/piri", "tmp/piri", "usr/bin", "scripts", "out"} {
+	for _, d := range []string{"keys", "config", "data/piri", "tmp/piri", "usr/bin", "out"} {
 		if err := os.MkdirAll(filepath.Join(root, d), 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -51,8 +51,6 @@ func newEntrypointRoot(t *testing.T) *entrypointRun {
 		copyFile(t, filepath.Join("systems/piri/config", f), filepath.Join(root, "config", f))
 	}
 	writeFile(t, filepath.Join(root, "usr/bin/piri"), stubPiri, 0o755)
-	// Records the DID the entrypoint puts on the allow list.
-	writeFile(t, filepath.Join(root, "scripts/register-did.sh"), "#!/bin/sh\nprintf '%s' \"$1\" > \"$STUB_OUT/registered-did\"\n", 0o755)
 	writeFile(t, filepath.Join(root, "keys/piri.pem"), "stub", 0o644)
 
 	src, err := os.ReadFile("systems/piri/entrypoint.sh")
@@ -65,7 +63,6 @@ func newEntrypointRoot(t *testing.T) *entrypointRun {
 		"/data/piri", root+"/data/piri",
 		"/tmp/piri", root+"/tmp/piri",
 		"/usr/bin/piri", root+"/usr/bin/piri",
-		"/scripts/", root+"/scripts/",
 	)
 	writeFile(t, filepath.Join(root, "entrypoint.sh"), rewrite.Replace(string(src)), 0o755)
 	return r
@@ -115,30 +112,6 @@ func writeFile(t *testing.T, path, content string, mode os.FileMode) {
 
 // testdata/piri-base-config-indexer-on.toml is the single base config smelt
 // shipped before the indexer tables moved to piri-indexing.toml.
-// The entrypoint puts the node on the allow list under the did:web of its
-// public URL, which is the DID piri derives for itself.
-func TestPiriEntrypointRegistersTheDIDOfThePublicURL(t *testing.T) {
-	for publicURL, want := range map[string]string{
-		"http://piri-0:3000":            "did:web:piri-0%3A3000",
-		"http://piri-12:3000/":          "did:web:piri-12%3A3000",
-		"https://piri.example.com":      "did:web:piri.example.com",
-		"https://piri.example.com:8443": "did:web:piri.example.com%3A8443",
-	} {
-		r := newEntrypointRoot(t)
-		r.run(t, "PUBLIC_URL="+publicURL)
-		if r.err != nil {
-			t.Fatalf("%s: entrypoint failed: %v\n%s", publicURL, r.err, r.output)
-		}
-		got, err := os.ReadFile(filepath.Join(r.out, "registered-did"))
-		if err != nil {
-			t.Fatalf("%s: no DID was registered: %v", publicURL, err)
-		}
-		if string(got) != want {
-			t.Errorf("%s: registered %q, want %q", publicURL, got, want)
-		}
-	}
-}
-
 func TestPiriEntrypointIndexerDefaultMatchesSingleFile(t *testing.T) {
 	want := parseTOML(t, "testdata/piri-base-config-indexer-on.toml")
 	for _, env := range [][]string{nil, {"PIRI_INDEXER=on"}} {

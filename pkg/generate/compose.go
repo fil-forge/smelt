@@ -76,8 +76,6 @@ func buildPiriService(node manifest.ResolvedPiriNode) ComposeService {
 	}
 
 	env := []string{
-		"DYNAMODB_ENDPOINT=http://dynamodb-local:8000",
-		"DYNAMODB_TABLE=delegator-allow-list",
 		"OPERATOR_EMAIL=local@test.com",
 		"PIRI_UCAN_INSECURE_DID_RESOLUTION=true",
 		"PUBLIC_URL=" + node.PublicURL(),
@@ -134,7 +132,6 @@ func buildPiriService(node manifest.ResolvedPiriNode) ComposeService {
 			fmt.Sprintf("../keys/%s.pem:/keys/piri.pem:ro", node.Name),
 			fmt.Sprintf("../keys/%s-wallet.hex:/keys/owner-wallet.hex:ro", node.Name),
 			"../../systems/piri/entrypoint.sh:/entrypoint.sh:ro",
-			"../../systems/piri/register-did.sh:/scripts/register-did.sh:ro",
 			"../../systems/piri/config/piri-base-config.toml:/config/piri-base-config.toml:ro",
 			"../../systems/piri/config/piri-indexing.toml:/config/piri-indexing.toml:ro",
 			"../../systems/piri/config/piri-overrides.toml:/config/piri-overrides.toml:ro",
@@ -145,8 +142,10 @@ func buildPiriService(node manifest.ResolvedPiriNode) ComposeService {
 			"indexer":         {Condition: "service_healthy"},
 			"signing-service": {Condition: "service_healthy"},
 			"delegator":       {Condition: "service_healthy"},
-			"dynamodb-local":  {Condition: "service_healthy"},
-			"upload":          {Condition: "service_healthy"},
+			// The delegator only registers allow-listed DIDs, and
+			// delegator-init is what puts each piri-N on the list.
+			"delegator-init": {Condition: "service_completed_successfully"},
+			"upload":         {Condition: "service_healthy"},
 		},
 		Healthcheck: &Healthcheck{
 			Test:          []string{"CMD-SHELL", `wget -q -O - http://localhost:3000/readyz | grep -q '"status":\s*"ok"'`},

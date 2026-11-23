@@ -60,10 +60,10 @@ All host ports live in a dedicated `15XXX` range to avoid collision with common 
 | Service         | Host Port          | What It Does                                                                     |
 |-----------------|--------------------|----------------------------------------------------------------------------------|
 | blockchain      | 15000              | Local EVM (Anvil) with PDP smart contracts                                       |
-| dynamodb-local  | 15010              | State persistence for services                                                   |
 | redis           | 15020              | Cache backend for indexer                                                        |
 | signing-service | 15030              | Signs PDP blockchain operations                                                  |
 | delegator       | 15040              | UCAN delegation service                                                          |
+| delegator-postgres | 15041           | Postgres for the delegator's allow list and provider info                        |
 | indexer         | 15050              | Content claims cache                                                             |
 | upload          | 15060              | Upload orchestration service                                                     |
 | upload-postgres | 15061              | Postgres for the upload service's metadata stores                                |
@@ -111,7 +111,8 @@ flowchart TB
         blockchain["blockchain :15000"]
         ipni["ipni :15090"]
         redis["redis :15020"]
-        dynamodb["dynamodb-local :15010"]
+        delegator_pg["delegator-postgres :15041"]
+        upload_pg["upload-postgres :15061"]
         minio["minio :15070"]
         email["smtp4dev :15080"]
     end
@@ -123,7 +124,7 @@ flowchart TB
     upload --> piri
     upload --> indexer
     upload --> minio
-    upload --> dynamodb
+    upload --> upload_pg
     upload --> email
 
     piri --> signing
@@ -132,7 +133,7 @@ flowchart TB
     piri --> indexer
     signing --> blockchain
 
-    delegator --> dynamodb
+    delegator --> delegator_pg
     indexer --> redis
     indexer --> ipni
 ```

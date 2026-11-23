@@ -31,14 +31,14 @@ func resolveVolumes(m *manifest.Manifest) ([]string, error) {
 	// stack delta" framing — a user who logged in and created spaces before
 	// saving will find them after load.
 	vols := []string{
-		"minio-data",          // systems/common — upload's S3 backend
-		"ipni-data",           // systems/indexing/ipni — content discovery
-		"dynamodb-data",       // systems/common — delegator allow list, upload registry
-		"guppy-data",          // systems/guppy — client's login/space state
-		"swarf-postgres-data", // systems/swarf — revocation records
-		"hilt-postgres-data",  // systems/hilt — tenant state, every network's database
-		"plc-postgres-data",   // systems/plc — DID PLC registry
-		"ingot-postgres-data", // systems/ingot — registry, every gateway's database
+		"minio-data",              // systems/common — upload's S3 backend
+		"ipni-data",               // systems/indexing/ipni — content discovery
+		"delegator-postgres-data", // systems/delegator — allow list, provider info
+		"guppy-data",              // systems/guppy — client's login/space state
+		"swarf-postgres-data",     // systems/swarf — revocation records
+		"hilt-postgres-data",      // systems/hilt — tenant state, every network's database
+		"plc-postgres-data",       // systems/plc — DID PLC registry
+		"ingot-postgres-data",     // systems/ingot — registry, every gateway's database
 	}
 
 	// Per-network volumes. The databases above are shared, but the keys are
