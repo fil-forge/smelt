@@ -53,7 +53,7 @@ for pub_key in /piri-keys/piri-*.pub; do
 
     echo "upload-init: registering ${node_name} (${did}) at ${endpoint}"
     # Tolerate "already registered" — expected when the stack booted from a
-    # smelt snapshot that captured upload's dynamodb provider registry. Any
+    # smelt snapshot that captured upload's provider registry. Any
     # other failure is still fatal.
     if add_err=$(sprue client admin provider register "$did" "$endpoint" "$proofs" 2>&1); then
         :

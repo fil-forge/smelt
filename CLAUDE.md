@@ -66,9 +66,9 @@ smelt/
 │   └── generate-proofs.sh  # Proof generation (shell; TODO: migrate to Go)
 ├── systems/                 # Service modules (each self-contained)
 │   ├── blockchain/         # Local EVM (Anvil) with PDP contracts
-│   ├── common/             # Shared infrastructure (DynamoDB Local, Redis)
+│   ├── common/             # Shared infrastructure (MinIO, smtp4dev)
 │   ├── signing-service/    # PDP blockchain signing
-│   ├── delegator/          # UCAN delegation issuance
+│   ├── delegator/          # UCAN delegation issuance (+ its own postgres)
 │   ├── indexing/           # Content discovery
 │   │   ├── ipni/          # InterPlanetary Network Indexer
 │   │   └── indexer/       # Content claims cache
@@ -339,10 +339,10 @@ All host-side ports live in a dedicated `15XXX` range to avoid collision with co
 | Service | Host Port | Protocol | Description |
 |---------|-----------|----------|-------------|
 | blockchain | 15000 | JSON-RPC | Anvil local EVM |
-| dynamodb-local | 15010 | HTTP | State persistence |
 | redis | 15020 | Redis | Indexer cache |
 | signing-service | 15030 | HTTP | PDP signing |
 | delegator | 15040 | HTTP/UCAN | Delegation issuance |
+| delegator-postgres | 15041 | PostgreSQL | Delegator allow list and provider info |
 | indexer | 15050 | HTTP/UCAN | Claims cache |
 | upload | 15060 | HTTP/UCAN | Upload coordination |
 | upload-postgres | 15061 | PostgreSQL | Upload service metadata stores |
@@ -463,7 +463,7 @@ Common causes:
 ### UCAN/Delegation Errors
 
 - Verify delegator is healthy: `curl http://localhost:15040/`
-- Check that upload service can reach DynamoDB
+- Check that piri is on the allow list: `docker compose logs delegator-init`
 - Confirm `PRINCIPAL_MAPPING` environment variables are correct
 
 ### Piri Connection Failures

@@ -97,6 +97,7 @@ func TestEmbeddedFilesExist(t *testing.T) {
 		// Bind-mount sources for one-shot/init containers: a missing embed
 		// makes docker create an empty directory in their place and the
 		// service fails to start only inside SDK stacks (CI), not `make up`.
+		"systems/delegator/allow-piri.sh",
 		"systems/hilt/register-provider.sh",
 		"systems/upload/register-providers.sh",
 		"systems/ingot/openbao/init.sh",

@@ -4,7 +4,6 @@
   "volumes": [
     "minio-data",
     "ipni-data",
-    "dynamodb-data",
     "guppy-data",
     "swarf-postgres-data",
     "hilt-postgres-data",
@@ -82,10 +81,6 @@
     "delegator": {
       "tag": "ghcr.io/fil-forge/delegator:main",
       "digest": "ghcr.io/fil-forge/delegator@sha256:db87b2f75acaa79b6cfb95c87332268addc916796f75617a03ff0b60f7937384"
-    },
-    "dynamodb-local": {
-      "tag": "amazon/dynamodb-local:latest",
-      "digest": "amazon/dynamodb-local@sha256:ff89bd48ff32cd8d9be5fee8873b65b8854dc408f1afe881be6eb00247bc0dab"
     },
     "email": {
       "tag": "rnwood/smtp4dev:v3",

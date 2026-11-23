@@ -18,6 +18,7 @@ import "embed"
 
 //go:embed systems/delegator/compose.yml
 //go:embed systems/delegator/config/*
+//go:embed systems/delegator/allow-piri.sh
 
 //go:embed systems/guppy/compose.yml
 //go:embed systems/guppy/config/*
@@ -39,7 +40,6 @@ import "embed"
 //go:embed systems/plc/compose.yml
 
 //go:embed systems/piri/entrypoint.sh
-//go:embed systems/piri/register-did.sh
 //go:embed systems/piri/postgres-init.sh
 //go:embed systems/piri/config/*
 
