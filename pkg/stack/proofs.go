@@ -106,7 +106,7 @@ func generateProofs(tempDir string, nodes []manifest.ResolvedPiriNode, hilts []m
 			keysDir,
 			proofsDir,
 			node.Name,
-			"",
+			node.DID(),
 			"did:web:upload",
 			node.Name+"-proof.txt",
 			piriCommands,

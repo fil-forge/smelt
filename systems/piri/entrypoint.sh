@@ -116,13 +116,19 @@ config_has_indexer() {
 # Ensure directories exist
 mkdir -p "$DATA_DIR" "$TEMP_DIR"
 
-# Step 1: Extract piri's DID from key file
-echo "[1/4] Extracting piri DID..."
-PIRI_DID=$(/usr/bin/piri identity parse "$KEY_FILE" 2>&1 | grep -oE 'did:key:z[a-zA-Z0-9]+')
-if [ -z "$PIRI_DID" ]; then
-    echo "ERROR: Failed to extract DID from $KEY_FILE"
+# Step 1: Derive piri's DID from its public URL
+#
+# A node is identified by the did:web of its public URL: the URL's host, with
+# the colon before a port percent-encoded. Piri derives the same DID itself;
+# it is worked out here because the allow list needs it before piri runs.
+echo "[1/4] Deriving piri DID..."
+PIRI_HOST="${PUBLIC_URL#*://}"
+PIRI_HOST="${PIRI_HOST%%/*}"
+if [ -z "$PIRI_HOST" ]; then
+    echo "ERROR: Failed to derive DID from PUBLIC_URL=$PUBLIC_URL"
     exit 1
 fi
+PIRI_DID="did:web:$(printf '%s' "$PIRI_HOST" | sed 's/:/%3A/')"
 echo "  DID: $PIRI_DID"
 
 # Step 2: Register DID with delegator allow list

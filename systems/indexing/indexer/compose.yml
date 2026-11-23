@@ -32,7 +32,9 @@ services:
       - REDIS_URL=redis://redis:6379
       - IPNI_ENDPOINT=http://ipni:3000
       # HTTP-based did:web resolution for local dev (fetches /.well-known/did.json from each service)
-      - RESOLVE_DID_WEB=did:web:delegator,did:web:piri,did:web:upload
+      # Patterns are globs over the part after did:web:. A piri node is
+      # did:web:piri-<n>%3A3000.
+      - RESOLVE_DID_WEB=did:web:delegator,did:web:piri-*,did:web:upload
       - INSECURE_DID_RESOLUTION=true
     # Listen on port 80 so did:web:indexer resolution works (did:web defaults to port 80)
     # --public-url tells the indexer where it can be reached for claim fetching

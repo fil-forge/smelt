@@ -249,7 +249,7 @@ pkg/indexerclient/client.go → UCAN client for Indexer communication (assert/in
 
 **Build context**: `../piri`
 
-**Identity**: Each node has a unique `did:key:z6Mk...` derived from `generated/keys/piri-{N}.pem`. Per-node identities are what allow multiple piri services to register as distinct providers in the PDP contracts.
+**Identity**: Each node is the `did:web` of its public URL, `did:web:piri-{N}%3A3000`, and signs with the key in `generated/keys/piri-{N}.pem`, which it publishes at `http://piri-{N}:3000/.well-known/did.json`. Per-node identities are what allow multiple piri services to register as distinct providers in the PDP contracts.
 
 **What it does**:
 - Stores blob data on disk

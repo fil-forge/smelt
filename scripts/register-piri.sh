@@ -1,13 +1,13 @@
 #!/bin/bash
 # Adds a DID to the delegator allow list in local DynamoDB
 # Usage: ./register-piri.sh <did>
-# Example: ./register-piri.sh did:key:z6MkeUPmap4WfZFWgLZuL8gfdFMbDzRQhHZfnxjFmK2NWTm9
+# Example: ./register-piri.sh did:web:piri-0%3A3000
 
 set -e
 
 if [ -z "$1" ]; then
     echo "Usage: $0 <did>"
-    echo "Example: $0 did:key:z6MkeUPmap4WfZFWgLZuL8gfdFMbDzRQhHZfnxjFmK2NWTm9"
+    echo "Example: $0 did:web:piri-0%3A3000"
     exit 1
 fi
 

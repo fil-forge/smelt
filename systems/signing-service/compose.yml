@@ -20,7 +20,9 @@ services:
       "--service-contract-address", "0xE6E340D132b5f46d1e472DebcD681B2aBc16e57E",
       "--signing-key-path", "/keys/payer-key.hex",
       "--service-key-file", "/keys/signing-service.pem",
-      "--service-did", "did:web:signing-service"
+      "--service-did", "did:web:signing-service",
+      # Piri nodes invoke as did:web:piri-<n>%3A3000, served over plain HTTP.
+      "--insecure-did-resolution"
     ]
     depends_on:
       blockchain:

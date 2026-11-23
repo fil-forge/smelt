@@ -80,7 +80,7 @@ func buildPiriService(node manifest.ResolvedPiriNode) ComposeService {
 		"DYNAMODB_TABLE=delegator-allow-list",
 		"OPERATOR_EMAIL=local@test.com",
 		"PIRI_UCAN_INSECURE_DID_RESOLUTION=true",
-		fmt.Sprintf("PUBLIC_URL=http://%s:3000", node.Name),
+		"PUBLIC_URL=" + node.PublicURL(),
 		fmt.Sprintf("PIRI_DB_BACKEND=%s", node.Storage.DB),
 		fmt.Sprintf("PIRI_BLOB_BACKEND=%s", node.Storage.Blob),
 		// Bare: taken from the shell when set, absent otherwise. The

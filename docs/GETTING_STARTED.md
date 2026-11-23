@@ -158,7 +158,7 @@ live under `snapshots/` at the project root instead — see
 | `signing-service.pem` | Signing service | Signs PDP blockchain operations |
 | `etracker.pem` | Egress tracker | Signs egress tracking claims |
 
-Each key maps to a `did:key` identifier. For example, `piri-0.pem` might produce `did:key:z6MkfYoQ6dppqssZ9qHF6PbBzCjoS1wWg15GYxNaMiLZn5RD`. These identifiers appear throughout logs and error messages. Key generation is idempotent — existing keys are preserved on subsequent runs, so adding a node to `smelt.yml` allocates a new key without disturbing existing ones.
+Each key maps to a `did:key` identifier. For example, `upload.pem` might produce `did:key:z6MkfYoQ6dppqssZ9qHF6PbBzCjoS1wWg15GYxNaMiLZn5RD`. A piri node is the exception: it is identified by the `did:web` of its public URL, so `piri-0` is `did:web:piri-0%3A3000`. These identifiers appear throughout logs and error messages. Key generation is idempotent — existing keys are preserved on subsequent runs, so adding a node to `smelt.yml` allocates a new key without disturbing existing ones.
 
 #### Step 3: Assign EVM Wallets from Anvil
 
@@ -248,7 +248,7 @@ The startup sequence, roughly:
 
 Each piri node declared in `smelt.yml` (default 1, up to 9) runs its own multi-step initialization on first start:
 
-1. **Extract DID**: Parse the node's `piri-{N}.pem` key to determine its `did:key` identity
+1. **Derive DID**: Work out the node's `did:web` identity from its public URL
 2. **Register with allow list**: Add the DID to the delegator's DynamoDB allow list
 3. **Register on-chain**: Register as a storage provider with the PDP contracts via signing-service
 4. **Create proof set**: Submit a create-proof-set transaction and wait for confirmation

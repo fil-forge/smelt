@@ -84,9 +84,41 @@ func TestGenerateKeysWritesPiriNodesFile(t *testing.T) {
 	if string(got) != want.String() {
 		t.Fatalf("piri nodes file %q does not list the node DIDs %q", got, want.String())
 	}
-	for _, line := range strings.Split(strings.TrimSpace(string(got)), "\n") {
-		if !strings.HasPrefix(line, "did:key:") {
-			t.Fatalf("piri nodes file line %q is not a did:key", line)
-		}
+	if want := "did:web:piri-0%3A3000\ndid:web:piri-1%3A3000\n"; string(got) != want {
+		t.Fatalf("piri nodes file %q does not list each node's did:web, want %q", got, want)
+	}
+}
+
+// A keys directory written when a node's .did held its key's did:key is
+// corrected by a plain generate, without replacing the key.
+func TestGenerateKeysReplacesANodesKeyDID(t *testing.T) {
+	keysDir := t.TempDir()
+	node := manifest.ResolvedPiriNode{Name: "piri-0", Index: 0}
+	if err := generateEd25519Key(keysDir, node.Name, false); err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+	pemPath := filepath.Join(keysDir, "piri-0.pem")
+	key, err := os.ReadFile(pemPath)
+	if err != nil {
+		t.Fatalf("read key: %v", err)
+	}
+
+	if err := GenerateKeys(keysDir, []manifest.ResolvedPiriNode{node}, nil, nil, false); err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+
+	got, err := os.ReadFile(filepath.Join(keysDir, "piri-0.did"))
+	if err != nil {
+		t.Fatalf("read did: %v", err)
+	}
+	if strings.TrimSpace(string(got)) != node.DID() {
+		t.Fatalf("node DID file holds %q, want %q", got, node.DID())
+	}
+	after, err := os.ReadFile(pemPath)
+	if err != nil {
+		t.Fatalf("read key after generate: %v", err)
+	}
+	if string(after) != string(key) {
+		t.Fatal("existing key was replaced")
 	}
 }
