@@ -286,6 +286,7 @@ pkg/indexerclient/client.go → UCAN client for Indexer communication (assert/in
 - **upload** → piri: `blob/allocate`, `blob/accept` invocations
 - **piri** → signing-service: PDP operation signing (createProofSet, addRoots)
 - **piri** → delegator: Gets delegation during init
+- **delegator-init** → delegator-postgres: Puts the node's did:web on the allow list before piri starts, so the delegator accepts its registration during init
 - **piri** → ipni: Publishes content advertisements (via HTTP announcements)
 - **guppy** → piri: Retrieves blob data via `/piece/{cid}` with UCAN auth
 
