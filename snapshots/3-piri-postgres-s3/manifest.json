@@ -1,9 +1,10 @@
 {
   "name": "3-piri-postgres-s3",
-  "created_at": "2026-11-23T16:02:51.673257Z",
+  "created_at": "2026-11-23T16:58:26.225702Z",
   "volumes": [
     "minio-data",
     "ipni-data",
+    "delegator-postgres-data",
     "guppy-data",
     "swarf-postgres-data",
     "hilt-postgres-data",
@@ -69,8 +70,11 @@
     "hilt-customer-add-proof.txt",
     "hilt-ingot-s3-proof.txt",
     "indexing-service-proof.txt",
+    "piri-0-proof.issuer",
     "piri-0-proof.txt",
+    "piri-1-proof.issuer",
     "piri-1-proof.txt",
+    "piri-2-proof.issuer",
     "piri-2-proof.txt"
   ],
   "images": {
@@ -82,9 +86,17 @@
       "tag": "ghcr.io/fil-forge/delegator:main",
       "digest": "ghcr.io/fil-forge/delegator@sha256:db87b2f75acaa79b6cfb95c87332268addc916796f75617a03ff0b60f7937384"
     },
+    "delegator-init": {
+      "tag": "ghcr.io/fil-forge/delegator:main",
+      "digest": "ghcr.io/fil-forge/delegator@sha256:db87b2f75acaa79b6cfb95c87332268addc916796f75617a03ff0b60f7937384"
+    },
+    "delegator-postgres": {
+      "tag": "postgres:16-alpine",
+      "digest": "postgres@sha256:f2f98726820d0342055351c6e9d36e705f5bfffb3dd53ff556325114b08afb6d"
+    },
     "email": {
       "tag": "rnwood/smtp4dev:v3",
-      "digest": "rnwood/smtp4dev@sha256:25c434c1900a9c5b61e17ead0a774d9e81b80554d05cf64719d69e5ea8c66537"
+      "digest": "rnwood/smtp4dev@sha256:211a60c1a4f51ff7ace4a35de055797348994b0e84ab36734991235f90f9ac75"
     },
     "guppy": {
       "tag": "ghcr.io/fil-forge/guppy:main-dev",
@@ -100,15 +112,15 @@
     },
     "hilt-postgres": {
       "tag": "postgres:16-alpine",
-      "digest": "postgres@sha256:81e77a4833487b8132fe4b00bedd39dc3f74b8641e387f19312a48f7de218c2e"
+      "digest": "postgres@sha256:f2f98726820d0342055351c6e9d36e705f5bfffb3dd53ff556325114b08afb6d"
     },
     "hilt-vault": {
       "tag": "openbao/openbao:2.6",
-      "digest": "openbao/openbao@sha256:a60afafda36337abe833c4a63894bf1095098f29abea4091e7e555a33dd52889"
+      "digest": "openbao/openbao@sha256:91f37e006ca5a1ea274b146c5406e2abfb67e5338267ce56c0874285879d9e2d"
     },
     "hilt-vault-init": {
       "tag": "openbao/openbao:2.6",
-      "digest": "openbao/openbao@sha256:a60afafda36337abe833c4a63894bf1095098f29abea4091e7e555a33dd52889"
+      "digest": "openbao/openbao@sha256:91f37e006ca5a1ea274b146c5406e2abfb67e5338267ce56c0874285879d9e2d"
     },
     "indexer": {
       "tag": "ghcr.io/fil-forge/indexing-service:main",
@@ -120,15 +132,15 @@
     },
     "ingot-openbao": {
       "tag": "openbao/openbao:2.6",
-      "digest": "openbao/openbao@sha256:a60afafda36337abe833c4a63894bf1095098f29abea4091e7e555a33dd52889"
+      "digest": "openbao/openbao@sha256:91f37e006ca5a1ea274b146c5406e2abfb67e5338267ce56c0874285879d9e2d"
     },
     "ingot-openbao-init": {
       "tag": "openbao/openbao:2.6",
-      "digest": "openbao/openbao@sha256:a60afafda36337abe833c4a63894bf1095098f29abea4091e7e555a33dd52889"
+      "digest": "openbao/openbao@sha256:91f37e006ca5a1ea274b146c5406e2abfb67e5338267ce56c0874285879d9e2d"
     },
     "ingot-postgres": {
       "tag": "postgres:16-alpine",
-      "digest": "postgres@sha256:81e77a4833487b8132fe4b00bedd39dc3f74b8641e387f19312a48f7de218c2e"
+      "digest": "postgres@sha256:f2f98726820d0342055351c6e9d36e705f5bfffb3dd53ff556325114b08afb6d"
     },
     "ipni": {
       "tag": "ghcr.io/fil-forge/storetheindex:latest",
@@ -140,7 +152,7 @@
     },
     "minio": {
       "tag": "ghcr.io/fil-forge/minio:RELEASE.2025-10-15T17-29-55Z",
-      "digest": "ghcr.io/fil-forge/minio@sha256:2c4349a1a8dcb3549896109a5363250f77ee90b51f706dc8ceac2b88732a95e7"
+      "digest": "ghcr.io/fil-forge/minio@sha256:04c3b07ebfa1bf526a7895f41bacfc533b39635c86f263eae65dcf9e71b1c8c5"
     },
     "piri-0": {
       "tag": "ghcr.io/fil-forge/piri:main",
@@ -156,15 +168,15 @@
     },
     "piri-minio": {
       "tag": "ghcr.io/fil-forge/minio:RELEASE.2025-10-15T17-29-55Z",
-      "digest": "ghcr.io/fil-forge/minio@sha256:2c4349a1a8dcb3549896109a5363250f77ee90b51f706dc8ceac2b88732a95e7"
+      "digest": "ghcr.io/fil-forge/minio@sha256:04c3b07ebfa1bf526a7895f41bacfc533b39635c86f263eae65dcf9e71b1c8c5"
     },
     "piri-postgres": {
       "tag": "postgres:16-alpine",
-      "digest": "postgres@sha256:81e77a4833487b8132fe4b00bedd39dc3f74b8641e387f19312a48f7de218c2e"
+      "digest": "postgres@sha256:f2f98726820d0342055351c6e9d36e705f5bfffb3dd53ff556325114b08afb6d"
     },
     "piri-postgres-init": {
       "tag": "postgres:16-alpine",
-      "digest": "postgres@sha256:81e77a4833487b8132fe4b00bedd39dc3f74b8641e387f19312a48f7de218c2e"
+      "digest": "postgres@sha256:f2f98726820d0342055351c6e9d36e705f5bfffb3dd53ff556325114b08afb6d"
     },
     "plc": {
       "tag": "ghcr.io/fil-forge/did-method-plc:main",
@@ -172,19 +184,19 @@
     },
     "plc-postgres": {
       "tag": "postgres:16-alpine",
-      "digest": "postgres@sha256:81e77a4833487b8132fe4b00bedd39dc3f74b8641e387f19312a48f7de218c2e"
+      "digest": "postgres@sha256:f2f98726820d0342055351c6e9d36e705f5bfffb3dd53ff556325114b08afb6d"
     },
     "postgres": {
       "tag": "postgres:16-alpine",
-      "digest": "postgres@sha256:81e77a4833487b8132fe4b00bedd39dc3f74b8641e387f19312a48f7de218c2e"
+      "digest": "postgres@sha256:f2f98726820d0342055351c6e9d36e705f5bfffb3dd53ff556325114b08afb6d"
     },
     "redis": {
       "tag": "redis:7-alpine",
-      "digest": "redis@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499"
+      "digest": "redis@sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe"
     },
     "signing-service": {
       "tag": "ghcr.io/fil-forge/piri-signing-service:main",
-      "digest": "ghcr.io/fil-forge/piri-signing-service@sha256:9ae0559fa1d3976fd16f40000687b6c059011b1780ff5861c573a3bb30ce5dce"
+      "digest": "ghcr.io/fil-forge/piri-signing-service@sha256:8e065b7ab54167b269878bbded56faa3527b744e6d2ba4bf03a773044db0197e"
     },
     "swarf": {
       "tag": "ghcr.io/fil-forge/swarf:main",
@@ -192,7 +204,7 @@
     },
     "swarf-postgres": {
       "tag": "postgres:16-alpine",
-      "digest": "postgres@sha256:81e77a4833487b8132fe4b00bedd39dc3f74b8641e387f19312a48f7de218c2e"
+      "digest": "postgres@sha256:f2f98726820d0342055351c6e9d36e705f5bfffb3dd53ff556325114b08afb6d"
     },
     "upload": {
       "tag": "ghcr.io/fil-forge/sprue:main",
