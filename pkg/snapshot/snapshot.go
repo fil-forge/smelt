@@ -212,7 +212,10 @@ func Save(ctx context.Context, opts SaveOpts) error {
 	if err := os.MkdirAll(volsDst, 0755); err != nil {
 		return err
 	}
-	proj := projectName(projectDir)
+	proj, err := projectName(projectDir)
+	if err != nil {
+		return err
+	}
 	for _, v := range vols {
 		fmt.Printf("  %s\n", v)
 		if err := archiveVolume(ctx, proj, v, volsDst); err != nil {
@@ -434,7 +437,10 @@ func Load(ctx context.Context, opts LoadOpts) error {
 	}
 
 	fmt.Printf("Restoring %d volume(s)...\n", len(desc.Volumes))
-	proj := projectName(projectDir)
+	proj, err := projectName(projectDir)
+	if err != nil {
+		return err
+	}
 	volsSrc := filepath.Join(snapDir, subdirVolumes)
 	for _, v := range desc.Volumes {
 		fmt.Printf("  %s\n", v)

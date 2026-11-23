@@ -4,23 +4,62 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
+// composeFile is the root compose file whose top-level `name:` pins the
+// project name.
+const composeFile = "compose.yml"
+
 // projectName resolves the docker-compose project name used to namespace
-// volumes. `docker compose` defaults to the lowercased basename of the
-// project directory (e.g. "smelt"); callers can override via the
-// COMPOSE_PROJECT_NAME env var, which we respect here too.
-func projectName(projectDir string) string {
+// volumes and label containers. It follows compose's own precedence:
+// COMPOSE_PROJECT_NAME, then the top-level `name:` in compose.yml, then the
+// lowercased basename of the project directory. smelt's compose.yml pins
+// `name: smelt`, so the folder name only matters for a project without one;
+// a git worktree named anything else still runs volumes named `smelt_<vol>`.
+func projectName(projectDir string) (string, error) {
 	if v := os.Getenv("COMPOSE_PROJECT_NAME"); v != "" {
-		return v
+		return v, nil
 	}
-	return strings.ToLower(filepath.Base(projectDir))
+	name, err := composeFileProjectName(filepath.Join(projectDir, composeFile))
+	if err != nil {
+		return "", err
+	}
+	if name != "" {
+		return name, nil
+	}
+	return strings.ToLower(filepath.Base(projectDir)), nil
+}
+
+// composeFileProjectName returns the top-level `name:` of a compose file, or
+// "" when the file or the key is absent.
+func composeFileProjectName(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("read %s: %w", path, err)
+	}
+	var doc struct {
+		Name string `yaml:"name"`
+	}
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		return "", fmt.Errorf("parse %s: %w", path, err)
+	}
+	if strings.Contains(doc.Name, "$") {
+		return "", fmt.Errorf("%s: project name %q uses variable interpolation, which smelt does not resolve; set COMPOSE_PROJECT_NAME instead", path, doc.Name)
+	}
+	return doc.Name, nil
 }
 
 // composeService mirrors the fields of `docker compose ps --format json` we care about.
@@ -114,7 +153,10 @@ func requireStackUp(ctx context.Context, projectDir string) error {
 // after `make nuke` removed them, or about to overwrite smelt.yml with a
 // different topology.
 func requireStackDown(ctx context.Context, projectDir string) error {
-	proj := projectName(projectDir)
+	proj, err := projectName(projectDir)
+	if err != nil {
+		return err
+	}
 	cmd := exec.CommandContext(ctx, "docker", "ps",
 		"--filter", fmt.Sprintf("label=com.docker.compose.project=%s", proj),
 		"--format", "{{.Names}}",

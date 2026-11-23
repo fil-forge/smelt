@@ -75,6 +75,12 @@ resume or `make up SNAPSHOT=<name>` to restart from the saved point.
 The stack must be fully healthy at save time. A save of a half-healthy
 stack would produce an inconsistent checkpoint.
 
+Volumes are named `<project>_<volume>`. Save, load and the "stack is
+still up" check resolve the project the way compose does:
+`COMPOSE_PROJECT_NAME` if set, else the `name:` in `compose.yml`
+(`smelt`), else the checkout's folder name. A checkout in a git worktree
+with any folder name still reads and writes `smelt_<volume>`.
+
 ### `./smelt snapshot list`
 
 Table of known snapshots with age, size, and volume count.
@@ -405,6 +411,14 @@ your tracked `smelt.yml` edits don't apply. Run `make clean` first to
 leave the session and pick up your changes.
 
 ## Troubleshooting
+
+### "volume smelt_<name> does not exist" on save
+
+The manifest lists a volume the running stack never created,
+usually because `smelt.yml` (or `SMELT_MANIFEST`) changed after `make up`.
+Run `make up` with the same manifest, then save again. If the stack runs
+under a different compose project, set `COMPOSE_PROJECT_NAME` to that
+name.
 
 ### "stack is still up" on load
 
