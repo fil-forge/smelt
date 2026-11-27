@@ -128,6 +128,7 @@ authorization only from the hilt it is registered against.
 ## Fil One against two networks
 
 `SMELT=true pnpm deploy:local` in `fil-one/fil-one` points the console's
-Forge dev regions at this stack. Its `S3Region` entries and their network ids
-have to match the regions declared here; see that repo's README, "Running
-against smelt".
+Forge region, `eu-central-3`, at this stack's leading `hilt` and `ingot`, so
+`ingot` has to serve that region: run a single-gateway stack with
+`INGOT_REGION=eu-central-3`, or declare it as `ingot`'s `region`. See that
+repo's README, "Running against smelt".
