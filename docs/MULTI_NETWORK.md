@@ -2,8 +2,7 @@
 
 Smelt runs one storage network by default: one hilt holding tenants and one
 ingot serving S3 for a region. The `hilt` and `ingot` sections of `smelt.yml`
-declare more of each, so a stack can carry two networks and three regions the
-way the Fil One console sees them.
+declare more of each, so a stack can carry two networks and three regions.
 
 A **network** is one hilt and the gateways registered against it. A tenant on
 a network is region-free: its access keys work at every region the network
@@ -125,7 +124,7 @@ A key minted on one network is rejected by the other: the tenant it belongs
 to exists only in its own hilt, and the gateway for a region accepts
 authorization only from the hilt it is registered against.
 
-## Fil One against two networks
+## Fil One against smelt
 
 `SMELT=true pnpm deploy:local` in `fil-one/fil-one` points the console's
 Forge region, `eu-central-3`, at this stack's leading `hilt` and `ingot`, so
