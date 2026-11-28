@@ -160,7 +160,6 @@ else
     # Add PostgreSQL flags if postgres backend selected
     if [ "$DB_BACKEND" = "postgres" ]; then
         INIT_CMD="$INIT_CMD \
-            --db-type=postgres \
             --db-postgres-url=$DB_POSTGRES_URL \
             --db-postgres-max-open-conns=$DB_POSTGRES_MAX_OPEN_CONNS \
             --db-postgres-max-idle-conns=$DB_POSTGRES_MAX_IDLE_CONNS \
