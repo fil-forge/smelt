@@ -101,7 +101,7 @@ func TestGeneratePiriComposeExternalS3Insecure(t *testing.T) {
 func TestGeneratePiriComposeMixedS3(t *testing.T) {
 	nodes := []manifest.ResolvedPiriNode{
 		{Name: "piri-0", Index: 0, Storage: manifest.StorageSpec{DB: "postgres", Blob: "s3", S3: externalS3("example-box-")}},
-		{Name: "piri-1", Index: 1, Storage: manifest.StorageSpec{DB: "sqlite", Blob: "s3"}},
+		{Name: "piri-1", Index: 1, Storage: manifest.StorageSpec{DB: "postgres", Blob: "s3"}},
 	}
 	_, compose := generateCompose(t, nodes)
 
@@ -124,21 +124,6 @@ func TestGeneratePiriComposeMixedS3(t *testing.T) {
 	}
 	if !hasString(compose.Services["piri-1"].Networks, "piri-storage-net") {
 		t.Error("the in-stack S3 node should join piri-storage-net")
-	}
-	assertNetworksDeclared(t, compose)
-}
-
-func TestGeneratePiriComposeSQLiteExternalS3(t *testing.T) {
-	nodes := []manifest.ResolvedPiriNode{
-		{Name: "piri-0", Index: 0, Storage: manifest.StorageSpec{DB: "sqlite", Blob: "s3", S3: externalS3("example-box-")}},
-	}
-	out, compose := generateCompose(t, nodes)
-
-	if strings.Contains(out, "piri-storage-net") {
-		t.Error("sqlite with external S3 needs no storage network")
-	}
-	if strings.Contains(out, "piri-minio") || strings.Contains(out, "piri-postgres") {
-		t.Error("sqlite with external S3 needs no storage services")
 	}
 	assertNetworksDeclared(t, compose)
 }

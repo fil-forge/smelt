@@ -25,8 +25,8 @@ state on every subsequent boot.
   to preserve that state for tomorrow's dev session.
 - You're iterating on a service and want to skip the multi-minute
   registration dance on every restart.
-- You want to switch between different scenarios (1 piri vs 3, sqlite
-  vs postgres) without paying full cold-boot costs each time.
+- You want to switch between different scenarios (1 piri vs 3,
+  filesystem vs S3) without paying full cold-boot costs each time.
 
 ## Prerequisites
 
@@ -318,20 +318,20 @@ SNAPSHOT= needed — you're still in the session.
 ### Switch topologies
 
 ```bash
-# Save a sqlite+filesystem baseline
-./smelt snapshot save sqlite-baseline
+# Save a single-piri filesystem baseline
+./smelt snapshot save fs-baseline
 
-# Edit smelt.yml (topology becomes postgres+s3 with 3 piri)
+# Edit smelt.yml (topology becomes s3 with 3 piri)
 YES=1 make clean                    # wipe state and end any prior session
 make up                             # cold boot new topology
-./smelt snapshot save postgres-s3-3x
+./smelt snapshot save s3-3x
 
 # Later, switch freely
 YES=1 make clean
-make up SNAPSHOT=sqlite-baseline
+make up SNAPSHOT=fs-baseline
 
 YES=1 make clean
-make up SNAPSHOT=postgres-s3-3x
+make up SNAPSHOT=s3-3x
 ```
 
 ### Archive a snapshot outside the project

@@ -77,7 +77,7 @@ flowchart TB
     upload --> guppy["guppy (CLI)"]
 ```
 
-When any piri node declares `db: postgres` or `blob: s3` in `smelt.yml`, the generator also emits shared `piri-postgres` and/or `piri-minio` services that all affected nodes share. See the [Piri Shared Storage Backends](#piri-shared-storage-backends-conditional) section below for details.
+The generator also emits a shared `piri-postgres` service for the piri nodes, and a shared `piri-minio` service when any node declares `blob: s3` in `smelt.yml`. See the [Piri Shared Storage Backends](#piri-shared-storage-backends) section below for details.
 
 ---
 
@@ -301,15 +301,15 @@ The `Site` field contains a link to the location claim delegation that tells whe
 
 ---
 
-### Piri Shared Storage Backends (Conditional)
+### Piri Shared Storage Backends
 
-When any node in `smelt.yml` declares `db: postgres` or `blob: s3`, the generator adds shared infrastructure services alongside the piri nodes:
+The generator adds shared infrastructure services alongside the piri nodes:
 
-**piri-postgres** — A single `postgres:16-alpine` instance shared by all postgres-backed nodes. Each node gets its own logical database (`piri_0`, `piri_1`, ...) to avoid cross-node state collisions. A `piri-postgres-init` sidecar runs `CREATE DATABASE piri_{N}` idempotently on every startup, so hot-adding a new postgres-backed node does not require wiping the volume. The admin/bootstrap database is `postgres` (Postgres's built-in, always-present meta-database), not `piri`.
+**piri-postgres** — A single `postgres:16-alpine` instance shared by all piri nodes, since PostgreSQL is the only database piri supports. Each node gets its own logical database (`piri_0`, `piri_1`, ...) to avoid cross-node state collisions. A `piri-postgres-init` sidecar runs `CREATE DATABASE piri_{N}` idempotently on every startup, so hot-adding a new node does not require wiping the volume. The admin/bootstrap database is `postgres` (Postgres's built-in, always-present meta-database), not `piri`.
 
 **piri-minio** — A single MinIO instance shared by all S3-backed nodes. Each node namespaces via a bucket prefix (`piri-0-`, `piri-1-`, ...) injected via the `PIRI_S3_BUCKET_PREFIX` environment variable. Buckets are created by piri itself at startup; no init sidecar is needed.
 
-Both services are only emitted into `generated/compose/piri.yml` when at least one node needs them — an all-sqlite-and-filesystem manifest produces no shared infra. They are reachable by service name (`piri-postgres:5432`, `piri-minio:9000`) from within the compose project.
+`piri-minio` is only emitted into `generated/compose/piri.yml` when at least one node needs it, so an all-filesystem manifest has no MinIO. Both are reachable by service name (`piri-postgres:5432`, `piri-minio:9000`) from within the compose project.
 
 ---
 

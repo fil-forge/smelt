@@ -109,7 +109,6 @@ version: 1
 piri:
   nodes:
     - storage:
-        db: sqlite       # or 'postgres'
         blob: filesystem # or 's3'
     # Add more nodes for multi-provider scenarios (up to 9 total)
 ```
@@ -301,9 +300,7 @@ See [docs/SNAPSHOTS.md](docs/SNAPSHOTS.md) for the full picture — what's captu
 
 ### Piri Storage Backends
 
-Storage backends are configured per-node in `smelt.yml` rather than via compose profiles. Each node entry can independently select `db: sqlite|postgres` and `blob: filesystem|s3`. When any node uses `postgres`, the generator emits a shared `piri-postgres` service plus a `piri-postgres-init` sidecar that idempotently creates per-node databases (`piri_0`, `piri_1`, ...). When any node uses `s3`, it emits a shared `piri-minio` service; each node gets a unique bucket prefix (`piri-0-`, `piri-1-`, ...).
-
-**Note:** `db: sqlite` currently crash-loops with `piri:main` — its curio PDP pipeline refuses to start without Postgres ("curio PDP pipeline requires Postgres"). Until that's resolved upstream, use `db: postgres` for every node; only the blob backend (filesystem vs s3) is freely selectable.
+Storage backends are configured per-node in `smelt.yml` rather than via compose profiles. Every node uses PostgreSQL, the only database piri supports: the generator emits a shared `piri-postgres` service plus a `piri-postgres-init` sidecar that idempotently creates per-node databases (`piri_0`, `piri_1`, ...). A node's `db` key may be left out or set to `postgres`; any other value is rejected. Each node selects `blob: filesystem|s3`. When any node uses `s3`, the generator emits a shared `piri-minio` service; each node gets a unique bucket prefix (`piri-0-`, `piri-1-`, ...).
 
 Example manifest mixing blob backends:
 
@@ -311,8 +308,8 @@ Example manifest mixing blob backends:
 version: 1
 piri:
   nodes:
-    - storage: { db: postgres, blob: filesystem }  # piri-0
-    - storage: { db: postgres, blob: s3 }          # piri-1
+    - storage: { blob: filesystem }  # piri-0
+    - storage: { blob: s3 }          # piri-1
 ```
 
 **Go test stack API** (`pkg/stack`):
@@ -322,8 +319,8 @@ s := stack.MustNewStack(t, stack.WithPiriCount(3))
 
 // Heterogeneous nodes
 s := stack.MustNewStack(t, stack.WithPiriNodes(
-    stack.PiriNodeConfig{},                        // piri-0: sqlite + filesystem
-    stack.PiriNodeConfig{Postgres: true, S3: true}, // piri-1: postgres + s3
+    stack.PiriNodeConfig{},          // piri-0: filesystem
+    stack.PiriNodeConfig{S3: true},  // piri-1: s3
 ))
 
 // Access per-node endpoints

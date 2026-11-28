@@ -10,7 +10,9 @@ import (
 
 // PiriNodeConfig configures a single piri node in the test stack.
 type PiriNodeConfig struct {
-	Postgres bool // Use PostgreSQL for this node
+	// Deprecated: every node uses PostgreSQL, the only database piri
+	// supports. The field has no effect.
+	Postgres bool
 	S3       bool // Use S3 for this node
 }
 
@@ -116,10 +118,6 @@ func (c *config) resolveNodes() []manifest.ResolvedPiriNode {
 
 	resolved := make([]manifest.ResolvedPiriNode, len(nodes))
 	for i, n := range nodes {
-		db := manifest.DBSQLite
-		if n.Postgres {
-			db = manifest.DBPostgres
-		}
 		blob := manifest.BlobFS
 		if n.S3 {
 			blob = manifest.BlobS3
@@ -128,7 +126,7 @@ func (c *config) resolveNodes() []manifest.ResolvedPiriNode {
 			Name:  fmt.Sprintf("piri-%d", i),
 			Index: i,
 			Storage: manifest.StorageSpec{
-				DB:   db,
+				DB:   manifest.DBPostgres,
 				Blob: blob,
 			},
 		}
@@ -329,7 +327,7 @@ func WithPiriCount(n int) Option {
 // Example:
 //
 //	s := stack.MustNewStack(t, stack.WithPiriNodes(
-//	    stack.PiriNodeConfig{Postgres: true, S3: true},
+//	    stack.PiriNodeConfig{S3: true},
 //	    stack.PiriNodeConfig{},
 //	))
 func WithPiriNodes(nodes ...PiriNodeConfig) Option {

@@ -459,9 +459,9 @@ Multi-piri is declarative. To run additional piri nodes — for replication test
 version: 1
 piri:
   nodes:
-    - storage: { db: sqlite,   blob: filesystem }  # piri-0
-    - storage: { db: postgres, blob: filesystem }  # piri-1
-    - storage: { db: sqlite,   blob: s3 }          # piri-2
+    - storage: { blob: filesystem }  # piri-0
+    - storage: { blob: filesystem }  # piri-1
+    - storage: { blob: s3 }          # piri-2
 ```
 
 Then run `make up` (or `make generate` first, then `make up`). The generator does the following for each new node:

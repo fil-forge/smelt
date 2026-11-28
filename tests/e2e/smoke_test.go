@@ -22,9 +22,8 @@ import (
 // teardown registered by MustNewStack via t.Cleanup — so it caps live
 // stacks correctly.
 //
-// piri's db backend is always postgres: piri:main's curio PDP pipeline
-// refuses to start with sqlite ("curio PDP pipeline requires Postgres"),
-// so only the blob backend (filesystem vs s3) still varies.
+// piri supports only PostgreSQL, so only the blob backend (filesystem vs
+// s3) varies.
 func TestUploadAndRetrieve(t *testing.T) {
 	if runtime.GOOS == "darwin" {
 		t.Skip("skipping on darwin (docker-in-docker flakiness)")
@@ -44,10 +43,7 @@ func TestUploadAndRetrieve(t *testing.T) {
 			ctx := t.Context()
 
 			opts := []stack.Option{
-				stack.WithPiriNodes(stack.PiriNodeConfig{
-					S3:       tt.useS3,
-					Postgres: true,
-				}),
+				stack.WithPiriNodes(stack.PiriNodeConfig{S3: tt.useS3}),
 			}
 			if img := os.Getenv("PIRI_IMAGE"); img != "" {
 				opts = append(opts, stack.WithPiriImage(img))

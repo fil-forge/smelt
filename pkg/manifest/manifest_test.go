@@ -3,6 +3,7 @@ package manifest
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -46,7 +47,6 @@ version: 1
 piri:
   defaults:
     storage:
-      db: sqlite
       blob: filesystem
   nodes:
     - name: piri-0
@@ -72,8 +72,8 @@ piri:
 	}
 
 	// piri-0: inherits all defaults
-	if nodes[0].Storage.DB != DBSQLite || nodes[0].Storage.Blob != BlobFS {
-		t.Errorf("piri-0: expected sqlite/filesystem, got %s/%s", nodes[0].Storage.DB, nodes[0].Storage.Blob)
+	if nodes[0].Storage.DB != DBPostgres || nodes[0].Storage.Blob != BlobFS {
+		t.Errorf("piri-0: expected postgres/filesystem, got %s/%s", nodes[0].Storage.DB, nodes[0].Storage.Blob)
 	}
 
 	// piri-1: full override
@@ -96,7 +96,7 @@ version: 1
 piri:
   defaults:
     storage:
-      db: sqlite
+      db: postgres
       blob: filesystem
   nodes:
     - name: piri-0
@@ -136,8 +136,8 @@ piri: {}
 	if nodes[0].Name != "piri-0" {
 		t.Errorf("expected name piri-0, got %q", nodes[0].Name)
 	}
-	if nodes[0].Storage.DB != DBSQLite {
-		t.Errorf("expected db=sqlite, got %q", nodes[0].Storage.DB)
+	if nodes[0].Storage.DB != DBPostgres {
+		t.Errorf("expected db=postgres, got %q", nodes[0].Storage.DB)
 	}
 }
 
@@ -194,20 +194,24 @@ piri:
 }
 
 func TestErrorInvalidDB(t *testing.T) {
-	data := []byte(`
+	for _, db := range []string{"sqlite", "mysql"} {
+		t.Run(db, func(t *testing.T) {
+			data := []byte(`
 version: 1
 piri:
   nodes:
     - storage:
-        db: mysql
+        db: ` + db + `
 `)
-	m, err := ParseBytes(data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = m.Resolve()
-	if err == nil {
-		t.Fatal("expected error for invalid db backend")
+			m, err := ParseBytes(data)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = m.Resolve()
+			if err == nil || !strings.Contains(err.Error(), "piri supports only") {
+				t.Fatalf("expected an error naming the supported backend, got %v", err)
+			}
+		})
 	}
 }
 

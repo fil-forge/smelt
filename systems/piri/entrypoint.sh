@@ -21,11 +21,10 @@ HOST="${HOST:-0.0.0.0}"
 OPERATOR_EMAIL="${OPERATOR_EMAIL:-local@test.com}"
 REGISTRAR_URL="${REGISTRAR_URL:-http://delegator:80}"
 
-# Storage backend selection (independent axes)
-DB_BACKEND="${PIRI_DB_BACKEND:-sqlite}"
+# Blob backend selection
 BLOB_BACKEND="${PIRI_BLOB_BACKEND:-filesystem}"
 
-# PostgreSQL settings (used when DB_BACKEND=postgres)
+# PostgreSQL settings
 DB_POSTGRES_URL="${PIRI_DB_POSTGRES_URL:-postgres://piri:piri@piri-postgres:5432/piri?sslmode=disable}"
 DB_POSTGRES_MAX_OPEN_CONNS="${PIRI_DB_POSTGRES_MAX_OPEN_CONNS:-10}"
 DB_POSTGRES_MAX_IDLE_CONNS="${PIRI_DB_POSTGRES_MAX_IDLE_CONNS:-5}"
@@ -98,7 +97,6 @@ if [ -n "$TRACES_URL" ]; then
 fi
 
 echo "=== Piri Entrypoint ==="
-echo "  Database backend: $DB_BACKEND"
 echo "  Blob backend: $BLOB_BACKEND"
 echo "  Indexer claims and IPNI announce: $INDEXER"
 echo "  Trace export: ${TRACES_HOST:-off}"
@@ -155,16 +153,11 @@ else
         --public-url=$PUBLIC_URL \
         --port=$PORT \
         --host=$HOST \
-        --operator-email=$OPERATOR_EMAIL"
-
-    # Add PostgreSQL flags if postgres backend selected
-    if [ "$DB_BACKEND" = "postgres" ]; then
-        INIT_CMD="$INIT_CMD \
-            --db-postgres-url=$DB_POSTGRES_URL \
-            --db-postgres-max-open-conns=$DB_POSTGRES_MAX_OPEN_CONNS \
-            --db-postgres-max-idle-conns=$DB_POSTGRES_MAX_IDLE_CONNS \
-            --db-postgres-conn-max-lifetime=$DB_POSTGRES_CONN_MAX_LIFETIME"
-    fi
+        --operator-email=$OPERATOR_EMAIL \
+        --db-postgres-url=$DB_POSTGRES_URL \
+        --db-postgres-max-open-conns=$DB_POSTGRES_MAX_OPEN_CONNS \
+        --db-postgres-max-idle-conns=$DB_POSTGRES_MAX_IDLE_CONNS \
+        --db-postgres-conn-max-lifetime=$DB_POSTGRES_CONN_MAX_LIFETIME"
 
     # Add S3 flags if s3 backend selected
     if [ "$BLOB_BACKEND" = "s3" ]; then

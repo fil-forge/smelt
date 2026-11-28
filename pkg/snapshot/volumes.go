@@ -66,18 +66,14 @@ func resolveVolumes(m *manifest.Manifest) ([]string, error) {
 	}
 
 	// Per-piri data volumes.
-	hasPostgres := false
 	hasS3 := false
 	for _, n := range nodes {
 		vols = append(vols, fmt.Sprintf("%s-data", n.Name))
-		if n.Storage.DB == manifest.DBPostgres {
-			hasPostgres = true
-		}
 		if n.Storage.Blob == manifest.BlobS3 {
 			hasS3 = true
 		}
 	}
-	if hasPostgres {
+	if len(nodes) > 0 {
 		vols = append(vols, "piri-postgres-data")
 	}
 	if hasS3 {

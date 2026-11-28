@@ -191,7 +191,7 @@ perf_stats_start() {
   local project ids="" svc id
   project="$(perf_project_dir)"
   # One service at a time: a name the current manifest does not define (e.g.
-  # piri-postgres with sqlite nodes) must not abort the whole sampler.
+  # piri-minio with filesystem nodes) must not abort the whole sampler.
   for svc in "$@"; do
     id="$(cd "$project" && docker compose ps -q "$svc" 2>/dev/null || true)"
     [ -n "$id" ] && ids="$ids $id"

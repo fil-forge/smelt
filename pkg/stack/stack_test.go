@@ -52,7 +52,7 @@ func TestExtractFiles(t *testing.T) {
 func TestGenerateKeys(t *testing.T) {
 	keysDir := t.TempDir()
 	nodes := []manifest.ResolvedPiriNode{
-		{Name: "piri-0", Index: 0, Storage: manifest.StorageSpec{DB: "sqlite", Blob: "filesystem"}},
+		{Name: "piri-0", Index: 0, Storage: manifest.StorageSpec{DB: "postgres", Blob: "filesystem"}},
 	}
 
 	hilts, ingots := manifest.DefaultNetworks()
@@ -176,8 +176,8 @@ func TestResolveNodes(t *testing.T) {
 		if nodes[0].Name != "piri-0" {
 			t.Errorf("expected piri-0, got %s", nodes[0].Name)
 		}
-		if nodes[0].Storage.DB != manifest.DBSQLite {
-			t.Errorf("expected sqlite, got %s", nodes[0].Storage.DB)
+		if nodes[0].Storage.DB != manifest.DBPostgres {
+			t.Errorf("expected postgres, got %s", nodes[0].Storage.DB)
 		}
 	})
 
@@ -198,7 +198,7 @@ func TestResolveNodes(t *testing.T) {
 	t.Run("WithPiriNodes", func(t *testing.T) {
 		cfg := defaultConfig()
 		WithPiriNodes(
-			PiriNodeConfig{Postgres: true, S3: true},
+			PiriNodeConfig{S3: true},
 			PiriNodeConfig{},
 		)(cfg)
 		nodes := cfg.resolveNodes()
@@ -208,8 +208,8 @@ func TestResolveNodes(t *testing.T) {
 		if nodes[0].Storage.DB != manifest.DBPostgres || nodes[0].Storage.Blob != manifest.BlobS3 {
 			t.Errorf("node 0: expected postgres/s3, got %s/%s", nodes[0].Storage.DB, nodes[0].Storage.Blob)
 		}
-		if nodes[1].Storage.DB != manifest.DBSQLite || nodes[1].Storage.Blob != manifest.BlobFS {
-			t.Errorf("node 1: expected sqlite/filesystem, got %s/%s", nodes[1].Storage.DB, nodes[1].Storage.Blob)
+		if nodes[1].Storage.DB != manifest.DBPostgres || nodes[1].Storage.Blob != manifest.BlobFS {
+			t.Errorf("node 1: expected postgres/filesystem, got %s/%s", nodes[1].Storage.DB, nodes[1].Storage.Blob)
 		}
 	})
 }
