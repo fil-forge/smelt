@@ -359,8 +359,10 @@ func RenderOverride(binaries, configs map[string]string, inst Instances) ([]byte
 // variables reach every instance running it, as a config override does (see
 // [Instances.configTargets]); any other compose service is addressed by its
 // own name. A "$" in a value is passed through literally rather than
-// interpolated.
-func RenderEnvOverride(env map[string]map[string]string, inst Instances) ([]byte, error) {
+// interpolated. Every service the override would name must be in known, the
+// services the stack's compose declares, so a misspelt service fails here
+// rather than when compose loads the project.
+func RenderEnvOverride(env map[string]map[string]string, inst Instances, known map[string]bool) ([]byte, error) {
 	type svc struct {
 		Environment map[string]string `yaml:"environment"`
 	}
@@ -378,6 +380,11 @@ func RenderEnvOverride(env map[string]map[string]string, inst Instances) ([]byte
 		targets := inst.configTargets(service)
 		if len(targets) == 0 {
 			return nil, fmt.Errorf("service %q has no instances to set environment on", service)
+		}
+		for _, name := range targets {
+			if !known[name] {
+				return nil, fmt.Errorf("unknown service %q", name)
+			}
 		}
 		for _, name := range targets {
 			merged := doc.Services[name].Environment

@@ -37,6 +37,7 @@ import (
 	"github.com/fil-forge/smelt/pkg/manifest"
 	"github.com/fil-forge/smelt/pkg/snapshot"
 	"github.com/fil-forge/smelt/pkg/workspace"
+	"gopkg.in/yaml.v3"
 )
 
 // Stack represents a running Forge network.
@@ -602,6 +603,42 @@ func maybeBinaryOverride(t *testing.T, tempDir string, cfg *config, nodes []mani
 	return overridePath, nil
 }
 
+// composeServices returns the names of the services the root compose file
+// declares, its own and those of the files it includes, at any depth. An
+// include's path is relative to the file that includes it.
+func composeServices(root string) (map[string]bool, error) {
+	known := map[string]bool{}
+	var read func(path string) error
+	read = func(path string) error {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		var f struct {
+			Include []struct {
+				Path string `yaml:"path"`
+			} `yaml:"include"`
+			Services map[string]yaml.Node `yaml:"services"`
+		}
+		if err := yaml.Unmarshal(data, &f); err != nil {
+			return fmt.Errorf("parsing %s: %w", path, err)
+		}
+		for name := range f.Services {
+			known[name] = true
+		}
+		for _, inc := range f.Include {
+			if err := read(filepath.Join(filepath.Dir(path), inc.Path)); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if err := read(root); err != nil {
+		return nil, err
+	}
+	return known, nil
+}
+
 // instances names every instance the manifest declares, so an override
 // reaches the whole stack rather than its leading hilt and gateway.
 func instances(nodes []manifest.ResolvedPiriNode, hilts []manifest.ResolvedHilt, ingots []manifest.ResolvedIngot) workspace.Instances {
@@ -628,7 +665,11 @@ func maybeEnvOverride(t *testing.T, tempDir string, cfg *config, inst workspace.
 	if len(cfg.serviceEnv) == 0 {
 		return "", nil
 	}
-	data, err := workspace.RenderEnvOverride(cfg.serviceEnv, inst)
+	known, err := composeServices(filepath.Join(tempDir, "compose.yml"))
+	if err != nil {
+		return "", fmt.Errorf("listing the compose services: %w", err)
+	}
+	data, err := workspace.RenderEnvOverride(cfg.serviceEnv, inst, known)
 	if err != nil {
 		return "", err
 	}

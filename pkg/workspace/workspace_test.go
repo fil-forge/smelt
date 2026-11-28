@@ -1,7 +1,11 @@
 package workspace
 
 import (
+	"encoding/json"
 	"errors"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -214,7 +218,8 @@ func TestRenderEnvOverride(t *testing.T) {
 		"hilt":  {"HILT_LOG_LEVEL": "debug", "HILT_PASSWORD": "a$b"},
 		"piri":  {"PIRI_LOG_LEVEL": "warn"},
 		"swarf": {"SWARF_LOG_LEVEL": "error"},
-	}, Instances{Hilts: []string{"hilt", "hilt-1"}, Piri: []string{"piri-0", "piri-1"}})
+	}, Instances{Hilts: []string{"hilt", "hilt-1"}, Piri: []string{"piri-0", "piri-1"}},
+		known("hilt", "hilt-init", "hilt-1", "hilt-1-init", "piri-0", "piri-1", "swarf"))
 	if err != nil {
 		t.Fatalf("RenderEnvOverride: %v", err)
 	}
@@ -253,12 +258,76 @@ func TestRenderEnvOverride(t *testing.T) {
 
 func TestRenderEnvOverrideRejectsBadInput(t *testing.T) {
 	for _, name := range []string{"", "A=B", "A B"} {
-		if _, err := RenderEnvOverride(map[string]map[string]string{"swarf": {name: "x"}}, Instances{}); err == nil {
+		if _, err := RenderEnvOverride(map[string]map[string]string{"swarf": {name: "x"}}, Instances{}, known("swarf")); err == nil {
 			t.Errorf("expected an error for variable name %q", name)
 		}
 	}
 	// A manifest with no hilt leaves a hilt override nowhere to go.
-	if _, err := RenderEnvOverride(map[string]map[string]string{"hilt": {"HILT_X": "1"}}, Instances{}); err == nil {
+	if _, err := RenderEnvOverride(map[string]map[string]string{"hilt": {"HILT_X": "1"}}, Instances{}, known()); err == nil {
 		t.Error("expected an error for a service with no instances")
+	}
+	// A misspelt service fails when the override is rendered, not when
+	// compose loads the project.
+	if _, err := RenderEnvOverride(map[string]map[string]string{"hilts": {"HILT_X": "1"}}, Instances{}, known("hilt")); err == nil {
+		t.Error("expected an error for a service the compose does not declare")
+	}
+}
+
+func known(names ...string) map[string]bool {
+	m := map[string]bool{}
+	for _, n := range names {
+		m[n] = true
+	}
+	return m
+}
+
+// The override's environment is a map and smelt's compose writes a list;
+// compose must merge the two by variable name, the override winning, and pass
+// an escaped "$" through literally. This runs compose itself, so it catches a
+// change in compose's merge rules that the YAML checks above cannot.
+func TestRenderEnvOverrideMergesInCompose(t *testing.T) {
+	if err := exec.Command("docker", "compose", "version").Run(); err != nil {
+		t.Skip("docker compose is not available")
+	}
+	dir := t.TempDir()
+	base := filepath.Join(dir, "base.yml")
+	if err := os.WriteFile(base, []byte(`services:
+  hilt:
+    image: busybox
+    environment:
+      - HILT_LOG_LEVEL=info
+      - HILT_SERVER_PORT=80
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	data, err := RenderEnvOverride(map[string]map[string]string{
+		"hilt": {"HILT_LOG_LEVEL": "debug", "HILT_PASSWORD": "a$b"},
+	}, Instances{Hilts: []string{"hilt"}}, known("hilt"))
+	if err != nil {
+		t.Fatalf("RenderEnvOverride: %v", err)
+	}
+	over := filepath.Join(dir, "override.yml")
+	if err := os.WriteFile(over, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command("docker", "compose", "-f", base, "-f", over, "config", "--format", "json").Output()
+	if err != nil {
+		t.Fatalf("docker compose config: %v", err)
+	}
+	var cfg struct {
+		Services map[string]struct {
+			Environment map[string]string `json:"environment"`
+		} `json:"services"`
+	}
+	if err := json.Unmarshal(out, &cfg); err != nil {
+		t.Fatalf("parsing compose config: %v\n%s", err, out)
+	}
+	got := cfg.Services["hilt"].Environment
+	// compose config escapes "$" again on output, so the literal "a$b" the
+	// container sees prints as "a$$b".
+	for k, want := range map[string]string{"HILT_LOG_LEVEL": "debug", "HILT_SERVER_PORT": "80", "HILT_PASSWORD": "a$$b"} {
+		if got[k] != want {
+			t.Errorf("%s = %q, want %q (environment %v)", k, got[k], want, got)
+		}
 	}
 }
