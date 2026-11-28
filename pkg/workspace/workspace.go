@@ -56,7 +56,7 @@ var Services = map[string]serviceBuild{
 	"guppy":           {moduleDir: "guppy", buildTarget: ".", binPath: "/usr/bin/guppy"},
 	// hilt's registrar is named after its own instance, so it is derived in
 	// the fan-out rather than listed here.
-	"hilt":  {moduleDir: "hilt", buildTarget: "./cmd/main.go", binPath: "/usr/bin/hilt"},
+	"hilt":  {moduleDir: "hilt", buildTarget: "./cmd/main.go", binPath: "/usr/bin/hilt", configPath: "/etc/hilt/config.yaml"},
 	"ingot": {moduleDir: "ingot", buildTarget: "./cmd/ingot", binPath: "/usr/bin/ingot", configPath: "/etc/ingot/config.yaml"},
 	"swarf": {moduleDir: "swarf", buildTarget: "./cmd/swarf", binPath: "/usr/bin/swarf", configPath: "/etc/swarf/config.yaml"},
 }
@@ -89,6 +89,16 @@ func (i Instances) fanOut(service string) []string {
 	default:
 		return []string{service}
 	}
+}
+
+// configTargets is every compose service a config override of `service`
+// must reach: those running the service itself. A hilt's registrar runs the
+// image's CLI, not the server, so it keeps the config it has.
+func (i Instances) configTargets(service string) []string {
+	if service == "hilt" {
+		return i.Hilts
+	}
+	return i.fanOut(service)
 }
 
 // libforgeDir is the workspace dir of the shared library. Its presence in the
@@ -314,7 +324,10 @@ func RenderOverride(binaries, configs map[string]string, inst Instances) ([]byte
 		if spec.configPath == "" {
 			return nil, fmt.Errorf("service %q has no registered config path to override", service)
 		}
-		addMount(service, hostPath, spec.configPath)
+		mount := fmt.Sprintf("%s:%s:ro", hostPath, spec.configPath)
+		for _, name := range inst.configTargets(service) {
+			volumes[name] = append(volumes[name], mount)
+		}
 	}
 
 	type svc struct {

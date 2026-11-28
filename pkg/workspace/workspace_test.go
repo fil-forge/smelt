@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestResolveTargetArch(t *testing.T) {
@@ -108,6 +110,37 @@ func TestRenderOverrideUnknownService(t *testing.T) {
 	}
 	if _, err := RenderOverride(nil, map[string]string{"nope": "/x"}, Instances{}); err == nil {
 		t.Fatal("expected error for unknown config service")
+	}
+}
+
+// A hilt config override reaches every hilt server and none of their
+// registrars, which run the image's CLI.
+func TestRenderOverrideHiltConfig(t *testing.T) {
+	data, err := RenderOverride(nil,
+		map[string]string{"hilt": "/host/cfg/hilt.yaml"},
+		Instances{Hilts: []string{"hilt", "hilt-1"}},
+	)
+	if err != nil {
+		t.Fatalf("RenderOverride: %v", err)
+	}
+	var doc struct {
+		Services map[string]struct {
+			Volumes []string `yaml:"volumes"`
+		} `yaml:"services"`
+	}
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		t.Fatalf("parsing override: %v", err)
+	}
+	want := "/host/cfg/hilt.yaml:/etc/hilt/config.yaml:ro"
+	for _, name := range []string{"hilt", "hilt-1"} {
+		if got := doc.Services[name].Volumes; len(got) != 1 || got[0] != want {
+			t.Errorf("%s volumes = %v, want [%s]", name, got, want)
+		}
+	}
+	for _, name := range []string{"hilt-init", "hilt-1-init"} {
+		if _, ok := doc.Services[name]; ok {
+			t.Errorf("%s got a config mount:\n%s", name, data)
+		}
 	}
 }
 
