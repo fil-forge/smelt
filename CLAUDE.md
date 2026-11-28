@@ -546,7 +546,7 @@ Module → service / container binary map (see `pkg/workspace`):
 In Go tests, `stack.WithWorkspaceBinaries()` does the same; `stack.WithServiceBinary(name, path)`
 mounts a specific prebuilt binary without the workspace machinery, and
 `stack.WithServiceConfig(name, path)` mounts a test-provided config file over the service's
-in-container config path.
+in-container config path (ingot, swarf and hilt have one; a hilt's registrar keeps its own).
 
 ## Performance Testing
 
