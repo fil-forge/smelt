@@ -17,10 +17,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	osexec "os/exec"
 	"os/user"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -34,6 +37,7 @@ import (
 	"github.com/fil-forge/smelt/pkg/manifest"
 	"github.com/fil-forge/smelt/pkg/snapshot"
 	"github.com/fil-forge/smelt/pkg/workspace"
+	"gopkg.in/yaml.v3"
 )
 
 // Stack represents a running Forge network.
@@ -192,6 +196,13 @@ func NewStack(ctx context.Context, t *testing.T, opts ...Option) (*Stack, error)
 	}
 	if overridePath != "" {
 		composeFiles = append(composeFiles, overridePath)
+	}
+	envPath, err := maybeEnvOverride(t, tempDir, cfg, instances(resolvedNodes, resolvedHilts, resolvedIngots))
+	if err != nil {
+		return nil, err
+	}
+	if envPath != "" {
+		composeFiles = append(composeFiles, envPath)
 	}
 
 	// 7. Create compose stack with optional profiles. The project name is
@@ -581,8 +592,56 @@ func maybeBinaryOverride(t *testing.T, tempDir string, cfg *config, nodes []mani
 		return "", nil
 	}
 
-	// Every instance the manifest declares, so a workspace build reaches the
-	// whole stack rather than its leading hilt and gateway.
+	data, err := workspace.RenderOverride(bins, configs, instances(nodes, hilts, ingots))
+	if err != nil {
+		return "", err
+	}
+	overridePath := filepath.Join(tempDir, "compose.override.yml")
+	if err := os.WriteFile(overridePath, data, 0644); err != nil {
+		return "", fmt.Errorf("write binary override: %w", err)
+	}
+	return overridePath, nil
+}
+
+// composeServices returns the names of the services the root compose file
+// declares, its own and those of the files it includes, at any depth. An
+// include's path is relative to the file that includes it.
+func composeServices(root string) (map[string]bool, error) {
+	known := map[string]bool{}
+	var read func(path string) error
+	read = func(path string) error {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		var f struct {
+			Include []struct {
+				Path string `yaml:"path"`
+			} `yaml:"include"`
+			Services map[string]yaml.Node `yaml:"services"`
+		}
+		if err := yaml.Unmarshal(data, &f); err != nil {
+			return fmt.Errorf("parsing %s: %w", path, err)
+		}
+		for name := range f.Services {
+			known[name] = true
+		}
+		for _, inc := range f.Include {
+			if err := read(filepath.Join(filepath.Dir(path), inc.Path)); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if err := read(root); err != nil {
+		return nil, err
+	}
+	return known, nil
+}
+
+// instances names every instance the manifest declares, so an override
+// reaches the whole stack rather than its leading hilt and gateway.
+func instances(nodes []manifest.ResolvedPiriNode, hilts []manifest.ResolvedHilt, ingots []manifest.ResolvedIngot) workspace.Instances {
 	inst := workspace.Instances{
 		Piri:   make([]string, len(nodes)),
 		Hilts:  make([]string, len(hilts)),
@@ -597,15 +656,32 @@ func maybeBinaryOverride(t *testing.T, tempDir string, cfg *config, nodes []mani
 	for i, g := range ingots {
 		inst.Ingots[i] = g.Name
 	}
-	data, err := workspace.RenderOverride(bins, configs, inst)
+	return inst
+}
+
+// maybeEnvOverride writes a compose override setting the environment
+// variables given with WithServiceEnv. Returns "" when there are none.
+func maybeEnvOverride(t *testing.T, tempDir string, cfg *config, inst workspace.Instances) (string, error) {
+	if len(cfg.serviceEnv) == 0 {
+		return "", nil
+	}
+	known, err := composeServices(filepath.Join(tempDir, "compose.yml"))
+	if err != nil {
+		return "", fmt.Errorf("listing the compose services: %w", err)
+	}
+	data, err := workspace.RenderEnvOverride(cfg.serviceEnv, inst, known)
 	if err != nil {
 		return "", err
 	}
-	overridePath := filepath.Join(tempDir, "compose.override.yml")
-	if err := os.WriteFile(overridePath, data, 0644); err != nil {
-		return "", fmt.Errorf("write binary override: %w", err)
+	for svc, vars := range cfg.serviceEnv {
+		names := slices.Sorted(maps.Keys(vars))
+		t.Logf("smeltery: setting %s environment: %s", svc, strings.Join(names, ", "))
 	}
-	return overridePath, nil
+	path := filepath.Join(tempDir, "compose.env.yml")
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		return "", fmt.Errorf("write env override: %w", err)
+	}
+	return path, nil
 }
 
 // sanitizeTestName converts a test name to a valid Docker Compose project name

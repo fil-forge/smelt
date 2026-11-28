@@ -2,6 +2,7 @@ package stack
 
 import (
 	"fmt"
+	"maps"
 	"time"
 
 	"github.com/fil-forge/smelt/pkg/manifest"
@@ -38,6 +39,10 @@ type config struct {
 	// Config injection: bind-mount test-provided config files over a service's
 	// in-container config path, keyed by smelt service name.
 	serviceConfigs map[string]string
+
+	// Environment injection: variables set on a service's containers over
+	// the base compose's, keyed by smelt service name and then by variable.
+	serviceEnv map[string]map[string]string
 
 	// Piri node topology. When nil, a single default node is used.
 	piriNodes []PiriNodeConfig
@@ -173,12 +178,39 @@ func WithPiriBinary(path string) Option {
 // repo's e2e tests exercise config changes without a smelt release. Only
 // services with a registered config path support this (see pkg/workspace);
 // NewStack errors for others.
+//
+// Hilt and swarf take their settings from environment variables in smelt's
+// compose, and an environment variable wins over the config file, so a file
+// mounted for either changes only the settings the compose does not set. Use
+// WithServiceEnv to change one it does.
 func WithServiceConfig(service, path string) Option {
 	return func(c *config) {
 		if c.serviceConfigs == nil {
 			c.serviceConfigs = map[string]string{}
 		}
 		c.serviceConfigs[service] = path
+	}
+}
+
+// WithServiceEnv sets environment variables on a service's containers,
+// replacing the value smelt's compose gives a variable it already sets. It
+// reaches every instance of the service: each piri node, each gateway and
+// each hilt server (not a hilt's registrar, which runs the CLI). Any other
+// compose service is named as it appears in the compose. Repeated calls for
+// one service add to its variables, a later value winning.
+//
+// Example:
+//
+//	stack.WithServiceEnv("hilt", map[string]string{"HILT_LOG_LEVEL": "debug"})
+func WithServiceEnv(service string, vars map[string]string) Option {
+	return func(c *config) {
+		if c.serviceEnv == nil {
+			c.serviceEnv = map[string]map[string]string{}
+		}
+		if c.serviceEnv[service] == nil {
+			c.serviceEnv[service] = map[string]string{}
+		}
+		maps.Copy(c.serviceEnv[service], vars)
 	}
 }
 

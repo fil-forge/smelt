@@ -213,3 +213,37 @@ func TestResolveNodes(t *testing.T) {
 		}
 	})
 }
+
+// composeServices reads the root compose file's own services and those of
+// every file it includes, an include inside an included file among them.
+func TestComposeServices(t *testing.T) {
+	dir := t.TempDir()
+	write := func(rel, body string) {
+		path := filepath.Join(dir, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("compose.yml", "include:\n  - path: systems/swarf/compose.yml\n  - path: systems/indexing/compose.yml\n  - path: generated/compose/hilt.yml\nservices:\n  extra:\n    image: busybox\n")
+	write("systems/indexing/compose.yml", "include:\n  - path: ipni/compose.yml\n")
+	write("systems/indexing/ipni/compose.yml", "services:\n  ipni:\n    image: busybox\n")
+	write("systems/swarf/compose.yml", "services:\n  swarf:\n    image: busybox\n  swarf-postgres:\n    image: busybox\n")
+	write("generated/compose/hilt.yml", "services:\n  hilt:\n    image: busybox\n  hilt-init:\n    image: busybox\n")
+
+	got, err := composeServices(filepath.Join(dir, "compose.yml"))
+	if err != nil {
+		t.Fatalf("composeServices: %v", err)
+	}
+	want := []string{"extra", "hilt", "hilt-init", "ipni", "swarf", "swarf-postgres"}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for _, name := range want {
+		if !got[name] {
+			t.Errorf("missing %q in %v", name, got)
+		}
+	}
+}
