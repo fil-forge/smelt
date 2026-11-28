@@ -13,7 +13,7 @@ import (
 func TestGenerateKeys(t *testing.T) {
 	keysDir := t.TempDir()
 	nodes := []manifest.ResolvedPiriNode{
-		{Name: "piri-0", Index: 0, Storage: manifest.StorageSpec{DB: "sqlite", Blob: "filesystem"}},
+		{Name: "piri-0", Index: 0, Storage: manifest.StorageSpec{DB: "postgres", Blob: "filesystem"}},
 		{Name: "piri-1", Index: 1, Storage: manifest.StorageSpec{DB: "postgres", Blob: "s3"}},
 	}
 
@@ -66,7 +66,7 @@ func TestGenerateKeys(t *testing.T) {
 func TestGenerateKeysIdempotent(t *testing.T) {
 	keysDir := t.TempDir()
 	nodes := []manifest.ResolvedPiriNode{
-		{Name: "piri-0", Index: 0, Storage: manifest.StorageSpec{DB: "sqlite", Blob: "filesystem"}},
+		{Name: "piri-0", Index: 0, Storage: manifest.StorageSpec{DB: "postgres", Blob: "filesystem"}},
 	}
 
 	hilts, ingots := manifest.DefaultNetworks()
@@ -96,7 +96,7 @@ func TestGenerateKeysIdempotent(t *testing.T) {
 
 func TestGeneratePiriComposeSingleNode(t *testing.T) {
 	nodes := []manifest.ResolvedPiriNode{
-		{Name: "piri-0", Index: 0, Storage: manifest.StorageSpec{DB: "sqlite", Blob: "filesystem"}},
+		{Name: "piri-0", Index: 0, Storage: manifest.StorageSpec{DB: "postgres", Blob: "filesystem"}},
 	}
 
 	data, err := GeneratePiriCompose(nodes)
@@ -111,9 +111,12 @@ func TestGeneratePiriComposeSingleNode(t *testing.T) {
 		t.Error("expected piri-0 service in compose")
 	}
 
-	// Should NOT contain postgres or minio (sqlite/filesystem).
-	if strings.Contains(yaml, "piri-postgres:") {
-		t.Error("postgres service should not be present for sqlite-only config")
+	// Every node uses postgres; a filesystem-only config needs no minio.
+	if !strings.Contains(yaml, "piri-postgres:") {
+		t.Error("expected piri-postgres service")
+	}
+	if !strings.Contains(yaml, "piri_0?sslmode=disable") {
+		t.Error("expected postgres URL for piri_0")
 	}
 	if strings.Contains(yaml, "piri-minio:") {
 		t.Error("minio service should not be present for filesystem-only config")
@@ -129,7 +132,7 @@ func TestGeneratePiriComposeSingleNode(t *testing.T) {
 
 func TestGeneratePiriComposeMultiNode(t *testing.T) {
 	nodes := []manifest.ResolvedPiriNode{
-		{Name: "piri-0", Index: 0, Storage: manifest.StorageSpec{DB: "sqlite", Blob: "filesystem"}},
+		{Name: "piri-0", Index: 0, Storage: manifest.StorageSpec{DB: "postgres", Blob: "filesystem"}},
 		{Name: "piri-1", Index: 1, Storage: manifest.StorageSpec{DB: "postgres", Blob: "s3"}},
 		{Name: "piri-2", Index: 2, Storage: manifest.StorageSpec{DB: "postgres", Blob: "filesystem"}},
 	}
@@ -159,7 +162,7 @@ func TestGeneratePiriComposeMultiNode(t *testing.T) {
 		}
 	}
 
-	// Postgres service should be present (piri-1 and piri-2 use it).
+	// Postgres service should be present.
 	if !strings.Contains(yaml, "piri-postgres:") {
 		t.Error("expected piri-postgres service")
 	}
@@ -172,8 +175,10 @@ func TestGeneratePiriComposeMultiNode(t *testing.T) {
 		t.Error("expected piri-minio service")
 	}
 
-	// piri-0 should NOT have postgres URL.
-	// Check that piri-1 has its postgres URL.
+	// Each node has its own postgres database.
+	if !strings.Contains(yaml, "piri_0?sslmode=disable") {
+		t.Error("expected postgres URL for piri_0")
+	}
 	if !strings.Contains(yaml, "piri_1?sslmode=disable") {
 		t.Error("expected postgres URL for piri_1")
 	}
@@ -221,9 +226,9 @@ func TestGeneratePiriComposePostgresImageOverride(t *testing.T) {
 
 func TestGeneratePiriComposeSerializedStartup(t *testing.T) {
 	nodes := []manifest.ResolvedPiriNode{
-		{Name: "piri-0", Index: 0, Storage: manifest.StorageSpec{DB: "sqlite", Blob: "filesystem"}},
-		{Name: "piri-1", Index: 1, Storage: manifest.StorageSpec{DB: "sqlite", Blob: "filesystem"}},
-		{Name: "piri-2", Index: 2, Storage: manifest.StorageSpec{DB: "sqlite", Blob: "filesystem"}},
+		{Name: "piri-0", Index: 0, Storage: manifest.StorageSpec{DB: "postgres", Blob: "filesystem"}},
+		{Name: "piri-1", Index: 1, Storage: manifest.StorageSpec{DB: "postgres", Blob: "filesystem"}},
+		{Name: "piri-2", Index: 2, Storage: manifest.StorageSpec{DB: "postgres", Blob: "filesystem"}},
 	}
 
 	data, err := GeneratePiriCompose(nodes)
@@ -270,7 +275,6 @@ piri:
   nodes:
     - name: piri-0
       storage:
-        db: sqlite
         blob: filesystem
     - name: piri-1
       storage:
@@ -333,7 +337,7 @@ func TestPiriAccountIndex(t *testing.T) {
 
 func TestGeneratePiriComposeIndexerSetting(t *testing.T) {
 	nodes := []manifest.ResolvedPiriNode{
-		{Name: "piri-0", Index: 0, Storage: manifest.StorageSpec{DB: "sqlite", Blob: "filesystem"}},
+		{Name: "piri-0", Index: 0, Storage: manifest.StorageSpec{DB: "postgres", Blob: "filesystem"}},
 		{Name: "piri-1", Index: 1, Storage: manifest.StorageSpec{DB: "postgres", Blob: "s3"}},
 	}
 
@@ -433,7 +437,7 @@ func copyTemplates(t *testing.T, dst string) {
 // the two together across every backend combination.
 func TestGeneratedPiriServicesAreReservedNames(t *testing.T) {
 	nodes := []manifest.ResolvedPiriNode{
-		{Name: "piri-0", Index: 0, Storage: manifest.StorageSpec{DB: "sqlite", Blob: "filesystem"}},
+		{Name: "piri-0", Index: 0, Storage: manifest.StorageSpec{DB: "postgres", Blob: "filesystem"}},
 		{Name: "piri-1", Index: 1, Storage: manifest.StorageSpec{DB: "postgres", Blob: "s3"}},
 	}
 	data, err := GeneratePiriCompose(nodes)

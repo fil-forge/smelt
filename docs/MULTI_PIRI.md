@@ -9,7 +9,7 @@ The Forge network is designed around multiple storage providers. Testing with a 
 Multi-piri support lets developers:
 
 - Spin up N piri nodes with one config change
-- Mix storage backends per node (sqlite vs postgres, filesystem vs S3)
+- Mix blob backends per node (filesystem vs S3)
 - Hot-add and hot-remove nodes without restarting the stack
 - Test with different piri images per node (e.g., upgrade scenarios)
 
@@ -24,17 +24,13 @@ version: 1
 piri:
   defaults:
     storage:
-      db: sqlite
       blob: filesystem
   nodes:
     - name: piri-0
     - name: piri-1
       storage:
-        db: postgres
         blob: s3
     - name: piri-2
-      storage:
-        db: postgres
 ```
 
 Alternatively, use the `count` shorthand for identical nodes:
@@ -45,7 +41,6 @@ piri:
   count: 3
   defaults:
     storage:
-      db: postgres
       blob: s3
 ```
 
@@ -104,7 +99,7 @@ Nodes that use postgres or S3 share a single instance of each, namespaced per no
 
 **MinIO** — One `piri-minio` instance. Each S3-backed node uses a unique bucket prefix (`piri-0-`, `piri-1-`, etc.) via the `PIRI_S3_BUCKET_PREFIX` environment variable.
 
-Shared infra services are only included in the generated compose when at least one node uses that backend. If all nodes use sqlite/filesystem, no postgres or minio services are created.
+Every node uses PostgreSQL, the only database piri supports, so `piri-postgres` is always included. A node's `db` key may be left out or set to `postgres`; any other value is rejected. MinIO is only included when at least one node uses the stack's S3.
 
 ### External S3
 
@@ -115,7 +110,6 @@ version: 1
 piri:
   nodes:
     - storage:
-        db: postgres
         blob: s3
         s3:
           endpoint: s3.us-east-2.amazonaws.com  # host[:port], no scheme

@@ -18,9 +18,9 @@ import (
 // without doing its job, which surfaces much later as whatever the job was
 // supposed to set up.
 func TestGeneratedPiriComposeBindSourcesAreEmbedded(t *testing.T) {
-	// Every backend combination, so the postgres and S3 services are emitted.
+	// Both blob backends, so the postgres and S3 services are emitted.
 	nodes := []manifest.ResolvedPiriNode{
-		{Name: "piri-0", Index: 0, Storage: manifest.StorageSpec{DB: "sqlite", Blob: "filesystem"}},
+		{Name: "piri-0", Index: 0, Storage: manifest.StorageSpec{DB: "postgres", Blob: "filesystem"}},
 		{Name: "piri-1", Index: 1, Storage: manifest.StorageSpec{DB: "postgres", Blob: "s3"}},
 	}
 

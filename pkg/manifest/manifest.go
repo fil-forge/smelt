@@ -14,7 +14,7 @@ const (
 	// accounts 2-9 = piri-1 through piri-8.
 	MaxPiriNodes = 9
 
-	DBSQLite   = "sqlite"
+	// DBPostgres is the only database piri supports.
 	DBPostgres = "postgres"
 	BlobFS     = "filesystem"
 	BlobS3     = "s3"
@@ -157,7 +157,7 @@ func (m *Manifest) Resolve() ([]ResolvedPiriNode, error) {
 		r.Image = firstNonEmpty(n.Image, spec.Defaults.Image)
 
 		// Storage: node override > defaults > hardcoded defaults
-		r.Storage.DB = firstNonEmpty(n.Storage.DB, spec.Defaults.Storage.DB, DBSQLite)
+		r.Storage.DB = firstNonEmpty(n.Storage.DB, spec.Defaults.Storage.DB, DBPostgres)
 		r.Storage.Blob = firstNonEmpty(n.Storage.Blob, spec.Defaults.Storage.Blob, BlobFS)
 		// A defaults-level s3 block reaches only the nodes that store
 		// blobs in S3, so defaults can serve a mixed topology. A node's own
@@ -203,10 +203,8 @@ func mergeS3(node, defaults *S3Spec) *S3Spec {
 }
 
 func validateStorage(name string, s StorageSpec) error {
-	switch s.DB {
-	case DBSQLite, DBPostgres:
-	default:
-		return fmt.Errorf("invalid db backend %q (must be %q or %q)", s.DB, DBSQLite, DBPostgres)
+	if s.DB != DBPostgres {
+		return fmt.Errorf("invalid db backend %q: piri supports only %q", s.DB, DBPostgres)
 	}
 	switch s.Blob {
 	case BlobFS, BlobS3:
