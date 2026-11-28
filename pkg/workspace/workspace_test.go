@@ -206,3 +206,59 @@ func TestContainersReachesEveryInstance(t *testing.T) {
 		t.Errorf("got %v, want %v", got, want)
 	}
 }
+
+// An environment override reaches every instance running the service, a
+// hilt's servers and not its registrars, and passes a "$" through literally.
+func TestRenderEnvOverride(t *testing.T) {
+	data, err := RenderEnvOverride(map[string]map[string]string{
+		"hilt":  {"HILT_LOG_LEVEL": "debug", "HILT_PASSWORD": "a$b"},
+		"piri":  {"PIRI_LOG_LEVEL": "warn"},
+		"swarf": {"SWARF_LOG_LEVEL": "error"},
+	}, Instances{Hilts: []string{"hilt", "hilt-1"}, Piri: []string{"piri-0", "piri-1"}})
+	if err != nil {
+		t.Fatalf("RenderEnvOverride: %v", err)
+	}
+	var doc struct {
+		Services map[string]struct {
+			Environment map[string]string `yaml:"environment"`
+		} `yaml:"services"`
+	}
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		t.Fatalf("parsing override: %v", err)
+	}
+	for svc, want := range map[string]map[string]string{
+		"hilt":   {"HILT_LOG_LEVEL": "debug", "HILT_PASSWORD": "a$$b"},
+		"hilt-1": {"HILT_LOG_LEVEL": "debug", "HILT_PASSWORD": "a$$b"},
+		"piri-0": {"PIRI_LOG_LEVEL": "warn"},
+		"piri-1": {"PIRI_LOG_LEVEL": "warn"},
+		"swarf":  {"SWARF_LOG_LEVEL": "error"},
+	} {
+		got := doc.Services[svc].Environment
+		if len(got) != len(want) {
+			t.Errorf("%s environment = %v, want %v", svc, got, want)
+			continue
+		}
+		for k, v := range want {
+			if got[k] != v {
+				t.Errorf("%s %s = %q, want %q", svc, k, got[k], v)
+			}
+		}
+	}
+	for _, name := range []string{"hilt-init", "hilt-1-init"} {
+		if _, ok := doc.Services[name]; ok {
+			t.Errorf("%s got environment:\n%s", name, data)
+		}
+	}
+}
+
+func TestRenderEnvOverrideRejectsBadInput(t *testing.T) {
+	for _, name := range []string{"", "A=B", "A B"} {
+		if _, err := RenderEnvOverride(map[string]map[string]string{"swarf": {name: "x"}}, Instances{}); err == nil {
+			t.Errorf("expected an error for variable name %q", name)
+		}
+	}
+	// A manifest with no hilt leaves a hilt override nowhere to go.
+	if _, err := RenderEnvOverride(map[string]map[string]string{"hilt": {"HILT_X": "1"}}, Instances{}); err == nil {
+		t.Error("expected an error for a service with no instances")
+	}
+}
